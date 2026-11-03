@@ -1,8 +1,10 @@
 # Turning over the Rocks: a global equity screening pipeline
 
-**Most stock screens compare numbers that are not comparable and hide the judgement behind them. This pipeline
-ranks about 9,500 listed companies in 69 countries, measures every company on one explicit yardstick, and keeps
-every number traceable to the company's own reports.**
+A personal research project: a batch pipeline that ranks about 9,500 listed companies in 69 countries on value and
+quality. It applies the same written rules to every company and records where each figure comes from.
+
+> **Not financial advice.** The rankings are a starting point for reading a company's reports, not a
+> recommendation to buy or sell. See [Data source and terms](#data-source-and-terms).
 
 **[Read the architecture →](ARCHITECTURE.md)**
 
