@@ -861,6 +861,19 @@ def total_return_history(tickers: list[str], start: pd.Timestamp) -> pd.DataFram
     return close.to_frame(tickers[0]) if isinstance(close, pd.Series) else close
 
 
+def total_and_price_history(tickers: list[str], start: pd.Timestamp) -> pd.DataFrame:
+    """Daily closes (quote currency) since `start`, one batch request, columns (kind, ticker): `Total` adjusted for
+    dividends and splits (Yahoo's adjusted close), `Price` for splits only. The gap between the two is the dividends,
+    so the forward test can store what they added and check it (`forward._rows`)."""
+    data = yf.download(tickers, start=f"{start:%Y-%m-%d}", interval="1d", progress=False, auto_adjust=False)
+
+    def closes(column: str) -> pd.DataFrame:
+        close = data[column]
+        return close.to_frame(tickers[0]) if isinstance(close, pd.Series) else close
+
+    return pd.concat({"Total": closes("Adj Close"), "Price": closes("Close")}, axis=1)
+
+
 PRICE_BREAK = 3.0  # a one-day move this large (either way) is a basis change, not a price move
 
 

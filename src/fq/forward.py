@@ -4,9 +4,11 @@ two ETFs.
 The lists on the site move with every price and every report, so they cannot say on their own whether a list
 worked. The lists as published at `START` are frozen (`freeze_cohort`, never rewritten), each bought in equal
 amounts per company and held without trading (buy and hold: the weights drift with prices). At every completed
-month-end the USD total return (dividends reinvested, as Yahoo's adjusted closes) of each member is stored
-(`ledger`), and each list and the portfolio is compared with `BENCHMARKS` (S&P 500 and total world ETFs). Pure functions except the parquet I/O and `update`, which takes the price and FX downloads as
-arguments.
+month-end the USD total return (dividends reinvested on the ex-date, gross of withholding tax, as Yahoo's adjusted
+closes) of each member is stored (`ledger`), with its price-only return beside it (`Price_Return`, from the closes
+adjusted for splits only: the gap is what the dividends added). Each list and the portfolio is compared with
+`BENCHMARKS` (S&P 500 and total world ETFs), measured the same way. Pure functions except the parquet I/O and
+`update`, which takes the price and FX downloads as arguments.
 
 The ledger runs from `BACK_MONTHS` before `START` (`back_start`): the months up to `START` are the backward test
 (the frozen lists were picked knowing those prices, so it is hindsight, not evidence), the months after it the
@@ -24,10 +26,11 @@ Because a stored month is final, what is stored is guarded (Nov 1, 2026). A down
 retried (`update`, `MAX_STALE_SHARE`); a member whose price came back catches up in its next month from its last priced
 mark (`_anchors`). A jump of `UNIT_BREAK` in a day is a change of quote unit and is left out (`price_breaks`). Yahoo's
 later corrections (a split or dividend recorded late) are found by measuring the last stored month again and carried
-into the new month, never by rewriting a row (`reconcile`). Whatever these touch is marked `Check` and named on the page.
+into the new month, never by rewriting a row (`reconcile`; one month back only). A month whose dividends look
+implausible (`DIVIDEND_JUMP`) is kept but checked. Whatever these touch is marked `Check` and named on the page.
 
 Lists born after the freeze are added once in `ADDED_FILE` (`LATE_LISTS`), bought at the same close: allowed only when no
-main market has traded since it.
+price after it reached the list's choice (ranked from a cache written before the main markets traded again).
 """
 
 import logging
@@ -73,10 +76,16 @@ MAX_STALE_SHARE = 0.2  # above this share of tickers without a price, a month is
 UNIT_BREAK = (
     20.0  # a one-day move this large (either way) is a change of quote unit (BCG.L, pence to euros), not a return
 )
-RECONCILE_GAP = 0.05  # a stored month differing this much from the same month measured again: Yahoo corrected something
+# A stored month differing this much from the same month measured again: Yahoo corrected something. Small (Nov 3,
+# 2026; was 0.05, sized for splits), so a dividend Yahoo records after the month-end run (0.3-3% typically) is not lost.
+RECONCILE_GAP = 0.002
+DIVIDEND_JUMP = 0.15  # a month's dividends above this share of the price (or below -1%): a Yahoo dividend to check
+DIVIDEND_SLACK = 0.01  # adjusted closes a little below the plain ones: rounding, not worth a check
 COHORT_COLUMNS = ("List", "Ticker", "Position", "Name", "Country", "Currency", "Value_Score", "Quality_Score")
 
-PriceFetch = Callable[[list[str], pd.Timestamp], pd.DataFrame]  # `fetch.total_return_history`
+# `fetch.total_and_price_history` (columns (Total|Price, ticker)); a plain frame of adjusted closes also works, with
+# `Price_Return` left unknown.
+PriceFetch = Callable[[list[str], pd.Timestamp], pd.DataFrame]
 FxHistory = Callable[[str], pd.Series | None]  # `fx._usd_history`
 
 
@@ -295,7 +304,9 @@ def growth(ledger: pd.DataFrame, start: pd.Timestamp) -> pd.DataFrame:
 
 def series_values(cohort: pd.DataFrame, ledger: pd.DataFrame, start: pd.Timestamp) -> pd.DataFrame:
     """Cumulative USD total return (%) of every list (equal weight at entry, then held: the mean of its members'
-    values) and of each benchmark, at `start` (0) and every mark. Columns: lists in cohort order, then benchmarks."""
+    values) and of each benchmark, at `start` (0) and every mark. Columns: lists in cohort order, then benchmarks.
+    A member with no ledger row at all (never priced, so no entry price) is left out of its list's mean, not held as
+    cash; `summary`'s `Members` still counts it."""
     value = growth(ledger, start)
     out = {}
     for name, members in cohort.groupby("List", sort=False)["Ticker"]:
@@ -304,6 +315,14 @@ def series_values(cohort: pd.DataFrame, ledger: pd.DataFrame, start: pd.Timestam
     for ticker, label in BENCHMARKS.items():
         out[label] = value[ticker] if ticker in value.columns else pd.Series(np.nan, index=value.index)
     return (pd.DataFrame(out) - 1) * 100
+
+
+def price_values(cohort: pd.DataFrame, ledger: pd.DataFrame, start: pd.Timestamp) -> pd.DataFrame | None:
+    """`series_values` on the price-only returns (dividends left out), or None when a row lacks them (months stored
+    before Nov 3, 2026, or a download without plain closes)."""
+    if ledger.empty or "Price_Return" not in ledger.columns or ledger["Price_Return"].isna().any():
+        return None
+    return series_values(cohort, ledger.assign(Return=ledger["Price_Return"]), start)
 
 
 def _stale_now(ledger: pd.DataFrame) -> set[str]:
@@ -322,9 +341,10 @@ def _max_drawdown(cum_pct: pd.Series) -> float:
 def summary(
     values: pd.DataFrame, cohort: pd.DataFrame, ledger: pd.DataFrame, live: pd.DataFrame | None = None
 ) -> pd.DataFrame:
-    """One row per series: return to date, excess over each benchmark (points), annualised return (once a year has
-    passed), worst fall from a high (monthly marks), share of months ahead of the world ETF, share of members ahead of
-    it, stale members and, with `live` (today's published lists), how many members are still on their list."""
+    """One row per series: return to date, the part of it the dividends added (points: total minus price-only return;
+    only when every row has its price-only return), excess over each benchmark (points), annualised return (once a
+    year has passed), worst fall from a high (monthly marks), share of months ahead of the world ETF, share of members
+    ahead of it, stale members and, with `live` (today's published lists), how many members are still on their list."""
     start, last = values.index[0], values.index[-1]
     months = (last.year - start.year) * 12 + (last.month - start.month)
     years = (last - start).days / 365.25
@@ -334,12 +354,15 @@ def summary(
     stale_now = _stale_now(ledger)
     live_pairs = set(zip(live["List"].replace(RENAMED), live["Ticker"], strict=True)) if live is not None else None
     world_member = member_value.get(WORLD, np.nan)
+    price = price_values(cohort, ledger, start)
     rows = []
     for name in values.columns:
         ret = values[name].iloc[-1]
         members = cohort.loc[cohort["List"] == name, "Ticker"]
         row = {"Series": name, "Kind": "benchmark" if name in BENCHMARKS.values() else "list",
                "Members": len(members) or np.nan, "Return": ret}  # fmt: skip
+        if price is not None:
+            row["Dividends"] = ret - price[name].iloc[-1]
         for ticker, label in BENCHMARKS.items():
             row[f"vs {ticker}"] = ret - values[label].iloc[-1] if label in values.columns else np.nan
         row["Annualised"] = ((1 + ret / 100) ** (1 / years) - 1) * 100 if years >= 1 and pd.notna(ret) else np.nan
@@ -393,28 +416,63 @@ def _currencies(cohort: pd.DataFrame) -> dict[str, str | None]:
 
 
 def _download_usd(cohort: pd.DataFrame, since: pd.Timestamp, fetch: PriceFetch, fx_history: FxHistory):
-    """(USD closes of every member and benchmark, unit breaks left out; `price_breaks`' breaks; tickers without FX)."""
+    """(USD total-return closes of every member and benchmark, unit breaks left out; the same for the closes adjusted
+    for splits only, None when the fetch gave none; `price_breaks`' breaks of the total-return closes; tickers
+    without FX)."""
     tickers = sorted(set(cohort["Ticker"]) | set(BENCHMARKS))
-    prices = download(tickers, since - pd.Timedelta(days=LOOKBACK_DAYS), fetch).reindex(columns=tickers)
-    prices, breaks = price_breaks(prices)
-    prices, no_fx = to_usd(prices, _currencies(cohort), fx_history)
-    return prices, breaks, no_fx
+    raw = download(tickers, since - pd.Timedelta(days=LOOKBACK_DAYS), fetch)
+    kinds = set(raw.columns.get_level_values(0)) if isinstance(raw.columns, pd.MultiIndex) else set()
+    total = (raw["Total"] if "Total" in kinds else raw).reindex(columns=tickers)
+    total, breaks = price_breaks(total)
+    total, no_fx = to_usd(total, _currencies(cohort), fx_history)
+    plain = None
+    if "Price" in kinds:
+        plain, _ = price_breaks(raw["Price"].reindex(columns=tickers))
+        plain, _ = to_usd(plain, _currencies(cohort), fx_history)
+    return total, plain, breaks, no_fx
 
 
-def _rows(returns: pd.DataFrame, marks: list[pd.Timestamp], breaks: pd.DataFrame, no_fx: list) -> pd.DataFrame:
-    """Ledger rows: `Measured` keeps the month as measured (`Return` may carry a correction), `Check` marks a month
-    with a price break."""
+def _price_returns(
+    plain: pd.DataFrame | None, marks: list[pd.Timestamp], anchors: dict[str, pd.Timestamp] | None = None
+) -> pd.DataFrame | None:
+    """(Date, Ticker, Price_Return) over the same steps as the total return; unknown where the plain close is stale."""
+    if plain is None:
+        return None
+    out = period_returns(plain, marks, anchors)
+    return out.assign(Price_Return=out["Return"].where(~out["Stale"].astype(bool)))[["Date", "Ticker", "Price_Return"]]
+
+
+def _rows(
+    returns: pd.DataFrame,
+    marks: list[pd.Timestamp],
+    breaks: pd.DataFrame,
+    no_fx: list,
+    price: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Ledger rows: `Measured` keeps the month as measured (`Return` may carry a correction), `Price_Return` the
+    price-only return (`_price_returns`; 0 for a stale member, unknown without plain closes), `Check` marks a month
+    with a price break or with dividends outside [-`DIVIDEND_SLACK`, `DIVIDEND_JUMP`] of the price (a dividend Yahoo
+    recorded in the wrong unit or size)."""
     index = pd.DatetimeIndex(marks)
     flagged = {(marks[index.searchsorted(d)], t) for d, t in zip(breaks["Date"], breaks["Ticker"], strict=True)
                if marks[0] < d <= marks[-1]}  # fmt: skip
     check = [(d, t) in flagged for d, t in zip(returns["Date"], returns["Ticker"], strict=True)]
-    return returns.assign(No_FX=returns["Ticker"].isin(no_fx), Check=check, Measured=returns["Return"])
+    out = returns.assign(No_FX=returns["Ticker"].isin(no_fx), Check=check, Measured=returns["Return"])
+    if price is None:
+        return out.assign(Price_Return=np.nan)
+    out = out.merge(price, on=["Date", "Ticker"], how="left")
+    out["Price_Return"] = out["Price_Return"].where(~out["Stale"].astype(bool), 0.0)
+    dividends = (1 + out["Return"]) / (1 + out["Price_Return"]) - 1
+    out["Check"] = out["Check"] | dividends.gt(DIVIDEND_JUMP) | dividends.lt(-DIVIDEND_SLACK)
+    return out
 
 
 def _with_guards(ledger: pd.DataFrame) -> pd.DataFrame:
-    """A ledger stored before the guards: old rows gain the columns, their returns stay."""
+    """A ledger stored before the guards: old rows gain the columns (`Price_Return` unknown), their returns stay."""
     if "Check" not in ledger.columns:
         ledger = ledger.assign(Check=False)
+    if "Price_Return" not in ledger.columns:
+        ledger = ledger.assign(Price_Return=np.nan)
     return ledger if "Measured" in ledger.columns else ledger.assign(Measured=ledger["Return"])
 
 
@@ -426,8 +484,9 @@ def _marks(ledger: pd.DataFrame, start: pd.Timestamp) -> list[pd.Timestamp]:
 def reconcile(ledger: pd.DataFrame, prices: pd.DataFrame, start: pd.Timestamp) -> dict[str, float]:
     """Ticker -> factor still owed on the last stored month: that month measured again over as stored, where the two
     differ by more than `RECONCILE_GAP`. A ratio of adjusted closes survives a later dividend, so a gap means Yahoo
-    changed something (a split recorded late). Not for a month without prices, then or now, or one that was catching up
-    (it spans more than a month). Compares with `Measured`, so a correction carried once is not carried again."""
+    changed something (a split or a dividend recorded late, a corrected close). Not for a month without prices, then
+    or now, or one that was catching up (it spans more than a month). Compares with `Measured`, so a correction carried
+    once is not carried again. Only the last stored month is measured again: a correction found later is not carried."""
     prev, last = _marks(ledger, start)[-2:]
     stored = ledger[ledger["Date"] == last].set_index("Ticker")
     caught_up = set(ledger.loc[(ledger["Date"] == prev) & ledger["Stale"].astype(bool), "Ticker"])
@@ -461,8 +520,8 @@ def _backfill(ledger: pd.DataFrame, cohort: pd.DataFrame, fetch: PriceFetch, fx_
     if not missing:
         return ledger
     marks = _marks(ledger, cohort["Start"].iloc[0])
-    prices, breaks, no_fx = _download_usd(cohort[cohort["Ticker"].isin(missing)], marks[0], fetch, fx_history)
-    new = _rows(period_returns(prices, marks), marks, breaks, no_fx)
+    prices, plain, breaks, no_fx = _download_usd(cohort[cohort["Ticker"].isin(missing)], marks[0], fetch, fx_history)
+    new = _rows(period_returns(prices, marks), marks, breaks, no_fx, _price_returns(plain, marks))
     new = new[new["Ticker"].isin(missing)]
     priced = new.loc[~new["Stale"].astype(bool), "Ticker"].unique()
     if not len(priced):
@@ -489,9 +548,9 @@ def update(folder: Path, today: pd.Timestamp, fetch: PriceFetch, fx_history: FxH
         return ledger if ledger is not None else period_returns(pd.DataFrame(), [])
     anchors = _anchors(ledger, start) if stored else {}
     since = min([*anchors.values(), _marks(ledger, start)[-2] if stored else last])
-    prices, breaks, no_fx = _download_usd(cohort, since, fetch, fx_history)
+    prices, plain, breaks, no_fx = _download_usd(cohort, since, fetch, fx_history)
     marks = [last, *due]
-    new = _rows(period_returns(prices, marks, anchors), marks, breaks, no_fx)
+    new = _rows(period_returns(prices, marks, anchors), marks, breaks, no_fx, _price_returns(plain, marks, anchors))
     if _failed_download(new):
         return ledger if ledger is not None else period_returns(pd.DataFrame(), [])
     owed = reconcile(ledger, prices, start) if stored else {}

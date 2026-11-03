@@ -312,3 +312,48 @@ def test_late_list_is_added_once_outside_the_cohort_and_backfilled(tmp_path, mon
     gate = pd.DataFrame({"Ticker": ["NEW"], "Moat": [1.0], "Management": [1.0], "Passes": [False],
                          "Graded_At": pd.to_datetime(["2024-04-07"])})  # fmt: skip
     assert "NEW" in set(forward.apply_gate(cohort, gate)["Ticker"])  # the gate does not apply to it
+
+
+def test_dividend_recorded_late_is_carried_once_into_the_next_month(tmp_path, monkeypatch):
+    folder = _setup(tmp_path, monkeypatch)
+    # April was stored flat; Yahoo then recorded a 2% dividend gone ex in late April: April's start is scaled down.
+    _stored(folder, [(t, 0.0, False) for t in ("A", "B", "SPY", "VT")])
+
+    def fetch(tickers, since):
+        days = pd.bdate_range(since, "2024-07-15")
+        return _flat(since, tickers).assign(A=np.where(days < pd.Timestamp("2024-04-25"), 98.0, 100.0))
+
+    ledger = forward.update(folder, pd.Timestamp("2024-06-02"), fetch, lambda c: None)
+    row = ledger[ledger["Date"] == MONTHS[2]].set_index("Ticker")
+    assert row.at["A", "Return"] == pytest.approx(100 / 98 - 1) and row.at["A", "Check"]
+    assert forward.growth(ledger, MONTHS[0]).iloc[-1]["A"] == pytest.approx(100 / 98)  # the dividend, counted once
+    ledger = forward.update(folder, pd.Timestamp("2024-07-02"), fetch, lambda c: None)
+    assert ledger[ledger["Date"] == MONTHS[3]].set_index("Ticker").at["A", "Return"] == pytest.approx(0.0)
+
+
+def _both(total, price):
+    """A fetch result like `fetch.total_and_price_history`."""
+    return pd.concat({"Total": total, "Price": price}, axis=1)
+
+
+def test_price_return_is_stored_and_the_dividends_split_out(tmp_path, monkeypatch):
+    folder = _setup(tmp_path, monkeypatch)
+    _stored(folder, [(t, 0.0, False) for t in ("A", "B", "SPY", "VT")])
+
+    def fetch(tickers, since):  # A pays 3% in May (total up 3%, price flat); B's Yahoo dividend is 40%: a unit error
+        days = pd.bdate_range(since, "2024-07-15")
+        total = _flat(since, tickers).assign(A=np.where(days <= MONTHS[1], 100 / 1.03, 100.0),
+                                             B=np.where(days <= MONTHS[1], 100 / 1.4, 100.0))  # fmt: skip
+        return _both(total, _flat(since, tickers))
+
+    ledger = forward.update(folder, pd.Timestamp("2024-06-02"), fetch, lambda c: None)
+    assert ledger[ledger["Date"] == MONTHS[1]]["Price_Return"].isna().all()  # stored before: unknown, kept
+    row = ledger[ledger["Date"] == MONTHS[2]].set_index("Ticker")
+    assert row.at["A", "Return"] == pytest.approx(0.03) and row.at["A", "Price_Return"] == pytest.approx(0.0)
+    assert not row.at["A", "Check"] and row.at["B", "Check"]  # 3% is a dividend, 40% is to check
+
+    cohort = forward.load_cohort(folder)
+    fwd = ledger[ledger["Date"] > MONTHS[1]]
+    table = forward.summary(forward.series_values(cohort, fwd, MONTHS[1]), cohort, fwd).set_index("Series")
+    assert table.at["L", "Dividends"] == pytest.approx((3 + 40) / 2)  # equal weight: the mean of A's and B's
+    assert "Dividends" not in forward.summary(forward.series_values(cohort, ledger, MONTHS[0]), cohort, ledger)

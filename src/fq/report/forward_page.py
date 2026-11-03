@@ -18,6 +18,7 @@ from fq.report.links import slug
 RESULT_COLUMNS = (
     ("Companies", "Members", ".0f", "", "Companies frozen in the list on the start date, each bought for the same amount.", True),
     ("Return", "Return", "+.1f", "%", "Total return since the start, in US dollars, dividends reinvested.", True),
+    ("Of which dividends", "Dividends", "+.1f", " pp", "How much of the return the dividends added: the total return minus the return from the price alone, in percentage points.", True),
     ("vs SPY", "vs SPY", "+.1f", " pp", "Return minus the S&P 500 ETF's, in percentage points.", True),
     ("vs VT", "vs VT", "+.1f", " pp", "Return minus the total world ETF's, in percentage points.", True),
     ("Per year", "Annualised", "+.1f", "%", "Compound return per year; shown once a full year has passed.", True),

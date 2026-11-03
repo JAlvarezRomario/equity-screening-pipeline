@@ -221,7 +221,7 @@ def forward_step(cfg: Settings, ranked: pd.DataFrame, h: Highlights, offline: bo
         late = {name: frame for name, when in forward.LATE_LISTS.items() for d, frame in tabs.items()
                 if d.normalize() == when and name in set(frame["List"])}  # fmt: skip
         result = forward.step(cfg.data_dir / "forward", published, ranked, portfolio(), pd.Timestamp.now(),
-                              fetch_mod.total_return_history, fx._usd_history, method=evaluate_mod.method_fingerprint(),
+                              fetch_mod.total_and_price_history, fx._usd_history, method=evaluate_mod.method_fingerprint(),
                               published_on=published_on, offline=offline, grades=gate_grades(cfg), late=late)  # fmt: skip
     except Exception as exc:  # never lose the report to the forward test
         log.warning("Forward test skipped: %s", exc, exc_info=True)

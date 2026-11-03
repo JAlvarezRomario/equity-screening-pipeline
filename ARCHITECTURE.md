@@ -253,6 +253,7 @@ erDiagram
         date Date PK "month-end"
         string Ticker PK
         float Return "USD, with dividends"
+        float Price_Return "USD, price only (since Nov 2026)"
         bool Stale "held at last price"
     }
 ```
