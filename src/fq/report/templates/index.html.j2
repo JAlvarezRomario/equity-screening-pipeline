@@ -62,7 +62,7 @@
     <li><strong>Moat and management grades</strong> (AI): yearly, or when a new annual report lands.</li>
   </ul>
   <p class="muted">The site is rebuilt by hand; the date above is its newest data, and each company page gives its own.</p>
-  <p>Start with the first row of tabs below, <em>Start here</em>, then open any company for its figures and charts. Hover a column header for its definition.</p>
+  <p>Start with the first group of lists below, <em>Start here</em>, then open any company for its figures and charts. Hover a column header for its definition.</p>
   <details class="explain">
   <summary>Precise definitions</summary>
   <dl class="definitions">
@@ -83,7 +83,8 @@
     <p class="muted">{{ top_list_note }}</p>
   </details>
   <div class="tabs" role="tablist" aria-label="Highlights" hidden>
-    {% for t in tabs %}{% if loop.first or t.group != loop.previtem.group %}<span class="tab-group" aria-hidden="true">{{ groups[t.group].heading }}</span>{% endif %}<button type="button" role="tab" data-panel="{{ t.panel }}">{{ t.name }}</button>{% endfor %}
+    {#- One block per group: its heading on top, its lists in a row below. -#}
+    {% for t in tabs %}{% if loop.first or t.group != loop.previtem.group %}{% if not loop.first %}</div></div>{% endif %}<div class="tab-set" role="presentation"><span class="tab-group" aria-hidden="true">{{ groups[t.group].heading }}</span><div class="tab-row" role="presentation">{% endif %}<button type="button" role="tab" data-panel="{{ t.panel }}">{{ t.name }}</button>{% if loop.last %}</div></div>{% endif %}{% endfor %}
   </div>
 
   {% for t in tabs %}

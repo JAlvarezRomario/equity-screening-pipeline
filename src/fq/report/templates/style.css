@@ -157,8 +157,8 @@ html.light .icon-moon { display: none !important; }
 
 /* --- Tabs (highlights): every panel shows until main.js sets them up --- */
 .tabs {
-  display: flex; gap: 0.25em; padding: 0.25em; margin-bottom: 1.1em; width: max-content; max-width: 100%;
-  overflow-x: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+  display: flex; flex-direction: column; gap: 0.7em; padding: 0.75em 0.85em; margin-bottom: 1.1em; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
 }
 .tabs button {
   border: 0; background: transparent; color: var(--muted); font: 500 0.88em/1.2 var(--font);
@@ -166,8 +166,9 @@ html.light .icon-moon { display: none !important; }
 }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
-/* Wide screens: every tab in sight (two rows if needed); phones keep the one swipeable strip. */
-@media (min-width: 760px) { .tabs { flex-wrap: wrap; border-radius: 18px; } }
+/* Each group's lists in one row under its heading: wrapped on wide screens, one swipeable strip on phones. */
+.tab-row { display: flex; flex-wrap: wrap; gap: 0.25em; }
+@media (max-width: 759px) { .tab-row { flex-wrap: nowrap; overflow-x: auto; } }
 .tab-panel + .tab-panel { margin-top: 1.8em; }
 .tabbed .tab-panel { margin-top: 0; }
 .tabbed .tab-panel[hidden] { display: none; }
@@ -519,11 +520,12 @@ tr.fw-portfolio td:first-child { font-weight: 650; }
 .fw-groups details { border-top: 1px solid var(--border); padding: 0.6em 0; }
 
 /* --- Highlight tab groups (Start here / By style / Raw scores) and the fold of rows below the grade bar --- */
+.tab-set { display: flex; flex-direction: column; gap: 0.3em; min-width: 0; }
+.tab-set + .tab-set { border-top: 1px solid var(--border); padding-top: 0.65em; }
 .tabs .tab-group {
-  align-self: center; padding: 0 0.4em 0 0.7em; color: var(--muted); font: 600 0.72em/1.2 var(--font);
+  padding: 0 1.2em; color: var(--muted); font: 600 0.72em/1.2 var(--font);  /* level with the buttons' text */
   text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
 }
-.tabs .tab-group:not(:first-child) { margin-left: 0.4em; border-left: 1px solid var(--border); padding-left: 0.9em; }
 .tab-kicker { margin: 0 0 0.35em; font-size: 0.85em; color: var(--muted); }
 .tab-kicker strong { color: var(--text); font-weight: 600; }
 .explain.below-bar { margin-top: 0.8em; }
