@@ -5,9 +5,12 @@ Functions take a `Settings` (and a `Selection` where they work on a run's ticker
 `cfg.data_dir`. A problem the user can fix (a missing cache, a bad set name) raises `PipelineError`.
 """
 
+import fnmatch
 import logging
 import os
+import shutil
 from collections import Counter
+from pathlib import Path
 from typing import Literal
 
 import pandas as pd
@@ -30,6 +33,32 @@ Mode = Literal["auto", "full", "prices", "new"]
 
 class PipelineError(Exception):
     """Something the user can fix (a missing cache or a set that does not exist); the command line shows it."""
+
+
+# What `clean --cache` never deletes (Nov 3, 2026): records that cannot be downloaded again. The forward test is
+# dated as it happened, the grades cost real money, and the score snapshots and raw archives are what `fq
+# evaluate` and `--rescore` follow forward. Delete them by hand if ever needed.
+PROTECTED_DATA = ("forward", "forward_backup_*", "snapshots", "grades*.parquet", "grade_gate*.parquet")
+
+
+def clean(output_dir: Path, data_dir: Path, cache: bool = False) -> tuple[list[Path], list[Path]]:
+    """Delete the generated site (`output_dir`) and, with `cache`, everything in `data_dir` that can be rebuilt
+    (downloads, rankings, rates), keeping `PROTECTED_DATA`. Returns (removed, kept)."""
+    removed, kept = [], []
+
+    def remove(path: Path) -> None:
+        shutil.rmtree(path) if path.is_dir() else path.unlink()
+        removed.append(path)
+
+    if output_dir.exists():
+        remove(output_dir)
+    if cache and data_dir.exists():
+        for path in sorted(data_dir.iterdir()):
+            if any(fnmatch.fnmatch(path.name, pattern) for pattern in PROTECTED_DATA):
+                kept.append(path)
+            else:
+                remove(path)
+    return removed, kept
 
 
 def portfolio() -> frozenset[str]:

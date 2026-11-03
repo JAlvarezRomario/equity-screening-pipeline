@@ -236,6 +236,40 @@ def test_raw_archive_rescored_with_todays_method(cfg):
     assert _rescore(test_cfg, stored, until=pd.Timestamp("2023-12-31")) == {}  # too young to evaluate
 
 
+def test_unchanged_raw_archive_is_a_hard_link_and_every_date_stays(cfg):
+    raw = make_raw(cfg, n=5)
+    days = [pd.Timestamp("2024-01-02"), pd.Timestamp("2024-01-03"), pd.Timestamp("2024-01-04")]
+    first = save_raw_archive(raw, cfg.snapshot_dir, days[0], benchmark=[])
+    second = save_raw_archive(raw, cfg.snapshot_dir, days[1], benchmark=[])
+    assert list(load_raw_archives(cfg.snapshot_dir)) == days[:2]
+    assert second.stat().st_ino == first.stat().st_ino  # the same file, no second copy
+    changed = raw.assign(currentPrice=raw["currentPrice"] * 1.1)
+    third = save_raw_archive(changed, cfg.snapshot_dir, days[2], benchmark=[])
+    assert third.stat().st_ino != second.stat().st_ino
+    # Rewriting a linked day with new data replaces its own entry and never alters the day it was linked to.
+    save_raw_archive(changed, cfg.snapshot_dir, days[1], benchmark=[])
+    pd.testing.assert_frame_equal(pd.read_parquet(first).drop(columns="In_Benchmark"), raw)
+    assert not list((cfg.snapshot_dir / "raw").glob("*.tmp"))
+
+
+def test_clean_cache_keeps_what_cannot_be_downloaded_again(tmp_path):
+    from fq.pipeline import clean
+
+    data, out = tmp_path / "data", tmp_path / "output"
+    for d in ("forward", "forward_backup_x", "snapshots/raw", "evaluation"):
+        (data / d).mkdir(parents=True)
+    for f in ("grades.parquet", "grade_gate_v1_backup.parquet", "raw.parquet", "ranked_benchmark.parquet", "fx.json"):
+        (data / f).write_text("x")
+    (out / "benchmark").mkdir(parents=True)
+    removed, kept = clean(out, data, cache=False)
+    assert removed == [out] and kept == [] and (data / "raw.parquet").exists()
+    removed, kept = clean(out, data, cache=True)
+    assert {p.name for p in data.iterdir()} == {
+        "forward", "forward_backup_x", "snapshots", "grades.parquet", "grade_gate_v1_backup.parquet"
+    }  # fmt: skip
+    assert {p.name for p in removed} == {"evaluation", "raw.parquet", "ranked_benchmark.parquet", "fx.json"}
+
+
 def test_published_tabs_are_followed_when_their_method_matches(cfg):
     from fq.evaluate import load_published, save_published
 

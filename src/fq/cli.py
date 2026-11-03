@@ -4,7 +4,6 @@ Options and prompts only; the work is in `fq.pipeline`."""
 
 import functools
 import logging
-import shutil
 from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
@@ -313,14 +312,18 @@ def evaluate(
 @_usage
 def clean(
     output_dir: OutDirOpt = Path("output"),
-    cache: Annotated[bool, typer.Option(help="Also delete the data cache.")] = False,
+    cache: Annotated[
+        bool,
+        typer.Option(help="Also delete the data cache (keeps the forward test, grades and snapshots)."),
+    ] = False,
     data_dir: DataDirOpt = Path("data"),
 ) -> None:
-    """Delete generated reports (and optionally the cache)."""
-    for path in [output_dir, *([data_dir] if cache else [])]:
-        if path.exists():
-            shutil.rmtree(path)
-            typer.echo(f"Removed {path}")
+    """Delete generated reports (and optionally the cache that can be downloaded again)."""
+    removed, kept = pipeline.clean(output_dir, data_dir, cache)
+    for path in removed:
+        typer.echo(f"Removed {path}")
+    for path in kept:
+        typer.echo(f"Kept {path} (cannot be downloaded again; delete by hand if ever needed)")
 
 
 def main() -> None:

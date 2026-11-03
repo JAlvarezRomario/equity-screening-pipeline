@@ -14,6 +14,7 @@ compare methods on the same dates instead of waiting months for each.
 
 import hashlib
 import logging
+import os
 from importlib import resources
 from pathlib import Path
 
@@ -109,12 +110,41 @@ def load_published(folder: Path, label: str) -> dict[pd.Timestamp, pd.DataFrame]
 def save_raw_archive(raw: pd.DataFrame, folder: Path, day: pd.Timestamp, benchmark: list[str]) -> Path:
     """The raw cache as it stood on `day` (`<folder>/raw/<YYYY-MM-DD>.parquet`), with `In_Benchmark` marking that
     day's benchmark members, so a later method can score the same date without look-ahead. One per day (the
-    cache only grows within a day, so the last run's copy holds the others)."""
+    cache only grows within a day, so the last run's copy holds the others).
+
+    A copy byte-identical to the newest earlier archive (an offline run on an unchanged cache) is stored as a
+    hard link to it, so every date stays for `--rescore` at no disk cost (Nov 3, 2026: 32 MB a day). Written to a
+    temporary file and renamed, never in place, so rewriting a day never alters a file linked to another day."""
     target = folder / "raw"
     target.mkdir(parents=True, exist_ok=True)
     path = target / f"{day:%Y-%m-%d}.parquet"
-    raw.assign(In_Benchmark=raw["Ticker"].isin(set(benchmark))).to_parquet(path, index=False)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        raw.assign(In_Benchmark=raw["Ticker"].isin(set(benchmark))).to_parquet(tmp, index=False)
+        earlier = [p for p in sorted(target.glob("*.parquet")) if p.stem < path.stem]
+        if earlier and same_bytes(tmp, earlier[-1]):
+            path.unlink(missing_ok=True)
+            try:
+                os.link(earlier[-1], path)
+                return path
+            except OSError:  # no hard links on this file system: keep the full copy
+                pass
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     return path
+
+
+def same_bytes(a: Path, b: Path) -> bool:
+    """Whether two files hold the same bytes (size first, then SHA-256)."""
+    if a.stat().st_size != b.stat().st_size:
+        return False
+
+    def digest(p: Path) -> bytes:
+        with p.open("rb") as f:
+            return hashlib.file_digest(f, "sha256").digest()
+
+    return digest(a) == digest(b)
 
 
 def load_raw_archives(folder: Path) -> dict[pd.Timestamp, Path]:
