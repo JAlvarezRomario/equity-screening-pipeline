@@ -61,6 +61,22 @@ def test_archetype_fee_network_signature(cfg):
     assert sources.iloc[0] == "signature:fee_network"
 
 
+def test_archetype_levered_broker_is_not_a_fee_network(cfg):
+    raw = make_raw(cfg, n=1)
+    raw.loc[0, "Ticker"] = "BROKER"
+    raw.loc[0, "industry"] = "Capital Markets"  # base industry model is bank
+    for p in ("TTM", cfg.latest):
+        raw.loc[0, f"Total Assets_{p}"] = 65000.0
+        raw.loc[0, f"Stockholders Equity_{p}"] = 10000.0  # assets 6.5x equity: client funds and margin loans
+        raw.loc[0, f"Total Revenue_{p}"] = 2275.0  # 3.5% of assets
+        raw.loc[0, f"Cash And Cash Equivalents_{p}"] = 27300.0  # 42% of assets, mostly clients'
+        raw.loc[0, f"Net Interest Income_{p}"] = float("nan")  # not reported
+
+    models, sources = detect_archetypes(raw, cfg)
+    assert models.iloc[0] == "bank"
+    assert sources.iloc[0] == "industry"
+
+
 def test_archetype_client_cash_signature(cfg):
     raw = make_raw(cfg, n=1)
     raw.loc[0, "Ticker"] = "CASHCO"

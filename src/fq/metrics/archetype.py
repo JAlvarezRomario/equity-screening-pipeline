@@ -6,6 +6,8 @@ from fq.metrics.common import _col, _latest, _liquidity, _text
 from fq.settings import Settings
 from fq.universe import industry_key, industry_models, model_overrides
 
+FEE_NETWORK_MAX_LEVERAGE = 4.0  # assets / equity a fee business with revenue < 10% of assets may carry
+
 
 def detect_archetypes(df: pd.DataFrame, cfg: Settings) -> tuple[pd.Series, pd.Series]:
     """Detect company archetype and record the deciding rule.
@@ -14,7 +16,10 @@ def detect_archetypes(df: pd.DataFrame, cfg: Settings) -> tuple[pd.Series, pd.Se
     1. Ticker in model_overrides.txt -> override
     2. Policyholder claims -> insurer (signature:claims)
     3. Bank / lender balance sheet + NII -> bank (signature:lender)
-    4. Fee network (Credit Services/Capital Markets with low/no NII and operating balance sheet) -> operating (signature:fee_network)
+    4. Fee network (Credit Services/Capital Markets with low/no NII and operating balance sheet) -> operating (signature:fee_network).
+       A balance sheet over `FEE_NETWORK_MAX_LEVERAGE` x equity with revenue under 10% of assets is no fee
+       network: a securities broker's client funds, margin loans and trading book (CITIC, Guotai Haitong at
+       6.5x) are the business, not spare cash. Such rows fall to the industry model (bank), as Nomura and GS do.
     5. Client cash -> client_cash (signature:client_cash)
     6. Asset-heavy plant -> asset_heavy (signature:plant)
     7. Yahoo industry in business_models.txt -> industry model (industry)
@@ -88,7 +93,7 @@ def detect_archetypes(df: pd.DataFrame, cfg: Settings) -> tuple[pd.Series, pd.Se
 
         # Rule 4: Fee Network (Operating)
         if ind_key in ("creditservices", "capitalmarkets", "financialdatastockexchanges"):
-            is_lender_bs = pd.notna(t_over) and t_over < 0.10 and pd.notna(a_lev) and a_lev > 8.0
+            is_lender_bs = pd.notna(t_over) and t_over < 0.10 and pd.notna(a_lev) and a_lev > FEE_NETWORK_MAX_LEVERAGE
             low_nii = pd.isna(n_rat) or n_rat < 0.15
             if low_nii and not is_lender_bs:
                 models[i] = "operating"

@@ -4,6 +4,7 @@ V      operating    # Visa: payment network, lends nothing (Yahoo: Credit Servic
 MA     operating    # Mastercard: payment network, lends nothing (Yahoo: Credit Services)
 TW     operating    # Tradeweb: electronic bond and swap marketplace, fees only, lends nothing (Yahoo: Capital Markets)
 IREN   operating    # IREN: data centres (bitcoin mining and AI cloud), plant and power, no lending (Yahoo: Capital Markets)
+HUT    operating    # Hut 8: bitcoin mining and data centres, plant and power, no lending (Yahoo: Capital Markets)
 # Hold client money (customer money > 45% of assets, S&P 500 screened Oct 2026, judged by hand) but earn
 # fees: measured like operating companies, without counting that cash as spare.
 CME    client_cash  # CME Group: members' performance bonds and guaranty funds (~84% of assets)
@@ -15,6 +16,7 @@ DB1.DE client_cash  # Deutsche Boerse: Eurex Clearing margin and Clearstream cas
 ADP    client_cash  # ADP: payroll client funds, earns float income (~82% of assets)
 PAYX   client_cash  # Paychex: payroll client funds (~48% of assets)
 PYPL   client_cash  # PayPal: customer balances; Yahoo: Credit Services
+FUTU   client_cash  # Futu: retail broker, client money and margin loans, like IBKR and HOOD; Yahoo: Capital Markets
 # Exchange groups that own a clearing house (Oct 21, 2026, MSCI World review): members' margin and collateral sit on
 # the balance sheet (assets 3x to 200x equity; HKEX cash 23bn of 74bn) and earn the group interest, like CME / ICE / DB1.
 8697.T client_cash    # Japan Exchange Group: JSCC clearing collateral (assets 453bn vs equity 2bn, JPY)
