@@ -33,6 +33,7 @@ from fq.report.tiles import (
     rank_counts,
     score_panel,
     score_tiles,
+    unreliable_reasons,
 )
 from fq.settings import Settings
 
@@ -116,7 +117,9 @@ def _render_company_batch(args: tuple) -> None:
             shown_above |= {"heldPercentInstitutions"}
         notes = data_notes(row, cfg, periods)
         mood = row.get("Mood_Check")  # the plain verdict (`ranking.dislocation`), lifted into "Why it's here"
-        verdict = [n for n in notes if isinstance(mood, str) and n == mood]
+        unreliable = unreliable_reasons(row)
+        # The mood line ("Cheap (Value 99)...") reads the numbers as right: left out when they may not be.
+        verdict = [] if unreliable else [n for n in notes if isinstance(mood, str) and n == mood]
         groups = company_facts(row, also_skip=shown_above, counts=counts)
         row_df = row.to_frame().T
         page = company_tpl.render(
@@ -126,6 +129,7 @@ def _render_company_batch(args: tuple) -> None:
             industry=row.get("industry"),
             model=model_line(row),
             scores=score_panel(row, counts),
+            unreliable=unreliable,
             flags=company_flags(row),
             tiles=tiles,
             drivers=drivers,

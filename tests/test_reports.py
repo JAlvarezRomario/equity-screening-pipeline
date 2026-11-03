@@ -860,3 +860,46 @@ def test_insider_ownership_histogram_in_percent_with_the_owner_led_guide():
     (title, div), *_ = histogram_divs(df)
     assert title == "Insider ownership (%)" and "Owner-led" in div and "n = 3" in div
     assert "60" in div and '"end":100' in div
+
+
+def test_unreliable_figures_are_labelled_on_the_company_page(cfg):
+    """Suspect figures: a "Data not reliable" banner with the reason, faded scores, no rank out of N, no median
+    sentence and no mood line; a company that is only in decline keeps a normal page."""
+    df = _ranked(cfg)
+    suspect, declining = df.loc[0, "Ticker"], df.loc[1, "Ticker"]
+    for flag in ("Data_Suspect", "Insufficient_Data", "Accounting_Flag", "Revenue_Decline"):
+        df[flag] = False
+    df["Model_Review"] = None
+    df.loc[0, ["Data_Suspect", "Suspect_Reasons"]] = [True, "owner earnings yield above 25%"]
+    df.loc[1, "Revenue_Decline"] = True
+    index = build_site(df, cfg)
+    page = lambda t: (index.parent / "companies" / f"{slug(t)}.html").read_text(encoding="utf-8")  # noqa: E731
+    bad, ok = page(suspect), page(declining)
+    assert "Data not reliable" in bad and "owner earnings yield above 25%" in bad
+    assert 'class="score-panel untrusted"' in bad and "After every trusted company" in bad
+    assert "the median company" not in bad and " scored</dd>" not in bad
+    assert "Data not reliable" not in ok and 'class="score-panel"' in ok and "the median company" in ok
+
+
+def test_equity_to_assets_pill_is_not_a_share_of_the_market_cap():
+    from fq.report.tiles import net_cash_pill
+
+    financial = pd.Series({"Financial_Mode": True, "Business_Model": "bank", "Equity_to_Assets": 12.0})
+    assert net_cash_pill(financial)["sub"] is None
+    assert net_cash_pill(pd.Series({"Financial_Mode": False, "Net_Cash_to_Cap": 30.0}))["sub"] == "of cap"
+
+
+def test_unreliable_companies_are_left_off_the_map(cfg):
+    from fq.report.index_charts import quadrant_figure
+
+    df = _ranked(cfg)
+    for flag in ("Data_Suspect", "Insufficient_Data", "Accounting_Flag"):
+        df[flag] = False
+    df["Model_Review"] = None
+    fig, meta = quadrant_figure(df)
+    shown = sum(len(fig.data[m["trace"]].x) for m in meta)
+    df.loc[0, "Data_Suspect"] = True
+    fig, meta = quadrant_figure(df)
+    assert sum(len(fig.data[m["trace"]].x) for m in meta) == shown - 1
+    slugs = [c[0] for m in meta for c in fig.data[m["trace"]].customdata]
+    assert slug(df.loc[0, "Ticker"]) not in slugs

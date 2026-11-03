@@ -24,6 +24,13 @@
 {% block actions %}<a href="../index.html#ranking" class="pill">&larr; Ranking</a>{{ stepper() }}{% endblock %}
 {% block content %}
 <section class="card hero">
+  {% if unreliable %}
+  <div class="data-warning" role="note">
+    <p class="data-warning-title">Data not reliable</p>
+    <ul>{% for r in unreliable %}<li>{{ r }}</li>{% endfor %}</ul>
+    <p>The scores below are as measured, but the company is ranked after every trusted company and appears on no list. Check its reports before reading anything into them.</p>
+  </div>
+  {% endif %}
   <div class="hero-main">
     <div class="company-header">
       <h1 class="company-name">{{ name }} <span class="company-ticker">{{ ticker }}</span></h1>
@@ -33,7 +40,7 @@
         <span class="net-cash-dot"></span>
         <span class="net-cash-label">{{ net_cash_pill.label }}:</span>
         <strong class="net-cash-val">{{ net_cash_pill.value }}</strong>
-        <span class="net-cash-sub">of cap</span>
+        {% if net_cash_pill.sub %}<span class="net-cash-sub">{{ net_cash_pill.sub }}</span>{% endif %}
       </span>
       {% endif %}
       {% if held %}<span class="tag">In portfolio</span>{% endif %}
@@ -57,7 +64,7 @@
       {% for label, url in links %}<a class="pill pill-small" href="{{ url }}" target="_blank" rel="noopener">{{ label }} &nearr;</a>{% endfor %}
     </div>
   </div>
-  <aside class="score-panel" aria-label="Scores">
+  <aside class="score-panel{% if scores.unreliable %} untrusted{% endif %}" aria-label="Scores">
     {{ score_bar("Value", scores.value, "score-v") }}
     {{ score_bar("Quality", scores.quality, "score-q") }}
     <p class="score-sentence">{{ scores.sentence }}</p>

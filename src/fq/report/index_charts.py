@@ -14,6 +14,7 @@ from fq.report.charts import _company_div, _div
 from fq.report.format import benchmark, fmt
 from fq.report.links import slug
 from fq.report.pills import OWNER_LED_MIN
+from fq.report.tiles import unreliable
 
 QUADRANT_JS = """
 <script>
@@ -94,7 +95,8 @@ def _bench_cloud(df: pd.DataFrame, bench: pd.DataFrame | None) -> pd.DataFrame:
     """Benchmark companies with both scores that are not in the run (drawn behind it)."""
     if bench is None or not {"Value_Score", "Quality_Score", "Ticker"} <= set(bench.columns):
         return pd.DataFrame()
-    return bench[~bench["Ticker"].isin(df["Ticker"])].dropna(subset=["Value_Score", "Quality_Score"])
+    cloud = bench[~bench["Ticker"].isin(df["Ticker"]) & ~unreliable(bench)]
+    return cloud.dropna(subset=["Value_Score", "Quality_Score"])
 
 
 def _plain(values, digits: int = 2) -> list:
@@ -109,12 +111,14 @@ def quadrant_figure(
     """The quadrant figure and per-trace metadata; `labels` writes tickers next to dots (for print).
 
     Axes are the 0-100 scores, so 50 is the median of the benchmark (or of the run without one);
-    benchmark companies outside the run form a grey cloud behind it.
+    benchmark companies outside the run form a grey cloud behind it. Companies whose figures may be wrong
+    (`tiles.unreliable`) are left out of the dots, the cloud and the correlation (user's choice, Nov 4, 2026: a
+    misfiled cash flow put them at Value 99, top of the map).
     """
     needed = ["Value_Score", "Quality_Score", "Market Cap", "FCFy_Norm", "shortName", "Ticker", "country"]
     if not all(c in df.columns for c in needed):
         return None
-    d = df.dropna(subset=needed).copy()
+    d = df[~unreliable(df)].dropna(subset=needed).copy()
     if d.empty:
         return None
 

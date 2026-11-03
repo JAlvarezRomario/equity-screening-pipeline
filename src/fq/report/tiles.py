@@ -199,6 +199,7 @@ def net_cash_pill(row: pd.Series) -> dict | None:
             "value": f"{val:.1f}%",
             "cls": "neutral",
             "title": f"Equity / assets: tangible equity is {val:.1f}% of total assets (Bank/Insurer model)",
+            "sub": None,
         }
     val = pd.to_numeric(row.get("Net_Cash_to_Cap"), errors="coerce")
     if pd.isna(val):
@@ -210,6 +211,7 @@ def net_cash_pill(row: pd.Series) -> dict | None:
             "value": f"+{val:.1f}%",
             "cls": "pos",
             "title": f"Net cash: spare cash exceeds total debt and preferreds by {val:.1f}% of market capitalization",
+            "sub": "of cap",
         }
     else:
         return {
@@ -217,12 +219,55 @@ def net_cash_pill(row: pd.Series) -> dict | None:
             "value": f"{val:.1f}%",
             "cls": "neg",
             "title": f"Net debt: total debt and preferreds exceed spare cash by {abs(val):.1f}% of market capitalization",
+            "sub": "of cap",
         }
+
+
+UNRELIABLE_FLAGS = ("Data_Suspect", "Insufficient_Data", "Accounting_Flag")  # with an open `Model_Review`
+
+
+def unreliable(df: pd.DataFrame) -> pd.Series:
+    """Rows whose figures may be wrong (`unreliable_reasons` is not empty): labelled on their page, left off the map."""
+    out = pd.Series(False, index=df.index)
+    for flag in UNRELIABLE_FLAGS:
+        if flag in df.columns:
+            out |= df[flag] == True  # noqa: E712
+    if "Model_Review" in df.columns:
+        out |= df["Model_Review"].map(lambda v: isinstance(v, str) and bool(v.strip()))
+    return out
+
+
+def unreliable_reasons(row: pd.Series) -> list[str]:
+    """Why the company's own figures may be wrong (empty when they are trusted), for the company page's "Data not
+    reliable" banner (user's choice, Nov 3, 2026: a page with Value 99 and "1 of 9,486" read as a find when the
+    numbers behind it were suspect). Only doubts about the numbers or the yardstick count: a real decline, distress
+    or a peak margin is a fact about the business, shown by its tag, not a reason to doubt the page."""
+
+    def flag(name: str) -> bool:
+        return row.get(name) == True  # noqa: E712
+
+    def text(name: str) -> str | None:
+        v = row.get(name)
+        return v if isinstance(v, str) and v.strip() else None
+
+    out = []
+    if flag("Data_Suspect"):
+        out.append(f"Figures that look wrong: {text('Suspect_Reasons') or 'flagged as suspect'}.")
+    if flag("Insufficient_Data"):
+        out.append("Not enough data to score both Value and Quality.")
+    if flag("Accounting_Flag"):
+        out.append(f"Earnings ahead of cash: {text('Accounting_Reasons') or 'accruals'}.")
+    if text("Model_Review"):
+        out.append(
+            f"Business model to confirm, so it may be measured with the wrong yardstick: {text('Model_Review')}."
+        )
+    return out
 
 
 def score_panel(row: pd.Series, counts: dict[str, int]) -> dict:
     """The two scores (0-100 or None), the ranks out of their counts and one exact sentence on where the company
-    stands against the median company."""
+    stands against the median company. With unreliable figures (`unreliable_reasons`) the scores stay as measured
+    but no rank is quoted: the company is ranked after every trusted one (`ranking.py`)."""
 
     def score(col: str) -> int | None:
         v = pd.to_numeric(row.get(col), errors="coerce")
@@ -233,6 +278,10 @@ def score_panel(row: pd.Series, counts: dict[str, int]) -> dict:
         return f"{int(v):,} of {counts.get(col, 0):,} {among}" if pd.notna(v) else None
 
     value, quality = score("Value_Score"), score("Quality_Score")
+    if unreliable_reasons(row):
+        return {"value": value, "quality": quality, "rank": "After every trusted company", "value_rank": None,
+                "quality_rank": None, "sentence": "Not ranked with trusted companies: its figures need checking.",
+                "unreliable": True}  # fmt: skip
     return {"value": value, "quality": quality, "rank": rank("Rank", "ranked"), "value_rank": rank("Value_Rank", "scored"),
             "quality_rank": rank("Quality_Rank", "scored"), "sentence": score_position(value, quality)}  # fmt: skip
 
