@@ -1,6 +1,6 @@
 # Turning over the Rocks: a global equity screening pipeline
 
-A personal research project: a batch pipeline that ranks about 9,500 listed companies in 69 countries on value and
+A batch pipeline that ranks about 9,500 listed companies in 69 countries on value and
 quality. It applies the same written rules to every company and records where each figure comes from.
 
 > **Not financial advice.** The rankings are a starting point for reading a company's reports, not a
