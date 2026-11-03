@@ -1,0 +1,38 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Project
+data/
+output/
+logs/
+.pytest_cache/
+.ruff_cache/
+.firebase/
+firebase-debug.log
+.wrangler/
+*.log
+
+# Third-party documents (copyrighted; reference only, never published)
+REFERENCES/
+
+# Private or third-party: kept on this machine, never in the repo
+portfolio.txt
+support/
+
+# Private: versioned locally in .git-private, never pushed
+.git-private/
+CLAUDE.md
+backlog.md
+docs/*.md
+.claude/
+deploy.bat
+monthly_update.bat
+schedule_monthly.ps1

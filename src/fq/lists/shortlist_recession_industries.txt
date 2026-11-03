@@ -1,0 +1,33 @@
+# Yahoo industries a global recession hits hard, beyond `cyclical_industries.txt` (which the "Shortlist 100" also
+# reads). In these, and for any company flagged Cyclical, the Shortlist keeps only industry leaders (top 10% by
+# revenue in the benchmark, the top 3 always) holding net cash (`report.format._shortlist_gates`; user's choice,
+# Oct 29, 2026: in a global recession only the leaders and winners come through). Display only: no score or rank
+# reads it, and it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per line, as Yahoo spells it.
+Restaurants
+Apparel Retail
+Apparel Manufacturing
+Footwear & Accessories
+Luxury Goods
+Leisure
+Travel Services
+Lodging
+Resorts & Casinos
+Specialty Retail
+Department Stores
+Home Improvement Retail
+Furnishings, Fixtures & Appliances
+Personal Services
+Specialty Industrial Machinery
+Engineering & Construction
+Industrial Distribution
+Electrical Equipment & Parts
+Tools & Accessories
+Integrated Freight & Logistics
+Airports & Air Services
+Packaging & Containers
+Specialty Chemicals
+Electronic Components
+Semiconductors
+Consumer Electronics
+Rental & Leasing Services
+Conglomerates

@@ -1,0 +1,24 @@
+# WIG20 (Warsaw, the index the Beta ETF WIG20TR tracks; WIG20TR is the same 20 shares with dividends).
+# Yahoo Finance tickers: .WA. As of October 21, 2026 (GPW composition; March 2026 annual revision: Tauron in,
+# Orange Polska out). Santander Bank Polska is now Erste Bank Polska (EBP.WA), CCC is now Modivo (MDV.WA).
+# Reviews: annual revision in March, quarterly corrections in June, September and December; refresh by hand.
+ALE.WA
+ALR.WA
+BDX.WA
+CDR.WA
+DNP.WA
+EBP.WA
+KGH.WA
+KRU.WA
+KTY.WA
+LPP.WA
+MBK.WA
+MDV.WA
+PCO.WA
+PEO.WA
+PGE.WA
+PKN.WA
+PKO.WA
+PZU.WA
+TPE.WA
+ZAB.WA

@@ -1,0 +1,6 @@
+# Your holdings, one Yahoo ticker per line (# starts a comment). Copy this file to portfolio.txt (not tracked by git).
+# Holdings are always ranked, marked "held" on the site, and filtered by the Holdings switch.
+AAPL
+MSFT
+SAP.DE
+NESN.SW

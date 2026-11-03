@@ -1,0 +1,18 @@
+# Hang Seng Index members that are Hong Kong companies incorporated in Hong Kong (user's choice, Oct 2026):
+# no red chips (mainland-controlled, HK-incorporated: China Mobile, CNOOC, CITIC...), no H-shares, no groups
+# registered offshore (CK Hutchison, CK Asset, CKI, OOCL, Chow Tai Fook, Sands China), not Lenovo (HK-incorporated,
+# run from Beijing), not HSBC (England). Members per the January 2026 list; the 2026 reviews (88 -> 95)
+# only added mainland names. HSI reviews: quarterly; refresh by hand.
+0002.HK
+0003.HK
+0006.HK
+0388.HK
+1299.HK
+2388.HK
+0066.HK
+0016.HK
+0012.HK
+0101.HK
+0823.HK
+0669.HK
+0027.HK

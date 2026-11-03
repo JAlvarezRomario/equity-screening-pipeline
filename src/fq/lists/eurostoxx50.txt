@@ -1,0 +1,54 @@
+# EURO STOXX 50 (Yahoo Finance tickers). As of the September 2026 review (effective September 21, 2026:
+# Nokia and ENGIE added, Volkswagen preferred and Wolters Kluwer deleted; STOXX notice of September 1,
+# 2026). Reviewed yearly in September; refresh by hand. Members also in the DAX or IBEX 35 are listed here
+# too (the benchmark is a union). Argenx uses Euronext Brussels, Nordea its Helsinki listing.
+ADS.DE
+ADYEN.AS
+AD.AS
+AI.PA
+AIR.PA
+ALV.DE
+ABI.BR
+ARGX.BR
+ASML.AS
+CS.PA
+BAS.DE
+BAYN.DE
+BBVA.MC
+SAN.MC
+BMW.DE
+BNP.PA
+BN.PA
+DBK.DE
+DB1.DE
+DHL.DE
+DTE.DE
+ENEL.MI
+ENI.MI
+EL.PA
+RACE.MI
+RMS.PA
+IBE.MC
+ITX.MC
+IFX.DE
+INGA.AS
+ISP.MI
+OR.PA
+MC.PA
+MBG.DE
+MUV2.DE
+NDA-FI.HE
+PRX.AS
+RHM.DE
+SAF.PA
+SGO.PA
+SAN.PA
+SAP.DE
+SU.PA
+SIE.DE
+ENR.DE
+TTE.PA
+UCG.MI
+DG.PA
+NOKIA.HE
+ENGI.PA

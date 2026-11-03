@@ -1,0 +1,14 @@
+# NASDAQ Next Generation 100 leaders not in existing benchmark or Russell 2000
+ASND
+BBIO
+DKNG
+GFS
+GH
+ICLR
+IONS
+LLYVK
+MDGL
+SMMT
+SYM
+TEM
+Z

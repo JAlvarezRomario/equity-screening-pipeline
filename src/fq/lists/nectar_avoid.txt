@@ -1,0 +1,32 @@
+# Yahoo industries left out of the "Nectar" highlight list (`report.screens.nectar_list`; user's list, Nov 2, 2026), on top
+# of `shortlist_ai_fragile.txt`. Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
+# Editable: one Yahoo industry per line, as Yahoo spells it. Yahoo has no fashion-only, casual-dining or commodity-packaging
+# industry, so Specialty Retail, Restaurants and Packaging & Containers go whole. The last three are the AI additions.
+Biotechnology
+Drug Manufacturers - Specialty & Generic
+Airlines
+Auto Manufacturers
+Telecom Services
+Solar
+Utilities - Renewable
+Oil & Gas E&P
+Agricultural Inputs
+Steel
+Aluminum
+Copper
+Apparel Retail
+Apparel Manufacturing
+Department Stores
+Footwear & Accessories
+Specialty Retail
+Restaurants
+Entertainment
+Broadcasting
+Paper & Paper Products
+Publishing
+Packaging & Containers
+Grocery Stores
+Banks - Regional
+Software - Application
+Software - Infrastructure
+Internet Content & Information

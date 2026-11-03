@@ -1,0 +1,12 @@
+Copyright (c) 2026 JAlvarezRomario. All rights reserved.
+
+This repository is published for viewing and evaluation only. No licence is granted to copy, modify, merge,
+publish, distribute, sublicense or sell the software or any part of it, or to use it to build a product or
+service, without the prior written permission of the copyright holder.
+
+Third-party components keep their own licences (see pyproject.toml and uv.lock). Market data is not part of this
+repository; anyone who runs the code downloads it themselves and is responsible for complying with the data
+provider's terms of use.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. NOTHING IN THIS REPOSITORY IS
+INVESTMENT ADVICE.

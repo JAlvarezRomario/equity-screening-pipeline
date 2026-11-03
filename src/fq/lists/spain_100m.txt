@@ -1,0 +1,8 @@
+# Spanish companies of 100 M USD and more beyond every other benchmark list (Yahoo Finance tickers: .MC), primary listings only.
+# Built Oct 29, 2026 from Yahoo's screener (exchange Madrid, market cap >= 100 M USD), net of every other benchmark list.
+# Left out: Brazilian, Argentine and Peruvian lines on the Madrid exchange (X*.MC), foreign companies (CCEP, ArcelorMittal,
+# MFE-MediaForEurope: home listing elsewhere). Refresh by hand quarterly.
+CEV.MC
+INDXA.MC
+NEA.MC
+YCPS.MC

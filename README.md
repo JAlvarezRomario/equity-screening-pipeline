@@ -1,0 +1,150 @@
+# Turning over the Rocks: a global equity screening pipeline
+
+**Most stock screens compare numbers that are not comparable and hide the judgement behind them. This pipeline
+ranks about 9,500 listed companies in 69 countries, measures every company on one explicit yardstick, and keeps
+every number traceable to the company's own reports.**
+
+**[Read the architecture →](ARCHITECTURE.md)**
+
+## Contents
+
+- [What it does](#what-it-does)
+- [Key figures](#key-figures)
+- [Architecture at a glance](#architecture-at-a-glance)
+- [Engineering highlights](#engineering-highlights)
+- [Quickstart](#quickstart)
+- [Repository map](#repository-map)
+- [Data source and terms](#data-source-and-terms)
+- [License](#license)
+
+## What it does
+
+Each company gets two scores:
+
+- **Value:** what one share earns for its owner in a normal year (*owner earnings*: cash profit after the
+  investment needed to keep the business as it is), against the share price.
+- **Quality:** how much the business earns on the capital it uses, how steadily, and whether each share keeps
+  growing.
+
+Both are plain arithmetic, with no model inside. Fourteen lists then pick out companies worth a closer look, and an
+LLM grades those companies' moat and management. The grade only reorders the lists; it never changes a score. A
+frozen forward test tracks month by month whether the lists beat the market. The output is a static website
+with one page per company.
+
+![Value vs Quality map of the ranked universe](docs/img/map.png)
+
+<details>
+<summary>More screenshots: a company page, the universe's distributions</summary>
+
+![Company page: score drivers, context tiles and a per-share earnings chart](docs/img/company.png)
+
+![Distributions of five measures across the universe](docs/img/distributions.png)
+
+</details>
+
+## Key figures
+
+| | |
+|---|---|
+| Companies ranked | 9,485 (of 9,670 with data, from a 9,902-ticker benchmark of 52 index and market lists) |
+| Markets | 69 countries, each company read in its own reporting currency |
+| Data | 482 raw and 863 derived columns per company, in parquet |
+| Code | ~10,000 lines of Python, 378 offline tests |
+| LLM cost | $42.80 so far for 391 graded companies, tracked per call |
+
+## Architecture at a glance
+
+Everything runs on one machine. Only three things cross its boundary: requests to Yahoo, company pages sent to
+Gemini for grading, and the static site uploaded by hand.
+
+```mermaid
+flowchart TB
+    OP(["Operator"]) -->|"commands"| FQ
+    subgraph M["Operator's machine"]
+        direction LR
+        FQ["<b>fq pipeline</b><br/>Python · uv"] <--> ST[("Local stores<br/>parquet + JSON")]
+    end
+    FQ ---->|"statements, prices"| Y(["Yahoo Finance"])
+    FQ ---->|"page text → grades"| G(["Gemini API"])
+    FQ ---->|"static HTML"| CF(["Cloudflare Pages<br/>behind Access"])
+    R(["Invited readers"]) --> CF
+
+    classDef ext fill:#fef3c7,stroke:#b45309,color:#4a2a04
+    classDef pure fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef store fill:#e5e7eb,stroke:#374151,color:#111827
+    classDef person fill:#ede9fe,stroke:#6d28d9,color:#2e1065
+    class Y,G,CF ext
+    class FQ pure
+    class ST store
+    class OP,R person
+    style M stroke-dasharray:6 4,stroke-width:2px
+```
+
+The full design is in [ARCHITECTURE.md](ARCHITECTURE.md): the [data flow](ARCHITECTURE.md#data-flow),
+[one run step by step](ARCHITECTURE.md#one-run-step-by-step), the [data model](ARCHITECTURE.md#data-model), the
+[layers](ARCHITECTURE.md#layers), [trade-offs](ARCHITECTURE.md#trade-offs) and
+[failure modes](ARCHITECTURE.md#failure-modes).
+
+## Engineering highlights
+
+- **The AI can't touch the scores.** The scoring code never imports the LLM, and a test enforces it.
+  [Layers →](ARCHITECTURE.md#layers)
+- **The LLM is run like any other cost.** Grades are cached on a prompt hash, capped per run and priced before
+  they are spent. [LLM boundary →](ARCHITECTURE.md#the-llm-boundary)
+- **Fetching is incremental.** A planner fetches a company only when a report is due or its data is stale, within a
+  per-run budget. [One run →](ARCHITECTURE.md#one-run-step-by-step)
+- **Optional stages fail safe.** Writes are atomic, and if grading or the forward test fails, the site still
+  builds. [Failure modes →](ARCHITECTURE.md#failure-modes)
+- **Evaluation can't be fooled by hindsight.** Scores are tagged with a hash of the scoring code, and the forward
+  test is frozen and append-only. [Data model →](ARCHITECTURE.md#data-model)
+- **Messy source data is repaired in the open.** Each company records where its figures came from.
+  [Failure modes →](ARCHITECTURE.md#failure-modes)
+- **Designed and built solo, with an AI coding agent working under enforced rules.**
+  [How it is developed →](ARCHITECTURE.md#how-the-project-is-developed)
+
+## Quickstart
+
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+
+```
+uv sync                                  # install
+uv run fq run -u test --open             # 8 large caps: fetch, rank, build the site, open it
+uv run fq run -u "AAPL,MSFT,SAP.DE"      # any Yahoo tickers
+uv run fq run -u benchmark               # the full benchmark (hours on the first run)
+uv run pytest                            # tests (no network)
+```
+
+The grade needs `GEMINI_API_KEY` in the environment and is skipped without it. Every command and option:
+`uv run fq --help`.
+
+## Repository map
+
+| Path | What it holds |
+|---|---|
+| `src/fq/fetch.py`, `refresh.py`, `fx.py`, `health.py` | Download, refresh planning, exchange rates, cache checks |
+| `src/fq/metrics/` | The measurement pipeline, one module per step |
+| `src/fq/filters.py`, `ranking.py` | Scope filters; percentile scores and ranks |
+| `src/fq/report/` | The site: list screens, charts, templates |
+| `src/fq/grading.py`, `prompts/` | The LLM grade and its prompts |
+| `src/fq/forward.py`, `evaluate.py` | Forward test; snapshot evaluation |
+| `src/fq/pipeline.py`, `cli.py` | The run as plain functions; the command line |
+| `src/fq/lists/` | Index lists, business-model overrides, exclusions (text, not code) |
+| `tests/` | Tests on synthetic data |
+| `docs/img/` | The screenshots above |
+
+## Data source and terms
+
+- Market data is downloaded at run time through the open-source [`yfinance`](https://github.com/ranaroussi/yfinance)
+  library. Neither that library nor this project is affiliated with or endorsed by Yahoo. Yahoo and Yahoo Finance
+  are trademarks of their owner.
+- **This repository contains no Yahoo data.** The cache, the site and the logs are excluded from git. Whoever runs
+  the code downloads the data and is responsible for following Yahoo's terms of use.
+- The site I build is for personal research and is shared privately behind access control. It is not a public data
+  service, and the bulk CSV is never uploaded.
+- The index lists are ticker symbols compiled from public sources, with no affiliation to the index providers.
+- The grade is written by a third-party LLM (Google Gemini) from the figures on each company page.
+- **Nothing here is investment advice.** Figures may contain errors from the source or from processing.
+
+## License
+
+Copyright (c) 2026 JAlvarezRomario. All rights reserved. Published for viewing only; see [LICENSE](LICENSE).

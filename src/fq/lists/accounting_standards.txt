@@ -1,0 +1,36 @@
+# Accounting standard where the default guess is wrong (`universe.accounting_standard`).
+# Default: a ticker with an exchange suffix (ITX.MC, 0001.HK) reports under IFRS or a local standard,
+# one without (AAPL, MELI) under US GAAP. Format: TICKER ifrs|us_gaap  # why
+# Lease cash costs are in operating cash flow under US GAAP, in financing under IFRS (`metrics._leases`).
+CNR.TO us_gaap  # Canadian National files US GAAP
+CP.TO us_gaap  # Canadian Pacific Kansas City files US GAAP
+KSPI ifrs  # Kaspi.kz, Nasdaq ADS, IFRS 20-F
+STNE ifrs  # StoneCo, Nasdaq, IFRS 20-F
+ABBN.SW us_gaap  # ABB files US GAAP
+FRO.OL us_gaap  # Frontline plc files US GAAP (20-F)
+# MSCI World members listed at home that file US GAAP (Oct 2026; banks left at the default: leases barely matter there).
+ENB.TO us_gaap  # Enbridge
+TRP.TO us_gaap  # TC Energy
+FTS.TO us_gaap  # Fortis
+EMA.TO us_gaap  # Emera
+H.TO us_gaap  # Hydro One
+IMO.TO us_gaap  # Imperial Oil
+MG.TO us_gaap  # Magna International
+QSR.TO us_gaap  # Restaurant Brands International
+SHOP.TO us_gaap  # Shopify
+7751.T us_gaap  # Canon
+6301.T us_gaap  # Komatsu
+4901.T us_gaap  # Fujifilm Holdings
+8591.T us_gaap  # ORIX
+8604.T us_gaap  # Nomura Holdings
+ESLT.TA us_gaap  # Elbit Systems
+TSEM.TA us_gaap  # Tower Semiconductor
+ICL.TA us_gaap  # ICL Group
+LOGN.SW us_gaap  # Logitech
+ALC.SW us_gaap  # Alcon
+# MSCI ACWI emerging-market ADRs (no suffix, so the default guess is US GAAP) that file IFRS 20-Fs (Oct 2026).
+NU ifrs  # Nu Holdings
+XP ifrs  # XP Inc.
+BAP ifrs  # Credicorp
+BVN ifrs  # Buenaventura
+AUGO ifrs  # Aura Minerals

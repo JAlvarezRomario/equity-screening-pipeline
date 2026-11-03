@@ -1,0 +1,38 @@
+# Yahoo industries treated as Cyclical whatever their own history shows. Yahoo serves about five
+# years, which can be all boom (homebuilders 2021-25): no trough in the window, so peak margins look
+# normal and the statistical flag (EBIT sign change, margin swings) misses them. Commodity prices,
+# capacity cycles and consumer credit drive these industries. Cyclicals get a mid-cycle FCF margin in
+# Value (see metrics.normalized_fcf_yield).
+Residential Construction
+Building Materials
+Building Products & Equipment
+Lumber & Wood Production
+Auto Manufacturers
+Auto Parts
+Auto & Truck Dealerships
+Recreational Vehicles
+Steel
+Aluminum
+Copper
+Other Industrial Metals & Mining
+Other Precious Metals & Mining
+Gold
+Silver
+Coking Coal
+Thermal Coal
+Chemicals
+Agricultural Inputs
+Paper & Paper Products
+Oil & Gas E&P
+Oil & Gas Drilling
+Oil & Gas Equipment & Services
+Oil & Gas Integrated
+Oil & Gas Refining & Marketing
+Uranium
+Semiconductor Equipment & Materials
+Farm & Heavy Construction Machinery
+Metal Fabrication
+Airlines
+Marine Shipping
+Trucking
+Solar

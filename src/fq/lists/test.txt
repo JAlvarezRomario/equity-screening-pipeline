@@ -1,0 +1,9 @@
+# Small smoke-test universe: large caps across markets
+AAPL
+MSFT
+KO
+SAP.DE
+NESN.SW
+SAN.MC
+7203.T
+0700.HK

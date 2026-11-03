@@ -1,0 +1,8 @@
+# Share classes with unequal economic rights, where Yahoo's share count mixes both classes as if
+# they were equal (its market cap is then wrong too). One line per quoted ticker:
+#   TICKER  SISTER_TICKER  RATIO
+# RATIO = economic value of one SISTER share in units of TICKER shares. Shares are then counted in
+# TICKER units: own shares + sister shares x RATIO (both from Yahoo's sharesOutstanding).
+# Swire Pacific: one A share (0019.HK) = five B shares (0087.HK).
+0087.HK 0019.HK 5
+0019.HK 0087.HK 0.2

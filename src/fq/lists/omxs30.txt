@@ -1,0 +1,34 @@
+# OMX Stockholm 30 (the index the XACT OMXS30 ETF tracks). Yahoo Finance tickers: .ST, one share class per
+# company (the index's own rule since July 2025). As of the July 1, 2025 composition (Nasdaq's list of May 2026 is
+# the same); the July 1, 2026 rebalance could not be confirmed: check it against Nasdaq.
+# Left out as second listings of companies already in the benchmark: AstraZeneca (AZN.ST; AZN.L in the FTSE 100)
+# and Nordea (NDA-SE.ST; NDA-FI.HE in the EURO STOXX 50), and ABB (ABB.ST; its primary listing ABBN.SW is in the
+# MSCI World list).
+# Reviews: first trading day of January and July; refresh by hand.
+ADDT-B.ST
+ALFA.ST
+ASSA-B.ST
+ATCO-A.ST
+BOL.ST
+EPI-A.ST
+EQT.ST
+ERIC-B.ST
+ESSITY-B.ST
+EVO.ST
+HEXA-B.ST
+HM-B.ST
+INDU-C.ST
+INVE-B.ST
+LIFCO-B.ST
+NIBE-B.ST
+SAAB-B.ST
+SAND.ST
+SCA-B.ST
+SEB-A.ST
+SHB-A.ST
+SKA-B.ST
+SKF-B.ST
+SWED-A.ST
+TEL2-B.ST
+TELIA.ST
+VOLV-B.ST

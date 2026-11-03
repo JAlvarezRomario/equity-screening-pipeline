@@ -1,0 +1,4 @@
+# Whether a company's statements are nominal or already restated for inflation (IAS 29), where the default
+# guess is wrong (`universe.inflation_basis`, `metrics.inflation._basis`). Default: operating companies reporting
+# in a `settings.HYPERINFLATION_CURRENCIES` currency are `restated`; every other company is `nominal` and its
+# returns are deflated by its currency's inflation beyond US inflation (IMF). Format: TICKER restated|nominal  # why

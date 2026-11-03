@@ -1,0 +1,271 @@
+# Ticker -> business model, where the Yahoo industry misleads (see business_models.txt).
+# Fee businesses Yahoo files with lenders: the normal measures fit them.
+V      operating    # Visa: payment network, lends nothing (Yahoo: Credit Services)
+MA     operating    # Mastercard: payment network, lends nothing (Yahoo: Credit Services)
+TW     operating    # Tradeweb: electronic bond and swap marketplace, fees only, lends nothing (Yahoo: Capital Markets)
+IREN   operating    # IREN: data centres (bitcoin mining and AI cloud), plant and power, no lending (Yahoo: Capital Markets)
+# Hold client money (customer money > 45% of assets, S&P 500 screened Oct 2026, judged by hand) but earn
+# fees: measured like operating companies, without counting that cash as spare.
+CME    client_cash  # CME Group: members' performance bonds and guaranty funds (~84% of assets)
+ICE    client_cash  # Intercontinental Exchange: clearing margin deposits (~64% of assets)
+ADYEN.AS client_cash  # Adyen: merchant funds awaiting payout (most of its assets; judged by hand, Oct 2026)
+CPU.AX client_cash    # Computershare: registry and plan client balances, earns margin income on them; Yahoo: Capital Markets
+CRCL   client_cash    # Circle: the reserves behind USDC belong to its holders, it earns their interest; Yahoo: Capital Markets
+DB1.DE client_cash  # Deutsche Boerse: Eurex Clearing margin and Clearstream cash deposits (most of its assets)
+ADP    client_cash  # ADP: payroll client funds, earns float income (~82% of assets)
+PAYX   client_cash  # Paychex: payroll client funds (~48% of assets)
+PYPL   client_cash  # PayPal: customer balances; Yahoo: Credit Services
+# Exchange groups that own a clearing house (Oct 21, 2026, MSCI World review): members' margin and collateral sit on
+# the balance sheet (assets 3x to 200x equity; HKEX cash 23bn of 74bn) and earn the group interest, like CME / ICE / DB1.
+8697.T client_cash    # Japan Exchange Group: JSCC clearing collateral (assets 453bn vs equity 2bn, JPY)
+ENX.PA client_cash    # Euronext: Euronext Clearing (CC&G) and Nasdaq Clearing margin (assets 368bn vs equity 5bn)
+ASX.AX client_cash    # ASX: ASX Clear and ASX Settlement margin and collateral
+X.TO   client_cash    # TMX Group: CDCC clearing margin and CDS settlement balances
+0388.HK client_cash   # HKEX: clearing house margin and guarantee funds (cash 23bn of 74bn assets, HKD)
+LSEG.L client_cash    # LSEG: LCH clearing margin (assets 1,066bn vs equity 26bn, GBP)
+WISE.L client_cash    # Wise: customer balances (cash 13bn of 33bn assets vs equity 1.9bn, USD); Yahoo: IT Services
+# Lenders Yahoo files elsewhere.
+KSPI   bank         # Kaspi.kz: payments and marketplace, but a bank (customer deposits); Yahoo: Software
+CPAY   bank         # Corpay: owns a bank, funds receivables with customer deposits (~47% of assets)
+STNE   bank         # StoneCo: funds merchant receivables with debt (~17% interest is its cost of sales); has a bank
+# Carmakers whose captive lender holds most of the group's debt (it funds loans to buyers, not plants): with
+# debt at face in Value they read as the most indebted companies of all (Oct 2026).
+F      bank         # Ford: Ford Credit
+GM     bank         # General Motors: GM Financial
+NTRS   bank         # Northern Trust: custody bank; Yahoo: Asset Management
+STT    bank         # State Street: custody bank; Yahoo: Asset Management
+RJF    bank         # Raymond James: broker with a bank; Yahoo: Asset Management
+BAER.SW bank        # Julius Baer: private bank, client deposits and Lombard loans; Yahoo: Asset Management
+# Insurers Yahoo files as asset managers.
+PFG    insurer      # Principal Financial: retirement and life insurance
+AMP    insurer      # Ameriprise: annuities, life insurance and a bank
+CRBG   insurer      # Corebridge Financial: annuities and life insurance (the former AIG Life & Retirement)
+# Holding companies: insurance or consolidated insurers plus owned businesses.
+BRK-B  holding      # Berkshire Hathaway
+BRK-A  holding
+MKL    holding      # Markel: specialty insurance + Markel Ventures
+L      holding      # Loews: CNA insurance + pipelines and hotels
+BN     holding      # Brookfield Corporation: asset management, insurance (Brookfield Wealth), real assets
+BN.TO  holding
+APO    holding      # Apollo: consolidates Athene (annuities)
+KKR    holding      # KKR: consolidates Global Atlantic (insurance)
+PRX.AS holding       # Prosus: mostly a Tencent stake (equity-accounted profit, not own cash flow)
+TUB.BR holding       # Tubize: a stake in UCB and nothing else (no revenue, equity 98% of assets); Yahoo: Biotechnology
+1038.HK holding      # CKI Holdings: infrastructure stakes (UKPN, Northumbrian Water, gas networks) equity-accounted: operating
+#    income HKD 0.02bn against pre-tax 1.13bn; Yahoo: Utilities
+0006.HK holding      # Power Assets: stakes in HK Electric, UKPN and others (equity 92% of assets, almost no fixed assets)
+PST.MI holding       # Poste Italiane: BancoPosta deposits and Poste Vita insurance behind most of the profit (assets 326bn
+#    vs equity 15.5bn, EUR) plus mail and parcels; Yahoo: Integrated Freight & Logistics
+# Investment companies Yahoo files as asset managers or conglomerates: their earnings are the companies they hold
+# (dividends, look-through profit, stakes at fair value), read against book value (NAV chart), not a cash flow of
+# their own.
+INVE-B.ST holding    # Investor AB: Wallenberg holding (Atlas Copco, ABB, AstraZeneca stakes; Patricia Industries)
+INDU-C.ST holding    # Industrivarden: listed stakes (Sandvik, Volvo, Essity, Handelsbanken, SCA)
+LUND-B.ST holding    # L E Lundbergforetagen: Holmen, Hufvudstaden (consolidated) and listed stakes
+EXO.AS holding       # Exor: Agnelli holding (Ferrari, Stellantis, Philips, CNH stakes); an investment entity
+GBLB.BR holding      # Groupe Bruxelles Lambert: listed and private stakes (Imerys, SGS, Pernod Ricard, adidas)
+SOF.BR holding       # Sofina: stakes in listed and private companies and venture funds
+SOL.AX holding       # Washington H. Soul Pattinson: investment house (Brickworks, TPG Telecom and other stakes)
+9984.T holding       # SoftBank Group: Arm, SoftBank Corp and the Vision Funds; Yahoo: Telecom Services
+# Reviewed on Oct 21, 2026 (MSCI World) and left as Yahoo's industry says, although `Model_Review` flags them:
+# - Japanese trading houses (Mitsui 8031.T, Marubeni 8002.T, and the unflagged Mitsubishi, Itochu, Sumitomo, Toyota
+#   Tsusho): active trading and resource businesses whose associates add profit (pre-tax 1.5-2.5x operating income) but are
+#   a part of it, not the whole as for Prosus; free cash flow carries the associates' dividends. Same for Infratil, Ivanhoe
+#   Mines, MOL, Singtel and PPB (stakes that matter, businesses that consolidate).
+# - Oil and gas producers, pipelines, miners, railways, airports and shipping (AKRBP.OL, EQT, FANG, STO.AX, WDS.AX, WMB,
+#   TRP.TO, PPL.TO, CDE, FM.TO, LYC.AX, CP.TO, GET.PA, AIA.NZ, DAC): fixed assets over 60% of assets, but `asset_heavy`
+#   (upkeep capex = depreciation) is for REITs and utilities; depletion and mine capex are not upkeep.
+# - Goodman (GMG.AX): a REIT by industry, so asset_heavy already; the profit from joint ventures is fair-value income.
+# - Mitsubishi Estate and Sumitomo Realty (8802.T, 8830.T): every real estate developer and diversified landlord in the
+#   benchmark is operating; the flag alone does not make these two REITs.
+# - Biotechs (ABVX.PA, ALNY, RVMD): the cash is their own, raised from investors, not clients'; counted as spare cash.
+# - Xero (XRO.AX) and Woolworths (WOW.AX): interest income, not stakes, lifts pre-tax income over operating income.
+# - CoreWeave (CRWV, GPU cloud on debt), Element Fleet (EFN.TO, fleet lessor), Rakuten (4755.T, fintech inside a loss-making
+#   group), Renault, BMW and Mercedes (captive lenders, flagged before): judged case by case, left for the user.
+# Confirmed as above (Oct 28, 2026), each with the model it already had: an open `Model_Review` now keeps a company out
+# of the highlight lists, so a reviewed company is confirmed here (no score changes).
+8031.T operating     # Mitsui & Co.: trading house, associates part of the business
+8002.T operating     # Marubeni: trading house, associates part of the business
+Z74.SI operating     # Singtel: stakes that matter (Bharti, AIS), businesses that consolidate
+IFT.NZ operating     # Infratil: consolidates its main businesses
+IVN.TO operating     # Ivanhoe Mines: Kamoa-Kakula joint venture equity-accounted, a miner nonetheless
+XRO.AX operating     # Xero: interest income, not stakes, lifts pre-tax income
+WOW.AX operating     # Woolworths: interest income, not stakes, lifts pre-tax income
+GMG.AX asset_heavy   # Goodman: a REIT by industry; joint-venture profit is fair-value income
+
+# Added Oct 2026: mid/small cap additions
+AIY.SI client_cash    # iFAST: investment platform client cash balances
+IHP.L client_cash     # IntegraFin: Transact platform client balances
+CJLU.SI asset_heavy   # NetLink NBN Trust: regulated telecom fibre network infrastructure
+
+# Added Oct 2026: US Nasdaq and NYSE mid-cap annotations
+COIN   client_cash  # Coinbase: customer custodial fiat and crypto funds
+HOOD   client_cash  # Robinhood: customer cash sweep and margin deposits
+IBKR   client_cash  # Interactive Brokers: client margin credit balances and segregated cash
+LPLA   client_cash  # LPL Financial: client cash sweep balances
+SEIC   client_cash  # SEI Investments: trust and custody client deposits
+SBAC   asset_heavy  # SBA Communications: cell tower infrastructure
+LAMR   asset_heavy  # Lamar Advertising: outdoor billboard infrastructure
+# Added Oct 2026: MSCI EAFE and Europe small-cap annotations
+TIP.MI holding      # Tamburi Investment Partners: Italian merchant bank / investment holding
+YCA.L  holding      # Yellow Cake PLC: physical uranium holding company
+WWI.OL holding      # Wilh. Wilhelmsen Holding: maritime investment group
+AER    operating    # AerCap: aircraft lessor, debt funds commercial aircraft fleet (reviewed; unflag hidden debt cost)
+
+# Model reviews of Oct 29, 2026 (user approved the proposal): model changes first, then companies confirmed with
+# the model they already had (no score change; an open `Model_Review` kept them out of the highlight lists).
+# Changed: CFD broker: segregated client money (as IBKR)
+PLUS.L        client_cash  # PLUS500 LTD ORD ILS0.01 (DI)
+# Changed: CITIC Ltd: China CITIC Bank plus industrial stakes
+0267.HK       holding      # CITIC
+# Changed: Chinese broker: client margin and settlement cash (as IBKR, HOOD, LPLA)
+600999.SS     client_cash  # CHINA MERCHANTS SECURITIES C
+601066.SS     client_cash  # CHINA SECURITIES CO. LTD.
+6886.HK       client_cash  # HTSC
+600958.SS     client_cash  # ORIENT SECURITIES COMPANY LI
+601995.SS     client_cash  # CHINA INTL CAPITAL CORPORATI
+300059.SZ     client_cash  # EASTMONEY
+000776.SZ     client_cash  # GF SECURITIES
+601901.SS     client_cash  # FOUNDER SECURITIES CO LTD
+# Changed: Haw Par: UOB and other stakes (the flag's own example)
+H02.SI        holding      # Haw Par
+# Changed: Hithink Flush: brokerage-platform client deposits (as AIY.SI)
+300033.SZ     client_cash  # FLUSH INFO
+# Changed: Itausa: stake in Itau Unibanco (equity-accounted)
+ITSA4.SA      holding      # ITAUSA PN N1
+# Changed: Mesaieed Petrochemical Holding: income is its joint ventures' profit
+MPHC.QA       holding      # MESAIEED PETROCHEMICAL HLDG
+# Changed: Naspers: Prosus / Tencent stake (as PRX.AS)
+NPN.JO        holding      # Naspers Ltd -N-
+# Changed: Turkish investment holding: profit from stakes
+ALARK.IS      holding      # ALARKO HOLDING
+BRYAT.IS      holding      # BORUSAN YAT. PAZ.
+ECZYT.IS      holding      # ECZACIBASI YATIRIM
+# Changed: crypto treasury: holds tokens, lends nothing
+PURR          holding      # Hyperliquid Strategies Inc
+SBET          holding      # SharpLink, Inc.
+# Changed: lender / lessor filed as Credit Services: the debt funds loans and leases (as STNE, CPAY)
+JCAP          bank         # Jefferson Capital, Inc.
+ENVA          bank         # Enova International, Inc.
+GLJ.DE        bank         # GRENKE AG N
+ALG.DE        bank         # ALBIS LEASING AG I
+8593.T        bank         # MITSUBISHI HC CAPITAL INC
+TATACAP.NS    bank         # TATA CAPITAL LIMITED
+BST.WA        bank         # BEST S.A.
+5871.TW       bank         # CHAILEASE HOLDING COMPANY LI
+3360.HK       bank         # FE HORIZON
+GSY.TO        bank         # GOEASY LTD
+QLIRO.ST      bank         # Qliro AB
+# Changed: mortgage originator / servicer / broker: fees, not a deposit lender
+RKT           operating    # Rocket Companies, Inc.
+DLCG.TO       operating    # DOMINION LENDING CENTRES INC
+WD            operating    # Walker & Dunlop, Inc
+# Changed: package holidays paid in advance: customer deposits, not spare cash
+JET2.L        client_cash  # JET2 PLC ORD 1.25P
+# Confirmed: REIT: properties are investment property, not Net PPE
+FIBRAPL14.MX  asset_heavy  # BANCO ACTINVER SA
+BWP.AX        asset_heavy  # BWPPROPGP STAPLED [BWP]
+BYG.L         asset_heavy  # BIG YELLOW GROUP PLC ORD 10P
+SHUR.BR       asset_heavy  # SHURGARD
+SNGYO.IS      asset_heavy  # SINPAS GMYO
+SHC.L         asset_heavy  # SHAFTESBURY CAPITAL PLC ORD
+HMC.AX        asset_heavy  # HMC CAPLTD FPO [HMC]
+GPE.L         asset_heavy  # GREAT PORTLAND ESTATES PLC O
+NLOP          asset_heavy  # Net Lease Office Properties
+SITC          asset_heavy  # SITE Centers Corp.
+DKG.DE        asset_heavy  # DT.KONSUM REAL EST.AG I
+PSGYO.IS      asset_heavy  # PASIFIK GMYO
+BXDC          asset_heavy  # Blackstone Digital Infrastru
+# Confirmed: biotech: the cash is its own, raised from investors (as ABVX.PA, ALNY, RVMD)
+ASMB          client_cash  # Assembly Biosciences, Inc.
+JANX          client_cash  # Janux Therapeutics, Inc.
+CMPX          client_cash  # Compass Therapeutics, Inc.
+FULC          client_cash  # Fulcrum Therapeutics, Inc.
+WHWK          client_cash  # Whitehawk Therapeutics, Inc.
+AVXL          client_cash  # Anavex Life Sciences Corp.
+CRBP          client_cash  # Corbus Pharmaceuticals Holdi
+OLMA          client_cash  # Olema Pharmaceuticals, Inc.
+BDTX          operating    # Black Diamond Therapeutics,
+CUV.AX        operating    # CLINUVEL FPO [CUV]
+LGND          operating    # Ligand Pharmaceuticals Incor
+CTNM          operating    # Contineum Therapeutics, Inc.
+NGNE          operating    # Neurogene Inc.
+GENB          operating    # Generate Biomedicines, Inc.
+ORMP          operating    # Oramed Pharmaceuticals Inc.
+SCTX          operating    # Scribe Therapeutics Inc.
+IMRX          operating    # Immuneering Corporation
+OMER          operating    # Omeros Corporation
+SLDB          operating    # Solid Biosciences Inc.
+RLAY          operating    # Relay Therapeutics, Inc.
+FYB.DE        operating    # Formycon AG I
+LXEO          operating    # Lexeo Therapeutics, Inc.
+SLS           operating    # SELLAS Life Sciences Group,
+ZNTL          operating    # Zentalis Pharmaceuticals, In
+CYTK          operating    # Cytokinetics, Incorporated
+ARCT          operating    # Arcturus Therapeutics Holdin
+ABEO          operating    # Abeona Therapeutics Inc.
+KRRO          operating    # Korro Bio, Inc.
+PRTA          operating    # Prothena Corporation plc
+CCCC          operating    # C4 Therapeutics, Inc.
+IVVD          operating    # Invivyd, Inc.
+CLDX          operating    # Celldex Therapeutics, Inc.
+WVE           operating    # Wave Life Sciences, Inc.
+NRIX          operating    # Nurix Therapeutics, Inc.
+CRSP          operating    # CRISPR Therapeutics AG
+ARVN          operating    # Arvinas, Inc.
+ZEAL.CO       operating    # Zealand Pharma A/S
+EVMN          operating    # Evommune, Inc.
+CRBU          operating    # Caribou Biosciences, Inc.
+ALT           operating    # Altimmune, Inc.
+NKTR          operating    # Nektar Therapeutics
+OCUL          operating    # Ocular Therapeutix, Inc.
+EYPT          operating    # EyePoint, Inc.
+AVTX          operating    # Avalo Therapeutics, Inc.
+ARTV          operating    # Artiva Biotherapeutics, Inc.
+CELC          operating    # Celcuity Inc.
+ELVN          operating    # Enliven Therapeutics, Inc.
+ALXO          operating    # ALX Oncology Holdings Inc.
+ANNX          operating    # Annexon, Inc.
+ARMP          operating    # Armata Pharmaceuticals, Inc.
+AURA          operating    # Aura Biosciences, Inc.
+BHVN          operating    # Biohaven Ltd.
+CABA          operating    # Cabaletta Bio, Inc.
+DRUG          operating    # Bright Minds Biosciences Inc
+MPLT          operating    # MapLight Therapeutics, Inc.
+REPL          operating    # Replimune Group, Inc.
+TARA          operating    # Protara Therapeutics, Inc.
+TECX          operating    # Tectonic Therapeutic, Inc.
+TYRA          operating    # Tyra Biosciences, Inc.
+# Confirmed: bitcoin miner / data centres: plant and power (as IREN)
+MARA          operating    # MARA Holdings, Inc.
+HIVE.TO       operating    # HIVE DIGITAL TECHNOLOGIES LT
+CIFR          operating    # Cipher Digital Inc.
+# Confirmed: consumer lender funded mostly by equity: still a lender
+PRL.TO        bank         # PROPEL HOLDINGS INC
+SUS.L         bank         # S & U PLC ORD 12 1/2P
+WRLD          bank         # World Acceptance Corporation
+# Confirmed: explorer / developer without revenue: unranked
+CTGO          operating    # Contango Silver & Gold Inc.
+NEXT          operating    # NextDecade Corporation
+MAU.TO        operating    # MONTAGE GOLD CORP
+SEA.TO        operating    # SEABRIDGE GOLD INC.
+SKE.TO        operating    # SKEENA RESOURCES LIMITED
+ARA.TO        operating    # ACLARA RESOURCES INC
+ATX.TO        operating    # ATEX RESOURCES INC
+ISO.TO        operating    # ISOENERGY LTD
+NUAG.TO       operating    # NEW PACIFIC METALS CORP
+PMET.TO       operating    # PMET RESOURCES INC
+TALA.TO       operating    # TALAMORE MINING CORP
+# Confirmed: homebuilder / developer: interest capitalised into inventory, not a lender
+1908.HK       operating    # C&D INTL GROUP
+0688.HK       operating    # CHINA OVERSEAS
+CCS           operating    # Century Communities, Inc.
+0123.HK       operating    # YUEXIU PROPERTY
+LGIH          operating    # LGI Homes, Inc.
+DFH           operating    # Dream Finders Homes, Inc.
+0960.HK       operating    # LONGFOR GROUP
+0081.HK       operating    # CH OVS G OCEANS
+SHE.SI        operating    # Soon Hock
+# Confirmed: mortgage REIT: a lender (as CLAUDE.md says)
+REFI          bank         # Chicago Atlantic Real Estate
+SEVN          bank         # Seven Hills Realty Trust

@@ -1,0 +1,43 @@
+# DAX 40 (Yahoo Finance tickers; 40 members since September 2021). As of the June 2026 review (HOCHTIEF
+# replaced Porsche SE, effective June 22, 2026); no DAX change in September 2026. Reviews: March, June,
+# September, December; refresh by hand. Airbus uses its Paris listing (same company as AIR.DE).
+ADS.DE
+AIR.PA
+ALV.DE
+BAS.DE
+BAYN.DE
+BEI.DE
+BMW.DE
+BNR.DE
+CBK.DE
+CON.DE
+DB1.DE
+DBK.DE
+DHL.DE
+DTE.DE
+DTG.DE
+ENR.DE
+EOAN.DE
+FME.DE
+FRE.DE
+G1A.DE
+G24.DE
+HEI.DE
+HEN3.DE
+HNR1.DE
+HOT.DE
+IFX.DE
+MBG.DE
+MRK.DE
+MTX.DE
+MUV2.DE
+QIA.DE
+RHM.DE
+RWE.DE
+SAP.DE
+SHL.DE
+SIE.DE
+SY1.DE
+VNA.DE
+VOW3.DE
+ZAL.DE

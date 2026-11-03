@@ -1,0 +1,33 @@
+# Straits Times Index (Yahoo Finance tickers: SGX code + .SI). 30 members, unchanged at the June and
+# September 2026 reviews (FTSE Russell / SGX). Reviewed quarterly (March, June, September, December);
+# refresh by hand.
+A17U.SI
+C38U.SI
+9CI.SI
+C09.SI
+D05.SI
+D01.SI
+J69U.SI
+BUOU.SI
+G13.SI
+H78.SI
+J36.SI
+BN4.SI
+AJBU.SI
+ME8U.SI
+M44U.SI
+N2IU.SI
+O39.SI
+S58.SI
+5E2.SI
+U96.SI
+C6L.SI
+S68.SI
+Z74.SI
+S63.SI
+Y92.SI
+U11.SI
+U14.SI
+V03.SI
+F34.SI
+BS6.SI

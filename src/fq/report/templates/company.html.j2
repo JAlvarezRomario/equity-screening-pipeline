@@ -1,0 +1,232 @@
+{% extends "base.html.j2" %}
+{% set root = "../" %}
+{% macro stepper() %}
+<nav class="stepper" aria-label="Previous and next company in the ranking">
+  {% if prev %}<a class="pill" href="{{ prev.slug }}.html" rel="prev" data-key="ArrowLeft" title="Previous in the ranking (← key)">&lsaquo; {% if prev.rank != "N/A" %}#{{ prev.rank }} {% endif %}{{ prev.ticker }}</a>{% endif %}
+  {% if next %}<a class="pill" href="{{ next.slug }}.html" rel="next" data-key="ArrowRight" title="Next in the ranking (→ key)">{% if next.rank != "N/A" %}#{{ next.rank }} {% endif %}{{ next.ticker }} &rsaquo;</a>{% endif %}
+</nav>
+{% endmacro %}
+{% macro score_bar(label, score, cls) %}
+<div class="score {{ cls }}">
+  <div class="score-head"><span class="label">{{ label }}</span><span class="score-num">{{ score if score is not none else "–" }}</span></div>
+  <div class="score-track" role="img" aria-label="{{ label }} score {{ score if score is not none else 'missing' }} of 100"><span class="score-fill" style="width: {{ score or 0 }}%"></span><span class="score-mid"></span></div>
+</div>
+{% endmacro %}
+{% macro facts_list(items) %}
+<dl class="facts">
+  {% for f in items %}<div{% if f.help %} data-help="{{ f.help }}" tabindex="0"{% endif %}><dt>{{ f.label }}</dt><dd{% if f.cls %} class="{{ f.cls }}"{% endif %}>{{ f.value }}{% if f.pct %} <span class="pct-pill{% if f.pct_cls %} {{ f.pct_cls }}{% endif %}">{{ f.pct }}</span>{% endif %}</dd></div>{% endfor %}
+</dl>
+{% endmacro %}
+{% block title %}{{ ticker }} · {{ name }} - Turning over the Rocks{% endblock %}
+{% block header %}
+<a href="../index.html" class="back-link"><span class="brand">Turning over the Rocks</span></a>
+{% endblock %}
+{% block actions %}<a href="../index.html#ranking" class="pill">&larr; Ranking</a>{{ stepper() }}{% endblock %}
+{% block content %}
+<section class="card hero">
+  <div class="hero-main">
+    <div class="company-header">
+      <h1 class="company-name">{{ name }} <span class="company-ticker">{{ ticker }}</span></h1>
+      {% if country %}<span class="country-badge" title="Country of incorporation / headquarters (Yahoo Finance)"><span class="country-flag-icon">🌐</span> {{ country }}</span>{% endif %}
+      {% if net_cash_pill %}
+      <span class="net-cash-badge {{ net_cash_pill.cls }}" title="{{ net_cash_pill.title }}" tabindex="0">
+        <span class="net-cash-dot"></span>
+        <span class="net-cash-label">{{ net_cash_pill.label }}:</span>
+        <strong class="net-cash-val">{{ net_cash_pill.value }}</strong>
+        <span class="net-cash-sub">of cap</span>
+      </span>
+      {% endif %}
+      {% if held %}<span class="tag">In portfolio</span>{% endif %}
+    </div>
+    <p class="company-meta">{{ country or "N/A" }} &middot; {{ industry or "N/A" }}{% if model %} &middot; {{ model }}{% endif %}</p>
+    {% if summary %}
+    <div class="summary-wrap">
+      <p class="summary clamp" id="summary">{{ summary }}</p>
+      <button type="button" class="link-button" id="summary-toggle" aria-controls="summary" aria-expanded="false" hidden>Read more</button>
+    </div>
+    {% endif %}
+    {% if website %}
+    <p class="company-website"><a href="{{ website }}" target="_blank" rel="noopener noreferrer" class="website-link">{{ website }} &nearr;</a></p>
+    {% endif %}
+    {% if flags %}
+    <ul class="badges">
+      {% for label, why in flags %}<li class="badge" data-help="{{ why }}" tabindex="0">{{ label }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="external-links">
+      {% for label, url in links %}<a class="pill pill-small" href="{{ url }}" target="_blank" rel="noopener">{{ label }} &nearr;</a>{% endfor %}
+    </div>
+  </div>
+  <aside class="score-panel" aria-label="Scores">
+    {{ score_bar("Value", scores.value, "score-v") }}
+    {{ score_bar("Quality", scores.quality, "score-q") }}
+    <p class="score-sentence">{{ scores.sentence }}</p>
+    <dl class="ranks">
+      <div><dt>Rank</dt><dd>{{ scores.rank or "Not ranked" }}</dd></div>
+      {% if scores.value_rank %}<div><dt>Value</dt><dd>{{ scores.value_rank }}</dd></div>{% endif %}
+      {% if scores.quality_rank %}<div><dt>Quality</dt><dd>{{ scores.quality_rank }}</dd></div>{% endif %}
+    </dl>
+  </aside>
+</section>
+
+{% if on_lists or verdict %}
+<section class="card why-here" aria-label="Why it is on the site">
+  {% if on_lists %}<p><span class="label">On the lists</span> {{ on_lists }}</p>{% endif %}
+  {% for v in verdict %}<p class="why-note">{{ v }}</p>{% endfor %}
+</section>
+{% endif %}
+
+<ul class="headline" aria-label="Market data">
+  {% for label, value, cls in headline %}<li class="chip{% if cls %} {{ cls }}{% endif %}"><span>{{ label }}</span> {{ value }}</li>{% endfor %}
+</ul>
+
+{% if drivers %}
+<section class="drivers" aria-label="What the scores are built from">
+  <h2 class="label">What the scores are built from</h2>
+  <div class="tiles">
+    {% for t in drivers %}
+    <div class="tile tile-{{ t.dim }}" data-help="{{ t.help }}" tabindex="0">
+      <div class="tile-value{% if t.cls %} {{ t.cls }}{% endif %}">{{ t.value }}</div>
+      <div class="tile-label">{{ t.label }}</div>
+      {% if t.note %}<div class="tile-note">{{ t.note }}</div>{% endif %}
+      <div class="tile-pct{% if t.pct_cls %} {{ t.pct_cls }}{% endif %}">{{ t.pct }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="drivers" aria-label="Key figures">
+  <h2 class="label">Context, not scored</h2>
+  <div class="tiles">
+  {% for t in tiles %}
+  <div class="tile" data-help="{{ t.help }}" tabindex="0">
+    <div class="tile-value{% if t.cls %} {{ t.cls }}{% endif %}">{{ t.value }}</div>
+    <div class="tile-label">{{ t.label }}</div>
+  </div>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="card chart-card">
+  <h2 class="chart-title">What a share earns <span>% of today's price, each year</span></h2>
+  <div class="company-chart">{{ charts.earnings | safe }}</div>
+  <p class="chart-instruction">Blue bars are what one share earned for its owner each year; the amber line is the normalised earnings power per share Value relies on. Hover a year for every figure.</p>
+  <details class="explain">
+    <summary>How these figures are built</summary>
+    <dl class="chart-caption">
+      {% for element, text in caption %}<div><dt>{{ element }}</dt><dd>{{ text }}</dd></div>{% endfor %}
+    </dl>
+  </details>
+</section>
+
+{% macro history_card() %}
+<section class="card chart-card">
+  <h2 class="chart-title">Share count and dividend history <span>each calendar year</span></h2>
+  <div class="company-chart">{{ charts.long_history | safe }}</div>
+  <p class="chart-instruction">{% if history_wide %}Bars are the dividends paid per share each complete year, in the quote currency; the line{% else %}The line{% endif %} is the share count (falling = buybacks, rising = dilution). Yahoo keeps these series longer than the statements. Shown, never scored.</p>
+</section>
+{% endmacro %}
+{% if charts.long_history and history_wide %}{{ history_card() }}{% endif %}
+
+<div class="chart-grid">
+  <section class="card chart-card">
+    <h2 class="chart-title">{% if is_financial %}Return on equity (ROE){% else %}Returns on capital{% endif %}</h2>
+    <div class="company-chart">{{ charts.returns | safe }}</div>
+    {% if is_financial %}
+    <p class="chart-instruction">Operating margin is omitted for lenders and financials because interest expense is an operating cost of funds, not a financing choice. Performance is measured on Return on Equity (ROE).</p>
+    {% endif %}
+  </section>
+  <section class="card chart-card">
+    <h2 class="chart-title">Revenue and shares</h2>
+    <div class="company-chart">{{ charts.business | safe }}</div>
+  </section>
+  {% if charts.nav %}
+  <section class="card chart-card">
+    <h2 class="chart-title">Book value per share <span>% of today's price</span></h2>
+    <div class="company-chart nav-chart">{{ charts.nav | safe }}</div>
+    <p class="chart-instruction">{{ nav_note }}</p>
+  </section>
+  {% endif %}
+  {% if charts.long_history and not history_wide %}{{ history_card() }}{% endif %}
+</div>
+
+{% if grade %}
+<section class="card grade-card{% if grade.low %} grade-low{% endif %}" aria-label="Moat and management grade">
+  <div class="grade-head">
+    <h2 class="chart-title">Moat and management <span>AI grade, 1 to 5</span></h2>
+    <div class="grade-scores">
+      <div class="grade-score"><span class="grade-num">{{ grade.moat }}</span><span class="label">Moat</span></div>
+      <div class="grade-score"><span class="grade-num">{{ grade.mgmt }}</span><span class="label">Management</span></div>
+    </div>
+  </div>
+  <p class="grade-verdict">{{ grade.verdict }}.</p>
+  {% for heading, paragraphs in grade.sections[:1] %}
+  <div class="grade-section">
+    {% if heading %}<h3 class="label">{{ heading }}</h3>{% endif %}
+    {% for p in paragraphs %}<p>{{ p }}</p>{% endfor %}
+  </div>
+  {% endfor %}
+  {% if grade.sections | length > 1 %}
+  <details class="explain">
+    <summary>Why these grades</summary>
+    {% for heading, paragraphs in grade.sections[1:] %}
+    <div class="grade-section">
+      {% if heading %}<h3 class="label">{{ heading }}</h3>{% endif %}
+      {% for p in paragraphs %}<p>{{ p }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+  </details>
+  {% endif %}
+  <p class="muted grade-detail">{{ grade.detail }} Written by an AI model (Gemini) from its own knowledge and this page's figures; it can be wrong or out of date. Shown, never scored.</p>
+</section>
+{% endif %}
+
+{% if holders %}
+<section class="card holders-card" aria-label="Who owns it">
+  <h2 class="chart-title">Who owns it <span>largest holders</span></h2>
+  {% if holders.line %}<p>{{ holders.line }}.</p>{% endif %}
+  {% if holders.rows %}
+  {% if holders.funds_only %}<p class="muted">Yahoo names only funds for this company, mostly US-registered ones; its largest holders (founders, parent companies, governments, local institutions) are likely missing.</p>{% endif %}
+  <div class="table-scroll">
+    <table class="holders">
+      <thead><tr><th>Holder</th><th>Type</th><th>Position</th><th class="num">% held</th><th>Change / latest trade</th><th>As of</th></tr></thead>
+      <tbody>
+      {% for h in holders.rows %}
+        <tr><td>{{ h.name }}</td><td>{{ h.type }}</td><td>{{ h.position }}</td><td class="num">{{ h.pct }}</td><td{% if h.cls %} class="{{ h.cls }}"{% endif %}>{{ h.change }}</td><td>{{ h.date }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted grade-detail">From the filings Yahoo Finance collects, as of {{ holders.date }}. Funds are often held inside the institutions listed, so the rows do not add up. An institution's change is since its previous filing; an insider's is their latest transaction.{% if holders.shared %} Insiders' indirect holdings can be one block counted under each name that shares it.{% endif %} Shown, never scored.</p>
+  {% else %}
+  <p class="muted">Yahoo has no holder records naming this company's holders (as of {{ holders.date }}).</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if more %}
+<section class="card">
+  <details class="explain more">
+    <summary>More figures ({{ more | sum(attribute=1, start=[]) | length }})</summary>
+    <div class="fact-groups">
+      {% for group, items in more %}
+      <section class="fact-group">
+        <h3 class="label">{{ group }}</h3>
+        {{ facts_list(items) }}
+      </section>
+      {% endfor %}
+    </div>
+  </details>
+</section>
+{% endif %}
+
+{% if notes %}
+<section class="card callout">
+  <h3 class="label">{{ notes | length }} data note{{ "s" if notes | length != 1 }}</h3>
+  <ul class="notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<div class="page-nav"><a href="#top">&uarr; Top</a>{{ stepper() }}</div>
+{% endblock %}

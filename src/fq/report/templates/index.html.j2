@@ -1,0 +1,165 @@
+{% extends "base.html.j2" %}
+{% set root = "" %}
+{% import "list_rules.html.j2" as texts %}
+{% macro ticker_cell(r) %}<td class="ticker"><a href="companies/{{ r.slug }}.html" target="_blank">{{ r.ticker }}</a>{% if r.ticker in held %} <span class="held" title="In the portfolio">held</span>{% endif %}{% for p in r.pills %} <span class="flag-tag{% if p.cls %} {{ p.cls }}{% endif %}" title="{{ p.why }}">{{ p.label }}</span>{% endfor %}</td>{% endmacro %}
+{% macro th(h) %}<th{% if h.cls %} class="{{ h.cls }}"{% endif %} data-first="{{ h.first }}"{% if h.help %} data-help="{{ h.help }}"{% endif %}>{{ h.label }}</th>{% endmacro %}
+{% macro td(c) %}<td class="{{ c.cls }}"{% if c.s is not none %} style="--s:{{ c.s }}"{% endif %}{% if c.title %} title="{{ c.title }}"{% endif %}>{{ c.text }}</td>{% endmacro %}
+{% macro list_table(items, hdrs) %}
+  <div class="table-responsive-wrapper list-scroll" tabindex="0">
+    <table class="summary-table">
+      <thead><tr><th>Ticker</th><th>Company</th><th>Country</th><th>Industry</th>{% for h in hdrs %}{{ th(h) }}{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in items %}
+        <tr{% if r.fails %} class="grade-fail"{% endif %}{% if r.ticker in held %} data-held="1"{% endif %}{% if r.wht0 %} data-wht0="1"{% endif %}{% if r.extra %} data-extra="1"{% endif %}>{{ ticker_cell(r) }}<td>{{ r.name }}</td><td>{{ r.country }}</td><td>{{ r.industry }}</td>{% for c in r.cells %}{{ td(c) }}{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endmacro %}
+{% macro qualified(rows, total, ranked=false) %}{% set shown = rows | rejectattr('extra') | list | length %}{% set low = rows | rejectattr('extra') | selectattr('fails') | list | length %}<p class="list-count muted">{% if ranked %}The top {{ shown }} of {{ "{:,}".format(total) }} eligible companies{% else %}{{ "{:,}".format(total) }} {{ 'company qualifies' if total == 1 else 'companies qualify' }}{% if total > shown %}; the top {{ shown }} are shown{% elif total %}; all are shown{% endif %}{% endif %}{% if low %}; {{ low }} of them {{ 'falls' if low == 1 else 'fall' }} short on the moat and management grade (folded under the list){% endif %}.</p>{% endmacro %}
+{% macro list_tables(rows, hdrs) %}{% set good = rows | rejectattr('fails') | list %}{% set low = rows | selectattr('fails') | list %}
+    {% if good %}{{ list_table(good, hdrs) }}{% else %}<p class="empty">None passes the moat and management grade.</p>{% endif %}
+    {% if low %}<details class="explain below-bar"><summary>{{ low | rejectattr('extra') | list | length }} below the moat and management bar</summary>
+    <p class="muted">They pass every figure test of the list, but the AI grade of their moat or management falls short: kept for reference, not replaced.</p>
+    {{ list_table(low, hdrs) }}</details>{% endif %}{% endmacro %}
+{% macro ranking_row(r) %}
+        <tr{% if r.fails %} class="grade-fail"{% endif %}{% if r.ticker in held %} data-held="1"{% endif %}{% if r.compounder %} data-compounder="1"{% endif %}{% if r.operating %} data-operating="1"{% endif %}{% if r.q70 %} data-q70="1"{% endif %}{% if r.clean %} data-clean="1"{% endif %}{% if r.wht0 %} data-wht0="1"{% endif %}>
+          <td class="num">{{ r.rank }}</td>
+          {{ ticker_cell(r) }}
+          <td>{{ r.name }}</td><td>{{ r.country }}</td><td>{{ r.industry }}</td>
+          {% for c in r.cells %}{{ td(c) }}{% endfor %}
+        </tr>
+{% endmacro %}
+{% block title %}Turning over the Rocks{% endblock %}
+{% block header %}
+<h1>Turning over the Rocks</h1>
+<p class="subtitle">{{ "{:,}".format(n_companies) }} listed companies{% if n_countries %} in {{ n_countries }} countries{% endif %}, measured with one yardstick: what a share earns for its owner against its price, and how good and lasting the business is. The few that are both cheap and good come first, cleaned of doubtful figures, checked on their moat and management, and followed month by month in a frozen forward test.</p>
+<nav class="page-sections">
+  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 2 November 2026 (bought at the 30 October close), followed month by month since, against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}
+</nav>
+{% endblock %}
+{% block actions %}
+<button id="wht-toggle" class="pill" type="button" aria-pressed="false" title="Show only companies from countries that withhold no tax on dividends paid to non-resident individuals (statutory rate), in every list and the full ranking">No dividend tax</button>
+{% if held_slugs %}<button id="holdings-toggle" class="pill" type="button" aria-pressed="false" title="Show only the portfolio: its companies in the combined ranking, highlighted in the charts">Holdings</button>{% endif %}
+{% endblock %}
+{% block content %}
+<script>window.FQ_HELD = {{ held_slugs | tojson }};</script>
+<div class="card intro">
+  <h2>How to read this page</h2>
+  <p class="meta">{% if data_date %}Data as of {{ data_date }}{% else %}{{ date }}{% endif %} &middot; {{ period }} &middot; {{ "{:,}".format(n_companies) }} companies, {{ "{:,}".format(n_ranked) }} ranked</p>
+  <ul class="plain-points">
+    <li><span class="swatch swatch-v"></span><strong>Value</strong>: what one share earns for its owner in a normal year, against the price you pay for it. Higher is cheaper.</li>
+    <li><span class="swatch swatch-q"></span><strong>Quality</strong>: how much the business earns on the money it runs on, how steadily, and whether one share of it keeps growing. Higher is better.</li>
+    <li><strong>Combined</strong>: a company must be both; the ranking orders them by the weaker of the two. Each score is a percentile: 80 means better than 80% of companies.</li>
+    <li><strong>Moat and management grade</strong>: an AI model (Gemini) reads each listed company's page here, with what it knows of the company, and grades its competitive moat and its management from 1 to 5. It only decides who stays on top of a list; it changes no score and no rank.</li>
+    <li><strong>What this is for</strong>: a starting point for your own research, not advice and not a buy list. The figures are the companies' own reports as Yahoo Finance serves them; the {% if forward %}<a href="forward.html">forward test</a>{% else %}forward test{% endif %} shows how the lists have done since they were frozen.</li>
+  </ul>
+  <h3 class="label fresh-head">How fresh the data is</h3>
+  <ul class="plain-points fresh">
+    <li><strong>Company figures</strong> (statements, quarterly and annual): re-read a few days after each company publishes a report, on its own calendar, and at least every {{ fresh.statements_days }} days. Up to {{ fresh.per_run }} companies a rebuild, so a busy reporting season takes a few.</li>
+    <li><strong>Prices</strong>, and everything set by them (Value, yields, P/E, momentum): weekly, refreshed at each rebuild once {{ fresh.price_days }} days old.</li>
+    <li><strong>Forward test</strong>: monthly, one mark at each month-end once the month is over.</li>
+    <li><strong>Moat and management grades</strong> (AI): yearly, or when a new annual report lands.</li>
+  </ul>
+  <p class="muted">The site is rebuilt by hand; the date above is its newest data, and each company page gives its own.</p>
+  <p>Start with the first row of tabs below, <em>Start here</em>, then open any company for its figures and charts. Hover a column header for its definition.</p>
+  <details class="explain">
+  <summary>Precise definitions</summary>
+  <dl class="definitions">
+    <div><dt><span class="swatch swatch-v"></span>Value</dt><dd>The normalised owner earnings one share owns, projected 3 years on the steady trend of its free cash flow after all investment (declines charged; no trend for cyclicals, already at mid-cycle), over today's price. Operating companies are compared with the whole market; banks, insurers and holdings with their own kind, as their yield is on equity, after debt.</dd></div>
+    <div><dt><span class="swatch swatch-q"></span>Quality</dt><dd>Mostly return on capital (ROIC; ROE for banks, insurers and holdings, banks' at a standard 8% equity/assets so thinner capital does not look better) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy leverage; also how much one share of the business grew and whether the share count shrank. Compared across the market; banks, insurers and holdings with their own kind.</dd></div>
+    <div><dt>Combined</dt><dd>Companies ordered by the worse of their Value and Quality positions{% if has_bench %} among the benchmark's companies{% endif %}, ties by the sum: a company must be both cheap and good, one does not make up for the other.</dd></div>
+  </dl>
+  <p>Systematic fundamental screening across all business models. Financials and holdings are evaluated on net income and book value against peer groups. {{ bench_note }}</p>
+  <p class="muted">Value&ndash;Quality correlation: {{ vq_corr }} (profitable operating companies; loss-makers, low on both, and banks, insurers and holdings, whose Value and Quality both rest on return on equity, would inflate it). Near zero or mildly positive is expected: the market does not pay fully for high returns on capital. The highlight lists leave out companies whose figures need checking or whose business model is still to confirm; the full ranking keeps them.</p>
+  </details>
+</div>
+
+<div class="card" id="highlights">
+  <h2>Highlights</h2>
+  <p class="muted">{{ top_list_lead }}</p>
+  <details class="explain">
+    <summary>What every list leaves out</summary>
+    <p class="muted">{{ top_list_note }}</p>
+  </details>
+  <div class="tabs" role="tablist" aria-label="Highlights" hidden>
+    {% for t in tabs %}{% if loop.first or t.group != loop.previtem.group %}<span class="tab-group" aria-hidden="true">{{ groups[t.group].heading }}</span>{% endif %}<button type="button" role="tab" data-panel="{{ t.panel }}">{{ t.name }}</button>{% endfor %}
+  </div>
+
+  {% for t in tabs %}
+  <section class="tab-panel" id="{{ t.panel }}" role="tabpanel">
+    <p class="tab-kicker"><strong>{{ groups[t.group].heading }}</strong> &middot; {{ groups[t.group].note }}</p>
+    <h3>{{ t.heading }}</h3>
+    {{ texts[t.key](rule) }}
+    {% if t.funnel %}<p class="list-funnel muted">{% for label, count in t.funnel %}{{ label }}: {{ "{:,}".format(count) }}{% if not loop.last %} &rarr; {% endif %}{% endfor %}.</p>{% endif %}
+    {{ qualified(t.rows, t.total, t.ranked) }}
+    {% if t.rows %}{{ list_tables(t.rows, t.headers) }}{% else %}<p class="empty">None in this run.</p>{% endif %}
+  </section>
+  {% endfor %}
+</div>
+
+<div class="card dot-chart-card" id="map">
+  <h2>The map: Value vs Quality</h2>
+  <p class="chart-instruction">Each dot is a company: its area is the market cap, blue for S&amp;P 500 members, orange for the rest. The two lines mark the median (50) of each score: top right is above it on both, cheap and good. Click a dot to open that company's page.{% if has_bench %} Grey dots are benchmark companies outside this run.{% endif %}</p>
+  {{ quadrant | safe }}
+</div>
+
+{% if histograms %}
+<section class="distributions">
+  <p class="chart-instruction">How the companies spread on {{ histograms | length }} measures{% if has_bench %}: this run in colour, the benchmark in grey (dotted line: its median){% endif %}; dashed line: the median of this run{% if held_slugs %} (Holdings switch adds your portfolio in orange){% endif %}.</p>
+  <div class="distribution-container">
+    {% for title, div in histograms %}
+    <div class="card dist-card">{{ div | safe }}</div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if industries.rows %}
+<div class="card" id="industries">
+  <h2>By industry</h2>
+  <p class="chart-instruction">Medians per Yahoo industry over all {% if industries.scope %}{{ industries.scope }} benchmark{% else %}ranked{% endif %} companies, each company weighing the same (not by size); highest normalised FCF yield first. The Companies column says how many each median rests on. Best ranked is the industry's best combined rank{% if industries.scope %} in this run{% endif %}. Click a column header to sort.</p>
+  <div class="table-responsive-wrapper table-scroll">
+    <table class="summary-table sortable">
+      <thead><tr>{% for h in industries.headers %}<th{% if not loop.first and not loop.last %} data-first="desc"{% endif %}>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in industries.rows %}
+        <tr><td>{{ r.industry }}</td><td class="num">{{ r.n }}</td>{% for c in r.cells %}<td class="num">{{ c }}</td>{% endfor %}<td>{% if r.best %}<a href="companies/{{ r.slug }}.html" target="_blank">{{ r.best }}</a>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card" id="ranking">
+  <h2>Full ranking</h2>
+  <p class="chart-instruction">Ordered by the combined rank: the two scores, earnings power and context; each company's page has every criterion. Hover a header for its definition; click it to sort (best first).</p>
+  <div class="table-filters">
+    <input id="ranking-search" class="filter-input" type="search" placeholder="Search ticker, company, country or industry" aria-label="Search the ranking">
+    <div class="quick-filters" role="group" aria-label="Quick filters">
+      <button type="button" class="pill pill-small qf-btn" data-qf="operating" aria-pressed="false" title="Show only operating, client-cash and float businesses (hide banks, insurers, holdings and utilities/REITs)">Operating only</button>
+      <button type="button" class="pill pill-small qf-btn" data-qf="compounder" aria-pressed="false" title="Show only the Compounders: high, steady returns on capital and per-share growth, every trait at once">★ Compounders</button>
+      <button type="button" class="pill pill-small qf-btn" data-qf="q70" aria-pressed="false" title="Show only companies with Quality score 70 or more">Quality &ge; 70</button>
+      <button type="button" class="pill pill-small qf-btn" data-qf="clean" aria-pressed="false" title="Hide cyclical, peak-margin, distressed, earnings-collapse and suspect-data companies">Clean only</button>
+    </div>
+    <span id="ranking-count" class="filter-count"></span>
+  </div>
+  <div class="table-responsive-wrapper table-scroll-main">
+    <table id="ranking-table" class="summary-table summary-table-main sortable" data-total="{{ rows | length }}">
+      <thead>
+        <tr><th data-first="asc" data-help="Combined rank: the worse of the Value and Quality positions (ties: their sum), lowest first.">Rank</th><th>Ticker</th><th>Company</th><th>Country</th><th>Industry</th>{% for h in headers %}{{ th(h) }}{% endfor %}</tr>
+      </thead>
+      <tbody>
+      {% for r in rows[:eager_rows] %}{{ ranking_row(r) }}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if rows | length > eager_rows %}
+  {# The rest of the ranking as inert text, put into the table on search, filter, sort or "Show all" (main.js). #}
+  <script type="text/html" id="ranking-rest">{% for r in rows[eager_rows:] %}{{ ranking_row(r) }}{% endfor %}</script>
+  <p class="show-all-wrap"><button type="button" id="ranking-show-all" class="pill pill-small">Show all {{ "{:,}".format(rows | length) }} companies</button></p>
+  {% endif %}
+</div>
+
+{% endblock %}

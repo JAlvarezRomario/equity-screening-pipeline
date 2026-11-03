@@ -1,0 +1,32 @@
+# Euronext Amsterdam mid and small caps (AMX / AScX segment; Yahoo Finance tickers: .AS), primary listings only.
+# Built Oct 28, 2026 from Yahoo's screener (exchange Amsterdam, market cap >= 50 M USD), net of every other
+# benchmark list and of excluded_tickers.txt. Left out: foreign companies whose home listing is elsewhere
+# (Shell, Unilever, RELX: .L), closed-end investment funds (Tetragon, Volta Finance), Heineken Holding,
+# CCEP and NEPI Rockcastle (already held under another line). Refresh by hand (AMX / AScX: quarterly).
+AJAX.AS
+ALFEN.AS
+AZRN.AS
+BNJ.AS
+BRNL.AS
+CABKA.AS
+CMCOM.AS
+CSG.AS
+CTPNV.AS
+ENVI.AS
+FFARM.AS
+HOLCO.AS
+HYDRA.AS
+KENDR.AS
+MORE.AS
+MTRK.AS
+NAI.AS
+NEDAP.AS
+NSI.AS
+NXFIL.AS
+PNL.AS
+REINA.AS
+SIFG.AS
+SWICH.AS
+THEON.AS
+TRIO.AS
+VALUE.AS

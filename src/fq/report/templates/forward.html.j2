@@ -1,0 +1,64 @@
+{% extends "base.html.j2" %}
+{% block title %}Forward test &middot; Turning over the Rocks{% endblock %}
+{% block header %}
+<h1>Forward test</h1>
+<p class="subtitle">Did the lists work? Every highlight list, frozen as published on {{ published_on }}, held without trading, against the S&amp;P 500 and the whole world market, in US dollars with dividends, month by month from {{ pivot }} on.</p>
+<nav class="page-sections">
+  <a href="index.html">&larr; Back to the lists</a><a href="#forward">Forward</a><a href="#members">Companies</a>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="card intro">
+  <h2>What this test is</h2>
+  <p class="fw-lead"><strong>What it is for.</strong> To find out, over the years, which of the highlight lists actually paid off, and whether any of them beat the market.</p>
+  <ul class="fw-points">
+    <li><strong>One frozen picture.</strong> On {{ published_on }} the test took a picture of every highlight list exactly as the site showed it ({{ n_lists }} lists), plus the portfolio. Each list is "bought" with the same amount in every company and held without trading: winners grow into a bigger share of the list, as they would for someone who bought it and left it alone.</li>
+    <li><strong>Forward: the real test.</strong> It starts at the close of {{ pivot }} and adds one point at the end of every month (the last trading day's close). Only prices <em>after</em> the lists were picked count, so hindsight cannot flatter it. It takes years to say much: a few months are mostly noise.</li>
+    {% for l in late_lists %}<li><strong>{{ l.name }} joined later.</strong> This list did not exist yet on {{ published_on }}. It was frozen once on {{ l.date }}, a Sunday before the main markets reopened, and bought at the same {{ pivot }} close as the others, so no later price counts in its favour. It admits only companies that pass the moat and management grade.</li>{% endfor %}
+    {% if gated_out is not none %}<li><strong>Only companies that pass the moat and management grade.</strong> Each list holds only the companies whose AI-written moat and management grade (as graded by {{ gate_date }}, frozen) clears the bar the main page applies: both at least 3 out of 5, or either at least 4.25 (the Shortlist: both at least 3 and either at least 4). {{ gated_out }} {{ "company is" if gated_out == 1 else "companies are" }} left out of at least one list; the portfolio is held whole, every holding at equal weight, graded or not.</li>{% endif %}
+    <li><strong>How it is measured.</strong> The total return: the price change plus the dividends paid (reinvested), converted to US dollars at each date's exchange rate, so currency moves count as they would for a dollar investor. Each list is compared with an S&amp;P 500 ETF (SPY) and a total world ETF (VT), measured the same way.</li>
+    <li><strong>Frozen, while the lists on the main page keep moving.</strong> The lists on the main page are <em>dynamic</em>: they change with every price move and every new annual or quarterly report, so a company followed here may have left its list since {{ published_on }}, and new ones may have entered. This page follows the frozen picture on purpose: it is the only honest way to judge a list, what you would have earned had you bought it that day and held it. Each company below is marked <em>still listed</em> or <em>left the list</em>, so you can see how far the live list has drifted.</li>
+  </ul>
+  <p class="muted fw-fine">Fine print: dividends are counted before withholding tax, as in the ETFs' prices; no trading costs or taxes; month-end closing prices; a company that stops trading (delisted, taken over) is held at its last price and counted as "stale". Prices and dividends from Yahoo Finance, updated after each month-end. Past results do not predict future ones, and this is not investment advice.{% if no_fx %} Without an exchange-rate history, these stay in their own currency: {{ no_fx | join(", ") }}.{% endif %}{% if check %} To check by hand, since Yahoo's prices jumped or were corrected (a split, a change of quote unit): {{ check | join(", ") }}.{% endif %}</p>
+  <p class="muted fw-fine">How to read it: the lists are equal weight and lean to smaller and non-US companies, the ETFs are weighted by size, so a gap includes those tilts as well as the picking. The lists carry no fees, costs or withholding tax, while the ETFs' prices carry their fees and the withholding they pay, which slightly flatters the lists. A bankrupt company that disappears stays at its last price, which overstates its list. With this many overlapping lists, the best of them will partly be luck, and the smallest hold few companies, so they swing more.</p>
+</div>
+
+<section class="card chart-card" id="forward">
+  <h2>Forward: since {{ pivot }}</h2>
+  {% if fwd.chart %}
+  <p class="meta">{{ pivot }} to {{ fwd.last }} &middot; {{ fwd.months }} month{{ '' if fwd.months == 1 else 's' }}</p>
+  <div class="company-chart">{{ fwd.chart | safe }}</div>
+  <p class="chart-instruction">Each line is one list's return since {{ pivot }}, at each month-end. The dashed grey lines are the two ETFs, and the dotted horizontal lines mark where each ETF stands now: a list ending above them has beaten that market so far. Click a name in the legend to hide or show it.</p>
+  {% else %}
+  <p class="empty">Not started yet: the first point is the close of {{ first_fwd }}, added by the update on {{ first_fwd_run }}.</p>
+  {% endif %}
+</section>
+
+{% if fwd.rows %}
+<section class="card" id="forward-results">
+  <h2>Forward results</h2>
+  {% with t = fwd %}{% include "forward_results.html.j2" %}{% endwith %}
+</section>
+{% endif %}
+
+<section class="card fw-groups" id="members">
+  <h2>The frozen companies</h2>
+  <p class="muted">Each list as it stood on {{ published_on }}, in the order it was shown, with each company's own return since {{ pivot }}.</p>
+  {% for g in groups %}
+  <details class="explain">
+    <summary>{{ g.name }} ({{ g.n }}{% if g.still is not none %}; {{ g.still }} still listed{% endif %})</summary>
+    <div class="table-responsive-wrapper list-scroll" tabindex="0">
+      <table class="summary-table sortable">
+        <thead><tr><th data-first="asc">#</th><th>Ticker</th><th>Company</th><th>Country</th><th class="num" data-first="desc">Return</th>{% if g.still is not none %}<th>Today</th>{% endif %}</tr></thead>
+        <tbody>
+        {% for r in g.rows %}
+          <tr><td class="num">{{ r.position }}</td><td class="ticker">{% if r.slug %}<a href="companies/{{ r.slug }}.html" target="_blank">{{ r.ticker }}</a>{% else %}{{ r.ticker }}{% endif %}{% if r.stale %} <span class="flag-tag" title="No price at the last month-end: held at its last value">stale</span>{% endif %}</td><td>{{ r.name }}</td><td>{{ r.country }}</td><td class="{{ r.fwd.cls }}">{{ r.fwd.text }}</td>{% if g.still is not none %}<td{% if not r.listed %} class="fw-left"{% endif %}>{{ 'still listed' if r.listed else 'left the list' }}</td>{% endif %}</tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,110 @@
+{#- Each highlight tab's one plain sentence and its "Exact rules" fold: one macro per `highlights.Tab.key`, called
+    with `r`, the thresholds `html._rule_values` formats. Edit a list's wording here; its screen is in screens.py.
+    The rules are short bullets, one theme each, jargon glossed on first use (user's choice, Nov 3, 2026). -#}
+{% macro rules(summary) %}<p class="list-summary">{{ summary }}</p>
+    <details class="explain rules"><summary>Exact rules</summary><div class="chart-instruction">{{ caller() }}</div></details>{% endmacro %}
+
+{% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of the two.") %}<ul>
+  <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
+  <li>Ties go to the better sum of the two positions.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro cheapest(r) %}{% call rules("The cheapest companies for what one share earns in a normal year, whatever their quality. Many are cheap for a reason: most of them fall short on the moat and management grade.") %}<ul>
+  <li>The 20 highest Value scores: the normalised owner earnings one share owns (the cash it earns after everything the business needs to stay as it is), projected 3 years on its own steady trend, declines charged, over today's price.</li>
+  <li>Cyclicals at mid-cycle earnings, with no trend.</li>
+  <li>Banks, insurers and holdings are cheap among their own kind.</li>
+  <li>Quality is not considered.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, whatever their price.") %}<ul>
+  <li>The 20 highest Quality scores: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt.</li>
+  <li>Plus how much one share of the business grew and whether the share count shrank.</li>
+  <li>Banks, insurers and holdings against their own kind. Price is not considered.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro compounders(r) %}{% call rules("Businesses that keep earning high, steady returns and growing per share, year after year.") %}<ul>
+  <li>Operating companies only (no banks, insurers or holdings), not cyclical, Quality &ge; 70.</li>
+  <li>Returns on capital in the top quarter, steady or rising.</li>
+  <li>Revenue and owner earnings per share compounding smoothly; shares not meaningfully rising.</li>
+  <li>Free cash flow positive in most years and converted from profit; net debt at most 3&times; operating profit (EBIT).</li>
+  <li>Recent revenue, operating profit and analysts' estimates held.</li>
+  <li>No price condition of its own, but it keeps only the best {{ r.top }} of the combined ranking. "Buyback" marks those also retiring 2% or more of their shares a year.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro cannibals(r) %}{% call rules("Companies buying back a large part of their own shares each year, paid from the cash they make.") %}<ul>
+  <li>Retiring more than {{ r.cannibal_min_reduction }}% of their shares a year, actually bought back (not a share consolidation).</li>
+  <li>Paid from their own money: the buybacks of the stored years within their free cash flow plus the spare cash they hold.</li>
+  <li>Value &ge; {{ r.cannibal_min_value }}, Quality &ge; {{ r.cannibal_min_quality }}, positive return on capital.</li>
+  <li>Not cyclical: an upswing pays for buybacks at the top.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro below_book(r) %}{% call rules("Companies priced at or below what their tangible assets are worth, or growing into it within a few years.") %}<ul>
+  <li>Tangible book per share (net debt counted against it) at or above the share price, book not shrinking; or at least {{ r.asset_min_nav }}% of it and growing fast enough to pass it within {{ r.asset_horizon }} years.</li>
+  <li>Value &ge; 50, positive returns and earnings power, no dilution.</li>
+  <li>Operating companies: bounded debt, free cash flow positive in most years, Quality &ge; 35.</li>
+  <li>Financials: capital of at least 6% of assets, Quality &ge; 50.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro net_cash(r) %}{% call rules("Companies whose spare cash is a large part of their market value: a buyer gets the cash with the business.") %}<ul>
+  <li>Net cash (cash less all debt, on the shareholders' share) of {{ r.net_cash_min }}% or more of the market value.</li>
+  <li>Shares not issued and free cash flow positive in at least {{ r.net_cash_min_fcf }}% of the years, so the pile is neither diluted nor burned.</li>
+  <li>Banks, insurers and holdings are not measured this way.</li>
+  <li>Cyclicals stay, marked: for them the cash is what carries them through the downturn.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro off_radar(r) %}{% call rules("Small, little-followed companies outside the US that score well on both Value and Quality.") %}<ul>
+  <li>Outside the US, under ${{ r.radar_max_cap }}B of market value, followed by {{ r.radar_max_analysts }} analyst{{ '' if r.radar_max_analysts == 1 else 's' }} at most.</li>
+  <li>Value &ge; {{ r.radar_min_value }}, Quality &ge; {{ r.radar_min_quality }}, return on capital &ge; {{ r.radar_min_roic }}%.</li>
+  <li>Revenue per share compounding at {{ r.radar_min_compounding }}%/yr or more, owner earnings not falling, no dilution, recent numbers held.</li>
+  <li>No financial services or real estate, nothing cyclical or at peak margins.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro improvers(r) %}{% call rules("Companies whose earnings per share, sales, returns and margins rose in every recent year.") %}<ul>
+  <li>In every one of their last {{ r.improver_min_years }} or more annual reports, with no gap: owner earnings per share, revenue, return on capital (on equity for banks, insurers and holdings) and operating margin (not for those three, where it says little) each rose.</li>
+  <li>The share count never rose; the latest owner earnings positive; statements in their own currency.</li>
+  <li>No price condition of its own, but it keeps only the best {{ r.top }} of the combined ranking.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, covered by what the business earns.") %}<ul>
+  <li>No dividend withholding tax for a foreign individual (statutory rate): the dividend is kept whole.</li>
+  <li>Yield of {{ r.carry_min_yield }}% or more, above a {{ r.carry_borrow_rate }}% borrowing cost, so it could service a loan.</li>
+  <li>Covered by the owner yield: what is not paid out stays in the company and keeps growing its value.</li>
+  <li>Dividends and owner earnings per share trended up over at least {{ r.carry_min_years }} annual reports (one dip allowed).</li>
+  <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro trouble(r) %}{% call rules("Good businesses whose profit just fell and has stopped falling: cheap if the trouble passes.") %}<p>Where value investors find their best ideas (Greenblatt, Pzena): a good business falling off its trend.</p><ul>
+  <li><strong>Good business</strong>: normal return on capital (on equity for financials) of {{ r.roic }}% or more, Quality &ge; {{ r.trouble_quality }}, free cash flow positive in at least {{ r.fcf }}% of the years.</li>
+  <li><strong>Customers still there</strong>: revenue over the last twelve months at least {{ r.trouble_revenue }}% of the three years before (banks, insurers and holdings not asked).</li>
+  <li><strong>Profit just fell</strong>: a lasting fall in clean pre-tax profit, or operating profit down more than {{ r.trouble_drop }}% (banks, insurers and holdings only the first).</li>
+  <li><strong>Stopped falling</strong>: the latest quarter, against the same quarter a year earlier, no worse than that drop.</li>
+  <li><strong>Cheap on normal earnings</strong>: earnings power before the fall at least {{ r.hurdle }}% of the price, the bond hurdle.</li>
+  <li><strong>Not dying</strong>: not distressed, revenue not in a long decline, not fragile to AI, net debt at most {{ r.net_debt_equity }}% of equity, figures and business model trusted.</li>
+</ul><p>Value scores them on today's lower earnings, so most sit low in the combined ranking. Read these with most care: is the problem temporary?</p>{% endcall %}{% endmacro %}
+
+{% macro shortlist(r) %}{% call rules("Our best candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
+  <li><strong>Growth without dilution</strong>: revenue (book for banks, insurers and holdings) per share growing, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
+  <li><strong>Cash</strong>: free cash flow positive in at least {{ r.fcf }}% of the years.</li>
+  <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
+  <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried.</li>
+  <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%.</li>
+  <li><strong>Stress tests</strong>: no industry naturally fragile to AI (IT services, consulting, staffing, advertising, publishing, education, business services); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
+  <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (Greenblatt's bar: a business must pay more than a bond); Value &ge; {{ r.value }}.</li>
+  <li><strong>Quality</strong>: normalised return on capital (on equity) of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
+  <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro repeaters(r) %}{% call rules("Companies that several lists pick at once, each for its own reason, and that pass the moat and management grade.") %}<ul>
+  <li>On two or more of the other lists, ordered by how many (most first), then by the combined rank. Hover the Lists number to see which.</li>
+  <li>A screened list counts every company it admits, not only the 20 it shows; {{ r.repeater_ranked }} count only the 20 they show, as they are pure rankings.</li>
+  <li>Only companies whose moat and management grade passes the bar (both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}); ungraded ones are graded before they can enter.</li>
+  <li>Most of them are on the Shortlist too: the same answer, reached from several directions.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro nectar(r) %}{% call rules("Cheap, steady businesses with net cash that grow every year without issuing shares, in industries built to last and not exposed to AI.") %}<ul>
+  <li>Net cash; owner earnings of at least {{ r.nectar_min_yield }}% of the price; not cyclical.</li>
+  <li>Over at least {{ r.nectar_min_years }} annual reports: owner earnings per share positive, up every year and close to their trend; return on capital up every year and steady, or merely steady when its normal level is above {{ r.nectar_stable_roic }}%; each allowed one flat year (within 2%).</li>
+  <li>Revenue up every year in the company's own currency; the share count never up, nor since the last annual report.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
+</ul>
+<details><summary>Industries left out</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, entertainment, broadcasting, paper, publishing, packaging, grocers, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, education, internet content, business services).</p></details>{% endcall %}{% endmacro %}

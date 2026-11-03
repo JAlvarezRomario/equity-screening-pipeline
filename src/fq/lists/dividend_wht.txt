@@ -1,0 +1,79 @@
+# Statutory dividend withholding tax (%) on a non-resident individual holding listed shares, before any treaty or
+# refund (user's choice, Oct 28, 2026: the plain statutory rate). Shown only (`Dividend_WHT`, the "0% WHT" pill and
+# the "No dividend tax" switch); never part of a score. Reviewed Oct 28, 2026 against PwC Worldwide Tax Summaries
+# (taxsummaries.pwc.com, "Withholding taxes" per country); check again each January.
+#
+# `Country: rate` keys on Yahoo's `country` (the headquarters, which is usually but not always the tax domicile).
+# `TICKER rate  # why` lines (no colon) override it for an issuer whose dividends are taxed elsewhere.
+# A country not listed shows no rate.
+
+# No withholding on dividends.
+United Kingdom: 0
+Hong Kong: 0
+Singapore: 0
+Malaysia: 0  # single-tier system: dividends are tax-exempt
+United Arab Emirates: 0
+Qatar: 0
+Kuwait: 0  # PwC: no domestic WHT; a 15% on listed dividends to foreign corporate holders (Law 2/2008) is disputed
+Bermuda: 0
+Cayman Islands: 0
+Jersey: 0
+Guernsey: 0
+Isle of Man: 0
+Gibraltar: 0
+Bahamas: 0
+Cyprus: 0  # non-residents pay no defence contribution
+Liechtenstein: 0  # coupon tax abolished 2011
+Monaco: 0
+Macau: 0
+Myanmar: 0
+
+# Up to 10%.
+Saudi Arabia: 5
+Greece: 5
+Georgia: 5
+Peru: 5
+Vietnam: 5  # personal income tax on dividends, residents and non-residents alike (0% to foreign companies); added Oct 30, 2026
+Uruguay: 7
+China: 10  # A and H shares
+Brazil: 10  # Law 15,270/2025, from Jan 1, 2026 (was 0)
+Mexico: 10
+Thailand: 10
+Panama: 10
+
+# Over 10%.
+France: 12.8  # individuals (25% for companies)
+Cambodia: 14
+Japan: 15.315  # listed shares
+Netherlands: 15
+Luxembourg: 15
+Turkey: 15  # from Dec 22, 2024 (was 10%)
+Kazakhstan: 15
+Lithuania: 15
+Hungary: 15  # individuals (0% for companies)
+Czech Republic: 15  # 35% outside treaty / EU-EEA countries
+New Zealand: 15  # fully imputed dividends (30% unimputed)
+Spain: 19
+Poland: 19
+India: 20  # plus surcharge and cess
+Indonesia: 20
+South Africa: 20
+Colombia: 20
+Taiwan: 21
+South Korea: 22  # including local income tax
+Ireland: 25
+Canada: 25
+Norway: 25
+Israel: 25  # holder under 10%
+Germany: 26.375  # including solidarity surcharge
+Italy: 26
+Denmark: 27
+Austria: 27.5
+Portugal: 28  # individuals (25% for companies)
+Australia: 30  # unfranked part only: fully franked dividends carry none
+Sweden: 30
+Belgium: 30
+Finland: 30  # 35% on nominee-registered shares when the owner is not identified
+United States: 30
+Switzerland: 35
+Chile: 35  # less a credit for the first-category corporate tax paid

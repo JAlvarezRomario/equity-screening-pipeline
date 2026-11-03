@@ -1,0 +1,10 @@
+# NIFTY 100 (NSE), `.NS`, net of every other list: the other 94 members are already in msci_em.txt. From the official
+# constituent file (niftyindices.com, ind_nifty100list.csv) downloaded Oct 28, 2026. Replaces the hand-picked
+# "High-quality Indian compounders" list (user's choice, Oct 28, 2026: a list of known winners biases the Quality lists).
+# Refresh after each NSE semi-annual review (effective end of March and end of September).
+ADANIGREEN.NS
+HINDZINC.NS
+HYUNDAI.NS
+IRFC.NS
+MAZDOCK.NS
+TATACAP.NS

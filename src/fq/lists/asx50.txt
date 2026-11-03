@@ -1,0 +1,55 @@
+# S&P/ASX 50 (Yahoo Finance tickers: ASX code + .AX), the blue-chip index of the 50 largest ASX companies by free-float
+# market cap. Reconstructed on Oct 21, 2026 from the August 2025 list (Wikipedia, less its stray ETF) and the
+# September 2026 rebalance (effective September 21): Mineral Resources, NEXTDC and ALS in, Cochlear out (WiseTech also
+# out per the press, held through MSCI World). The sources conflict on those swaps; the names at the boundary are ASX
+# 100 members in any case. Check against the S&P Dow Jones Indices factsheet. Reviews: quarterly (March, June,
+# September, December); refresh by hand.
+# One listing per company, the primary one. Seven members are held through their other line and are not listed here:
+#   NEM (Newmont), XYZ (Block), RMD (ResMed), AMC (Amcor) and NWS (News Corp B): the US primary line (S&P 500 list;
+#   News Corp through NWSA); FPH (Fisher & Paykel Healthcare): FPH.NZ in the MSCI World list; RIO (Rio Tinto):
+#   RIO.L in the FTSE 100 list.
+# James Hardie is held through its NYSE line (JHX; the most liquid, 6x the ASX volume, and its primary exchange),
+# not the ASX CDIs (JHX.AX).
+ALL.AX
+ALQ.AX
+ANZ.AX
+BHP.AX
+BXB.AX
+CAR.AX
+CBA.AX
+COL.AX
+CPU.AX
+CSL.AX
+EVN.AX
+FMG.AX
+GMG.AX
+IAG.AX
+JBH.AX
+LYC.AX
+MIN.AX
+MPL.AX
+MQG.AX
+NAB.AX
+NST.AX
+NXT.AX
+ORG.AX
+PME.AX
+QAN.AX
+QBE.AX
+REA.AX
+S32.AX
+SCG.AX
+SGH.AX
+SGP.AX
+SIG.AX
+SOL.AX
+STO.AX
+SUN.AX
+TCL.AX
+TLS.AX
+WBC.AX
+WDS.AX
+WES.AX
+WOW.AX
+XRO.AX
+JHX

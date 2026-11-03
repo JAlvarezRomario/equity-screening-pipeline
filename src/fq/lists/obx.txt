@@ -1,0 +1,33 @@
+# OBX (Oslo Børs, the 25 most traded shares; the index the DNB OBX ETF tracks). Yahoo Finance tickers: .OL.
+# As of the September 2026 review (effective September 21, 2026), rebuilt from the September 2024 list and the
+# Euronext review notices since: Mar 2025 Schibsted A (now Vend Marketplaces) in, Tomra out; Sep 2025 Bakkafrost,
+# DOF Group, Tomra in, CMB.TECH, Hafnia, TGS out; Mar 2026 Protector in, MPC Container Ships out; Sep 2026 Aker,
+# BlueNord, TGS in, Bakkafrost, DOF Group, Protector, Wallenius Wilhelmsen out. Golden Ocean became CMB.TECH (2025).
+# Kongsberg Maritime (demerged from Kongsberg Gruppen, listed April 23, 2026) is taken as the 25th member: the
+# September 2026 notice removes it from the OBX ESG, so it was in the family; check it at the next review.
+# Reviews: March and September (third Friday); refresh by hand.
+AKER.OL
+AKRBP.OL
+BNOR.OL
+BWLPG.OL
+DNB.OL
+EQNR.OL
+FRO.OL
+GJF.OL
+HAUTO.OL
+KMAR.OL
+KOG.OL
+MOWI.OL
+NAS.OL
+NHY.OL
+NOD.OL
+ORK.OL
+SALM.OL
+STB.OL
+SUBC.OL
+TEL.OL
+TGS.OL
+TOM.OL
+VAR.OL
+VEND.OL
+YAR.OL

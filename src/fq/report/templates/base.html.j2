@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{% block title %}Turning over the Rocks{% endblock %}</title>
+  <script>
+    // Theme before the first paint: saved preference if explicitly chosen, else follows browser/system.
+    (function () {
+      let saved = null;
+      try { saved = localStorage.getItem('theme'); } catch (e) { /* storage blocked */ }
+      if (saved === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else if (saved === 'light') {
+        document.documentElement.classList.add('light');
+      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ root }}style.css">
+  <script src="{{ plotly_src }}"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="site-header">
+      <div class="header-content">
+        {% block header %}{% endblock %}
+      </div>
+      <div class="header-actions">
+        {% block actions %}{% endblock %}
+        <button id="theme-toggle" class="pill icon-button" type="button" aria-label="Switch between light and dark theme">
+          <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <footer>
+      <p>For information and education only. Not investment, financial, tax or legal advice, and not an offer or solicitation to buy or sell any security. Scores are a quantitative screen of historical data and say nothing about future returns; you may lose money. Do your own research or consult a licensed adviser. Moat and management grades and their text are written by an AI model (Gemini) and may be wrong.</p>
+      <p>Data from Yahoo Finance via yfinance, used for personal, non-commercial purposes; not affiliated with or endorsed by Yahoo. Provided as is, without guarantee of accuracy or completeness; it may contain errors or delays. {% if data_date %}Data as of {{ data_date }}.{% elif date %}Generated {{ date }}.{% endif %} Shared privately; please do not redistribute.</p>
+    </footer>
+  </div>
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+  <script src="{{ root }}main.js"></script>
+</body>
+</html>

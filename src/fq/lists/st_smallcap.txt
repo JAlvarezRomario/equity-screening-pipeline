@@ -1,0 +1,43 @@
+# FTSE ST Small Cap & Mid Cap and active SGX counters (Yahoo Finance tickers: SGX code + .SI).
+# Mid- and small-cap Singapore operating companies and REITs quoted in SGD. Net of members
+# already held in the Straits Times Index (STI) or MSCI World. Refresh by hand.
+C52.SI
+CJLU.SI
+570.SI
+CHJ.SI
+B28.SI
+T12.SI
+H13.SI
+H15.SI
+5WH.SI
+S41.SI
+H07.SI
+AIY.SI
+AWX.SI
+558.SI
+E28.SI
+5BI.SI
+5MZ.SI
+5UX.SI
+BSL.SI
+Q0X.SI
+EB5.SI
+F9D.SI
+5GI.SI
+544.SI
+1D0.SI
+Q0F.SI
+AWV.SI
+5RE.SI
+E5H.SI
+M1GU.SI
+AU8U.SI
+K71U.SI
+C2PU.SI
+T82U.SI
+O5RU.SI
+OXMU.SI
+P40U.SI
+TS0U.SI
+Q5T.SI
+DHLU.SI

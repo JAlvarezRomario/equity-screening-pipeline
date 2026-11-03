@@ -1,0 +1,34 @@
+# FTSE Bursa Malaysia KLCI (Yahoo Finance tickers: Bursa code + .KL). 30 members as of the June 2026 review
+# (effective June 22, 2026: IOI Properties in, Sime Darby out; SunMed replaced QL Resources on March 25, 2026).
+# EXPANDS TO 50 on December 21, 2026: the 20 new names are announced on December 3, 2026 - add them then.
+# Reviews: June and December; refresh by hand.
+5326.KL
+6888.KL
+6947.KL
+1023.KL
+5398.KL
+5819.KL
+1082.KL
+5225.KL
+1961.KL
+2445.KL
+1155.KL
+6012.KL
+3816.KL
+5296.KL
+4707.KL
+5183.KL
+5681.KL
+6033.KL
+4065.KL
+8869.KL
+1295.KL
+1066.KL
+5285.KL
+5211.KL
+4863.KL
+5347.KL
+4677.KL
+6742.KL
+5555.KL
+5249.KL

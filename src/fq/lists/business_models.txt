@@ -1,0 +1,35 @@
+# Yahoo industry -> business model (`settings.BUSINESS_MODELS`); matched ignoring non-alphanumerics.
+# Industries not listed are `operating`. Per-ticker exceptions live in model_overrides.txt.
+#   bank         lenders and balance-sheet brokers: deposits and loans are the business
+#   insurer      premiums are invested until claims are paid; the balance sheet is the business
+#   holding      insurance float plus owned businesses (Berkshire-style); per ticker only
+#   float        ranked like operating, but cash backs claims and 'FCF' = net income
+#   client_cash  ranked like operating, but the cash held belongs to clients
+#   asset_heavy  REITs and utilities: debt is real, most capex buys growth
+bank: Banks - Diversified
+bank: Banks - Regional
+bank: Capital Markets
+bank: Credit Services
+bank: Mortgage Finance
+bank: REIT - Mortgage
+insurer: Insurance - Diversified
+insurer: Insurance - Life
+insurer: Insurance - Property & Casualty
+insurer: Insurance - Specialty
+insurer: Insurance - Reinsurance
+holding: Financial Conglomerates
+float: Healthcare Plans
+asset_heavy: Utilities - Diversified
+asset_heavy: Utilities - Independent Power Producers
+asset_heavy: Utilities - Regulated Electric
+asset_heavy: Utilities - Regulated Gas
+asset_heavy: Utilities - Regulated Water
+asset_heavy: Utilities - Renewable
+asset_heavy: REIT - Diversified
+asset_heavy: REIT - Industrial
+asset_heavy: REIT - Office
+asset_heavy: REIT - Residential
+asset_heavy: REIT - Retail
+asset_heavy: REIT - Healthcare Facilities
+asset_heavy: REIT - Hotel & Motel
+asset_heavy: REIT - Specialty

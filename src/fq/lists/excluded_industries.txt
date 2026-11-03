@@ -1,0 +1,8 @@
+# Yahoo industries out of scope: no usable cash flow to value. Matched ignoring non-alphanumerics.
+# Every other industry is ranked with the measures of its business model (business_models.txt).
+# A ticker in model_overrides.txt is kept whatever its industry (KKR, APO, NTRS, Investor AB, ...).
+Shell Companies
+# Asset Management (Oct 28, 2026, user's choice): funds, closed-end trusts and BDCs report no operating cash flow of
+# their own. Fee managers (BlackRock, Blackstone, T. Rowe, Partners Group, Amundi, ...) are lost with them unless
+# added to model_overrides.txt.
+Asset Management

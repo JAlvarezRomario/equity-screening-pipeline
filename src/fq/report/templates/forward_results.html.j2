@@ -1,0 +1,11 @@
+  <p class="muted">Best return over the world ETF first, the two ETFs (highlighted) in their place; click a header to sort. "pp" = percentage points.</p>
+  <div class="table-responsive-wrapper" tabindex="0">
+    <table class="summary-table sortable">
+      <thead><tr><th>List</th>{% for h in t.headers %}<th class="num" data-first="{{ h.first }}" data-help="{{ h.help }}">{{ h.label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in t.rows %}
+        <tr class="{% if r.benchmark %}fw-bench{% endif %}{% if r.portfolio %} fw-portfolio{% endif %}"><td>{{ r.name }}</td>{% for c in r.cells %}<td class="{{ c.cls }}">{{ c.text }}</td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>

@@ -1,0 +1,11 @@
+# Yahoo industries left out of the "Shortlist 100" highlight list as naturally fragile to AI disruption
+# (`report.format._shortlist_gates`; user's choice, Oct 29, 2026: the core labour-for-hire industries, billed per
+# person or per piece of content, which AI substitutes most directly). Display only: no score or rank reads it, and
+# it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per line, as Yahoo spells it.
+Information Technology Services
+Consulting Services
+Staffing & Employment Services
+Advertising Agencies
+Publishing
+Education & Training Services
+Specialty Business Services
