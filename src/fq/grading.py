@@ -1,10 +1,9 @@
 """Moat and management grades (1 to 5) by Gemini: the gate on the highlight lists.
 
 The only module that calls an LLM (user's choice, Oct 31, 2026). A grade never enters a score, a rank or a flag; it
-only decides where a company sits inside a highlight list it already made (`passes`). The procedure is borrowed from
-`..\\AgenteMultiple_35` (`qualitative_prompt.md`, two independent passes averaged, then a synthesis that justifies the
-average), with the company's page in this system passed in as markdown (`page_markdown`). No search tool: the model's
-own knowledge and our figures. Grades are kept in `data/grades.parquet` (`load`, `save`) and redone only when due
+only decides where a company sits inside a highlight list it already made (`passes`). The procedure: two independent
+passes averaged, then a synthesis that justifies the average, with the company's page in this system passed in as
+markdown (`page_markdown`). No search tool: the model's own knowledge and our figures. Grades are kept in `data/grades.parquet` (`load`, `save`) and redone only when due
 (`due`: a new annual report or a year old). The google-genai client is imported only when a grading runs.
 """
 
@@ -27,8 +26,8 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
-GRADE_MODEL = "gemini-4-argon"  # the two grading passes (AgenteMultiple_35's `qualitative_research` policy)
-SYNTHESIS_MODEL = "gemini-3.8-flash"  # the justification of the averaged grade (its `qualitative_merge` policy)
+GRADE_MODEL = "gemini-4-argon"  # the two grading passes
+SYNTHESIS_MODEL = "gemini-3.8-flash"  # the justification of the averaged grade
 THINKING = "medium"
 GRADE_OUTPUT_TOKENS = 32768
 SYNTHESIS_OUTPUT_TOKENS = 16384
@@ -46,8 +45,8 @@ SHORTLIST_MIN_TOP = 4.0
 MOAT_LABEL = "Economic Moat Score"
 MGMT_LABEL = "Management Quality Score"
 
-# (start date, input, output, cached input) in USD per 1M tokens; thinking is billed as output. From
-# AgenteMultiple_35's `token_meter.py`: Argon's introductory rates end Nov 30, 2026, Flash's Dec 31, 2026.
+# (start date, input, output, cached input) in USD per 1M tokens; thinking is billed as output.
+# Argon's introductory rates end Nov 30, 2026, Flash's Dec 31, 2026.
 RATES = {
     GRADE_MODEL: ((pd.Timestamp("2000-01-01"), 2.00, 10.00, 0.10), (pd.Timestamp("2026-12-01"), 4.00, 20.00, 0.20)),
     SYNTHESIS_MODEL: ((pd.Timestamp("2000-01-01"), 0.75, 3.75, 0.075), (pd.Timestamp("2027-01-01"), 1.50, 7.50, 0.15)),
