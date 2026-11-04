@@ -39,7 +39,7 @@
   <li>Over at least {{ r.min_years }} annual reports: owner earnings per share positive and close to their rising trend; revenue and operating margin up every year, one flat year allowed; the share count never up.</li>
   <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added, so the growth was not bought with capital earning little.</li>
   <li>Operating companies only: no banks, insurers or holdings, whose earnings rose with interest rates.</li>
-  <li>Not cyclical, not at peak margins, not in an industry fragile to AI.</li>
+  <li>Not cyclical, not at peak margins, past the AI screen every list applies (see above).</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
 </ul>{% endcall %}{% endmacro %}
 
@@ -92,7 +92,7 @@
   <li><strong>Profit just fell</strong>: a lasting fall in clean pre-tax profit, or operating profit down more than {{ r.trouble_drop }}% (banks, insurers and holdings only the first).</li>
   <li><strong>Stopped falling</strong>: the latest quarter, against the same quarter a year earlier, no worse than that drop.</li>
   <li><strong>Cheap on normal earnings</strong>: earnings power before the fall at least {{ r.hurdle }}% of the price, the bond hurdle.</li>
-  <li><strong>Not dying</strong>: not distressed, revenue not in a long decline, not fragile to AI, net debt at most {{ r.net_debt_equity }}% of equity, figures and business model trusted.</li>
+  <li><strong>Not dying</strong>: not distressed, revenue not in a long decline, past the AI screen, net debt at most {{ r.net_debt_equity }}% of equity, figures and business model trusted.</li>
 </ul><p>Value scores them on today's lower earnings, so most sit low in the combined ranking. Read these with most care: is the problem temporary?</p>{% endcall %}{% endmacro %}
 
 {% macro shortlist(r) %}{% call rules("Candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
@@ -101,7 +101,7 @@
   <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
   <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried; the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so costs can be passed on.</li>
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%.</li>
-  <li><strong>Stress tests</strong>: no industry naturally fragile to AI (IT services, consulting, staffing, advertising, publishing, education, business services); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
+  <li><strong>Stress tests</strong>: no industry naturally fragile to AI (IT services, consulting, staffing, advertising, publishing, education, business services), and in software, internet content, gaming and health information only the industry's leaders whose sales per share still grow at least {{ r.ai_growth }}% a year; where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
   <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (a business should pay more than a bond); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital (on equity) of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>

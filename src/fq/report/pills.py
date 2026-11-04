@@ -10,6 +10,10 @@ def tags(row: pd.Series) -> list[dict]:
     and the company page say the same thing): `word` is the pill beside its ticker in the index tables (after
     `mark`), and capitalised the badge on its page; `why` the tooltip of both; `cls` the pill's highlight. Lists are
     named as their tabs (an asset play is "below book"). `pill=False` only for the ones the index says otherwise."""
+    # Imported here: screens imports format, which imports this module.
+    from fq.report.screens import AI_EXPOSED, AI_MIN_GROWTH, _industry_keys, ai_exposed_kept
+    from fq.universe import industry_key
+
     s, out = Settings(), []
     flag = lambda col: row.get(col) == True  # noqa: E731, E712 - handles NaN / numpy bool
 
@@ -36,6 +40,12 @@ def tags(row: pd.Series) -> list[dict]:
     if ncav >= NET_NET_PILL_MIN:
         add("net-net", f"Net current assets (current assets less every liability, preferred and minorities) are "
             f"{ncav:.0f}% of the share price: the fixed assets come at no cost.")  # fmt: skip
+    industry = row.get("industry")
+    exposed = isinstance(industry, str) and industry_key(industry) in _industry_keys(AI_EXPOSED)
+    if exposed and "Industry_Leader" in row.index and bool(ai_exposed_kept(row.to_frame().T).iloc[0]):
+        add("AI-exposed", f"In an industry AI can disrupt ({industry}): kept on the lists as one of its leaders "
+            f"by revenue with sales per share still growing at least {AI_MIN_GROWTH:g}% a year; the rest of its "
+            "industry is left out of them.")  # fmt: skip
     if flag("Financial_Mode") and isinstance(row.get("Business_Model"), str):
         out.append({"word": row["Business_Model"], "why": FINANCIAL_PILL, "cls": "", "mark": "", "badge": False})
     if flag("Cyclical"):

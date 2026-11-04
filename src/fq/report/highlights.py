@@ -53,6 +53,7 @@ class Tab:
     heading: str | None = None  # the section heading, when not the name
     ranked: bool = False  # a pure ranking: half the market would "qualify", so Repeaters count only its rows shown
     funnel: Callable[[pd.DataFrame, float], list[tuple[str, int]]] | None = None  # counts after each test
+    ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (not the pure scores)
 
 
 def _top(col: str):
@@ -104,9 +105,9 @@ TABS: tuple[Tab, ...] = (
     Tab("Temporary trouble", "trouble", "hl-trouble", sc.TROUBLE_COLUMNS, _hurdled(sc.trouble_list),
         funnel=sc.trouble_funnel),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, _top("Value_Rank"), group="raw",
-        sort="Value_Rank", ranked=True),
+        sort="Value_Rank", ranked=True, ai_screen=False),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, _top("Quality_Rank"), group="raw",
-        sort="Quality_Rank", ranked=True),
+        sort="Quality_Rank", ranked=True, ai_screen=False),
 )
 # fmt: on
 TAB = {t.name: t for t in TABS}
@@ -168,10 +169,18 @@ def repeater_list(df: pd.DataFrame, n: int, picks: dict[str, tuple[Pick, int]]) 
     return out[passed].head(n)
 
 
+def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
+    """`tab.screen`, drawn only from companies past the AI screen (`screens.ai_resilient`) unless `tab.ai_screen` is
+    off (the pure scores, Cheapest and Best businesses; user's choice, Nov 4, 2026)."""
+    if not tab.ai_screen:
+        return tab.screen
+    return lambda df, n, hurdle: tab.screen(df[sc.ai_resilient(df)], n, hurdle)
+
+
 def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
     """Every tab: name -> (pick(df, n), rows shown), in `TAB_ORDER`, each remembering its results (`_memo`).
     `hurdle` is the owner yield the Shortlist and Temporary trouble ask for (`screens.bond_hurdle`)."""
-    picks = {t.name: (_memo(partial(t.screen, hurdle=hurdle)), t.n) for t in TABS if t.screen is not None}
+    picks = {t.name: (_memo(partial(_screened(t), hurdle=hurdle)), t.n) for t in TABS if t.screen is not None}
     repeaters = (_memo(partial(repeater_list, picks=dict(picks))), TAB[REPEATERS].n)
     return {name: repeaters if name == REPEATERS else picks[name] for name in TAB_ORDER}
 

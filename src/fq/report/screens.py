@@ -442,14 +442,36 @@ def _owner_per_share(df: pd.DataFrame, years: list[str]) -> pd.DataFrame:
         lambda x: x > 0) for p in years}, index=df.index)  # fmt: skip
 
 
-def _lasting_business(df: pd.DataFrame) -> pd.Series:
-    """Not cyclical, not earning well above its usual margin (`Peak_Margin_Ratio`), not in an industry fragile to AI:
-    what both 20-year lists ask before they look at growth."""
-    return (
-        ~_flag(df, "Cyclical")
-        & ~(_num(df, "Peak_Margin_Ratio") > Settings().peak_margin_ratio)
-        & ~_in_industries(df, "shortlist_ai_fragile.txt")
+# AI screen for every highlight list but the pure scores (user's choice, Nov 4, 2026): the labour-for-hire industries
+# out (`AI_FRAGILE`), and in the industries exposed to AI (`AI_EXPOSED`) only the leaders whose sales per share still
+# grow. Display only; constants here, as the Shortlist's, so the method fingerprint stays as it is.
+AI_FRAGILE = "ai_fragile.txt"
+AI_EXPOSED = "ai_exposed.txt"
+AI_MIN_GROWTH = 5.0  # `Per_Share_Compounding`, %/yr, an exposed company needs to stay
+
+
+def ai_exposed_kept(df: pd.DataFrame) -> pd.Series:
+    """In an `AI_EXPOSED` industry, and a leader of it (`Industry_Leader`, else `industry_leader`) whose revenue per
+    share grows at least `AI_MIN_GROWTH` a year with recent revenue not down: what keeps such a company on the lists."""
+    leader = (
+        df["Industry_Leader"].fillna(False).astype(bool) if "Industry_Leader" in df.columns else industry_leader(df)
     )
+    growing = (_num(df, "Per_Share_Compounding") >= AI_MIN_GROWTH) & ~(_num(df, "Revenue_Change_Recent") < 0)
+    return _in_industries(df, AI_EXPOSED) & leader & growing
+
+
+def ai_resilient(df: pd.DataFrame) -> pd.Series:
+    """Not in an industry fragile to AI (`AI_FRAGILE`), and in one exposed to it (`AI_EXPOSED`) only as
+    `ai_exposed_kept`: a missing growth figure fails there, since the claim to stay must be shown. Reason: an AI
+    entrant needs the data, distribution and customer relationships the largest vendors hold, so a small
+    single-product vendor is the easiest to replace. `highlights.highlight_picks` applies it to every screened tab."""
+    return ~_in_industries(df, AI_FRAGILE) & (~_in_industries(df, AI_EXPOSED) | ai_exposed_kept(df))
+
+
+def _lasting_business(df: pd.DataFrame) -> pd.Series:
+    """Not cyclical, not earning well above its usual margin (`Peak_Margin_Ratio`), past the AI screen
+    (`ai_resilient`): what both 20-year lists ask before they look at growth."""
+    return ~_flag(df, "Cyclical") & ~(_num(df, "Peak_Margin_Ratio") > Settings().peak_margin_ratio) & ai_resilient(df)
 
 
 def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
@@ -604,7 +626,7 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
          ~(num("EPS_Rev_90d") < s.estimate_cut_pct)
          & ~(num("Revenue_Change_Recent") < s.dislocation_revenue_change_min)
          & ~(num("EBIT_Change_Recent") < s.dislocation_ebit_change_min)),
-        ("not fragile to AI", ~_in_industries(df, "shortlist_ai_fragile.txt")),
+        ("AI: no fragile industry, exposed ones only as leaders still growing", ai_resilient(df)),
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),
         ("net debt within half of equity", net_debt_ok | financial),
         ("kept its margin through inflation", _margin_held(df)),
@@ -730,7 +752,7 @@ def _trouble_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> list[
          & ~(_num(df, "FCF_Positive_Share") < SHORTLIST_MIN_FCF_POS)),
         ("customers still there", _revenue_held(df)),
         ("not dying, distressed or fragile",
-         ~broken & ~_in_industries(df, "shortlist_ai_fragile.txt") & (_net_debt_within_equity(df) | financial)),
+         ~broken & ai_resilient(df) & (_net_debt_within_equity(df) | financial)),
         ("stopped falling", ~(yoy < drop)),
         ("cheap on normal earnings", normal_earnings_yield(df) >= hurdle),
     ]  # fmt: skip

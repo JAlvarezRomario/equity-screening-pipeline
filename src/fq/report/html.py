@@ -62,7 +62,12 @@ TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking. T
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
                  "distressed balance sheets, collapsing earnings (but Temporary trouble, which looks for them), "
                  "declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
-                 "models still to confirm. Cheapest and Best businesses are pure Value and pure Quality; every other "
+                 "models still to confirm. Every list but Cheapest and Best businesses also leaves out the industries AI "
+                 "substitutes most directly (IT services, consulting, staffing, advertising, publishing, education, "
+                 "business services) and, in software, internet content, gaming and health information, every company "
+                 "but the industry's leaders by revenue (top {leader_share}%, the top {leader_min} always) whose sales "
+                 "per share still grow at least {ai_growth}% a year. Cheapest and Best businesses are pure Value and "
+                 "pure Quality; every other "
                  "list keeps only the best {top} of the combined ranking, in combined-rank order. Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
@@ -99,7 +104,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool) -> dict:
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),
         "operating_max_dip": g(sc.OPERATING_MAX_DIP * 100),
         "fast_min_growth": g(sc.FAST_MIN_OE_GROWTH), "fast_min_yield": g(sc.FAST_MIN_YIELD),
-        "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH),
+        "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH), "ai_growth": g(sc.AI_MIN_GROWTH),
         "list_min_incremental": g(sc.LIST_MIN_INCREMENTAL_ROIC), "max_margin_loss": g(sc.MAX_MARGIN_LOSS),
         "net_net_min": g(sc.NET_NET_MIN_NCAV),
         "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": g(cfg.carry_borrow_rate),
@@ -229,6 +234,9 @@ def build_site(
             liquid=f"${cfg.list_min_traded_usd / 1e3:,.0f}k",
             both=f"{grading.MIN_BOTH:g}",
             one=f"{grading.MIN_ONE:g}",
+            leader_share=f"{sc.SHORTLIST_LEADER_SHARE * 100:g}",
+            leader_min=sc.SHORTLIST_LEADER_MIN,
+            ai_growth=f"{sc.AI_MIN_GROWTH:g}",
         ),
         industries=sc.industry_averages(df, bench),
         headers=headers(columns, groups=True),

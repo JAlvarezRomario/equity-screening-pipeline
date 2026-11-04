@@ -1,0 +1,12 @@
+# Yahoo industries left out of every highlight list but the pure scores (Cheapest, Best businesses) as naturally
+# fragile to AI: the labour-for-hire industries, billed per person or per piece of content, which AI substitutes most
+# directly (user's choice, Oct 29, 2026, for the Shortlist; every list since Nov 4, 2026: `report.screens.ai_resilient`).
+# Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per
+# line, as Yahoo spells it.
+Information Technology Services
+Consulting Services
+Staffing & Employment Services
+Advertising Agencies
+Publishing
+Education & Training Services
+Specialty Business Services

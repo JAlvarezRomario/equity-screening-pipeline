@@ -1,0 +1,11 @@
+# Yahoo industries exposed to AI disruption, where a company stays on a highlight list only as a leader of its industry
+# (top tenth by revenue among the benchmark's companies, the top 3 always: `report.screens.industry_leader`) whose sales
+# per share still grow (`report.screens.ai_resilient`; user's choice, Nov 4, 2026). Reason: an AI entrant needs the
+# data, distribution and customer relationships the largest vendors hold, so a small single-product vendor is the
+# easiest to replace. Cheapest and Best businesses (pure scores) are not screened. Display only: no score or rank reads
+# it, and it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per line, as Yahoo spells it.
+Software - Application
+Software - Infrastructure
+Internet Content & Information
+Electronic Gaming & Multimedia
+Health Information Services

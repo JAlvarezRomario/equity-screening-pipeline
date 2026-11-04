@@ -937,3 +937,46 @@ def test_unreliable_companies_are_left_off_the_map(cfg):
     assert sum(len(fig.data[m["trace"]].x) for m in meta) == shown - 1
     slugs = [c[0] for m in meta for c in fig.data[m["trace"]].customdata]
     assert slug(df.loc[0, "Ticker"]) not in slugs
+
+
+def test_ai_screen_leaves_out_fragile_industries_and_exposed_ones_but_their_growing_leaders():
+    from fq.report.screens import ai_resilient
+
+    df = pd.DataFrame({
+        "industry": ["Consulting Services", "Software - Application", "Software - Application",
+                     "Software - Application", "Software - Application", "Packaged Foods", None],
+        "Industry_Leader": [True, False, True, True, True, False, False],
+        "Per_Share_Compounding": [9.0, 9.0, 8.0, np.nan, 8.0, -4.0, np.nan],
+        "Revenue_Change_Recent": [1.0, 1.0, 2.0, 2.0, -3.0, -9.0, np.nan],
+    })  # fmt: skip
+    # fragile; exposed non-leader; exposed leader growing (kept); growth not shown; recent revenue down; other; blank
+    assert list(ai_resilient(df)) == [False, False, True, False, False, True, True]
+
+
+def test_ai_screen_applies_to_every_list_but_the_pure_scores(cfg):
+    from fq.ranking import trusted
+    from fq.report.highlights import Highlights
+    from fq.report.pills import tags
+
+    df = _ranked(cfg).copy()
+    df["industry"] = "Packaged Foods"
+    good = df.index[df["Rank"].notna() & trusted(df)]
+    fragile, exposed = good[0], good[1]
+    df.loc[fragile, "industry"] = "Consulting Services"
+    df.loc[exposed, ["industry", "Per_Share_Compounding", "Revenue_Change_Recent"]] = [
+        "Software - Application",
+        10.0,
+        1.0,
+    ]
+    h = Highlights.compute(df, cfg)
+    assert df.loc[fragile, "Ticker"] not in set(h.shown("Cheap and good")["Ticker"])
+    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheapest")["Ticker"])  # a pure score: not screened
+    assert df.loc[exposed, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])  # its industry's only company leads it
+    row = h.frame[h.frame["Ticker"] == df.loc[exposed, "Ticker"]].iloc[0]
+    assert "AI-exposed" in [t["word"] for t in tags(row)]
+    assert "AI-exposed" not in [
+        t["word"] for t in tags(h.frame[h.frame["Ticker"] == df.loc[fragile, "Ticker"]].iloc[0])
+    ]
+    from fq.report.screens import shortlist_funnel
+
+    assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted

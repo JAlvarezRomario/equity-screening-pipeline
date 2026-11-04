@@ -1,6 +1,6 @@
 # Yahoo industries left out of the "Operating companies" highlight list (`report.screens.operating_list`; user's list for
 # the retired Nectar list, Nov 2, 2026, kept when Operating companies replaced it on Nov 4), on top
-# of `shortlist_ai_fragile.txt`. Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
+# of `ai_fragile.txt`. Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
 # Editable: one Yahoo industry per line, as Yahoo spells it. Yahoo has no fashion-only, casual-dining or commodity-packaging
 # industry, so Specialty Retail, Restaurants and Packaging & Containers go whole. The last three are the AI additions.
 Biotechnology
