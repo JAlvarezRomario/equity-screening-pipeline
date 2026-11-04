@@ -62,13 +62,15 @@ COLUMN_HELP = {
                  "beyond US inflation taken out). ROE for banks, insurers and holdings.",
     "ROIC_Variability": "ROIC spread around its own trend line, relative to its level, x: a steady moat.",
     "Gross_Margin_StdDev": "Spread of the gross margin over the years, percentage points: pricing power.",
+    "Gross_Margin_Held": "Newest gross margin less the margin of the year with the highest US inflation, percentage "
+                         "points: costs passed on (pricing power). Shown and tested by lists, never scored.",
     "Gross_Profitability_Avg": "Gross profit / operating assets (spare cash left out), %.",
     "Revenue_Worst_Change": "Worst yearly revenue change, %: does demand hold in a bad year?",
     "FCF_Positive_Share": "Share of years with positive free cash flow (all capex charged), %.",
     "Per_Share_Compounding": "USD revenue per share trend x its R², % a year (banks, insurers, holdings: book value "
                              "per share): the holder's share growing.",
-    "Incremental_ROIC": "Extra after-tax operating profit per extra invested capital, oldest year to the latest, %: "
-                        "growth that earns its keep.",
+    "Incremental_ROIC": "Extra after-tax operating profit per extra invested capital, oldest year to the latest, %, "
+                        "in US terms: growth that earns its keep.",
     "ROIC_Ex_Goodwill": "Normalised ROIC without goodwill and intangibles in invested capital, %: the operating "
                         "return apart from what acquisitions cost (ROIC with them judges that spending).",
     "ROIC_Trend": "Mean ROIC of the latest year and TTM less that of three and four years ago, percentage points.",
@@ -101,6 +103,9 @@ COLUMN_HELP = {
                               "reported), enterprise-de-levered when in net debt so leverage cannot flatter the "
                               "discount, %.",
     "NAV_to_Price": "Tangible book value per share / share price, %.",
+    "NCAV_to_Price": "Net current asset value (current assets less every liability, preferred and minorities) per "
+                     "share / share price, %: Graham's net-net test, 100 or more = the fixed assets come free (N/A "
+                     "for banks, insurers and holdings).",
     "BV_to_Price": "Common book value per share / share price, %.",
     "Repeat_Count": "How many highlight lists the company qualifies for (hover the number for which): every company a screened list admits, and the 20 shown by Cheap and good, Cheapest and Best businesses.",
     "Net_Cash_to_Cap": "Shareholder-basis net cash (spare cash less debt and preferred stock) / market cap, % "

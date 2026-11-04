@@ -100,6 +100,8 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool) -> dict:
         "operating_max_dip": g(sc.OPERATING_MAX_DIP * 100),
         "fast_min_growth": g(sc.FAST_MIN_OE_GROWTH), "fast_min_yield": g(sc.FAST_MIN_YIELD),
         "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH),
+        "list_min_incremental": g(sc.LIST_MIN_INCREMENTAL_ROIC), "max_margin_loss": g(sc.MAX_MARGIN_LOSS),
+        "net_net_min": g(sc.NET_NET_MIN_NCAV),
         "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": g(cfg.carry_borrow_rate),
         "carry_min_years": cfg.carry_min_years,
         "repeater_ranked": ", ".join(RANKED_TABS),

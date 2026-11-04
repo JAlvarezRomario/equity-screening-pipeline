@@ -97,6 +97,7 @@ def _stability(df: pd.DataFrame, cfg: Settings) -> None:
     df["Gross_Margin_StdDev"] = margin.std(axis=1, ddof=0).where(
         (margin.notna().sum(axis=1) >= 3) & ~df["Financial_Mode"]
     )
+    df["Gross_Margin_Held"] = _gross_margin_held(df, margin)
     # One exchange rate for every period, so the ratio is the change in the reporting currency.
     annual = _frame(df, "Total Revenue", cfg.annual_years)
     annual = annual.where(annual > 0)
@@ -118,6 +119,28 @@ def _stability(df: pd.DataFrame, cfg: Settings) -> None:
     total = _distinct(df, "Total Assets", years, cfg)
     accruals = (ni - _distinct(df, "Operating Cash Flow", years, cfg)) * 100 / total.where(total > 0)
     df["Accruals"] = accruals.median(axis=1).where((accruals.notna().sum(axis=1) >= 2) & ~earnings_based)
+
+
+PRICING_POWER_MIN_INFLATION = 0.04  # US inflation (fraction) a period needs to count as a cost shock
+
+
+def _gross_margin_held(df: pd.DataFrame, margin: pd.DataFrame) -> pd.Series:
+    """Pricing power (Buffett: can it raise prices without losing business), shown and tested by lists, never scored:
+    the newest gross margin less the margin of the period with the highest US inflation (`Inflation_US_<p>`), pp.
+    The period is picked by its inflation, never by calendar year. Blank under 3 margins, in financial mode and when
+    no period's inflation reaches `PRICING_POWER_MIN_INFLATION` (no cost shock to judge).
+
+    Nov 4, 2026: the shock (2022) is the oldest year Yahoo serves, so there is no year before it; the question
+    answered is whether the margin held or was rebuilt since. As the four-year window rolls past it, the figure goes
+    blank and every list test using it passes: review it then.
+    """
+    inflation = pd.DataFrame({p: _col(df, f"Inflation_US_{p}") for p in margin.columns}, index=df.index)
+    inflation = inflation.where(margin.notna())
+    peak = inflation.max(axis=1)
+    usable = (peak >= PRICING_POWER_MIN_INFLATION) & (margin.notna().sum(axis=1) >= 3) & ~df["Financial_Mode"]
+    at_peak = margin.where(inflation.eq(peak, axis=0)).bfill(axis=1).iloc[:, 0]  # newest period at the peak
+    newest = margin.bfill(axis=1).iloc[:, 0]  # columns run newest first (TTM, Y0, ...)
+    return (newest - at_peak).where(usable)
 
 
 def _roic_fit(df: pd.DataFrame, cfg: Settings) -> tuple[pd.Series, pd.Series, pd.Series]:
@@ -192,7 +215,9 @@ def _management(df: pd.DataFrame, cfg: Settings) -> None:
 
     `Incremental_ROIC` is the Buffett test on fundamentals: extra NOPAT per unit of extra invested
     capital between the oldest annual report with both and Y0. Acquisitions count, since goodwill is
-    in invested capital. Blank when capital barely grew (nothing to judge) and in financial mode.
+    in invested capital. Blank when capital barely grew (nothing to judge) and in financial mode. In US terms like
+    `ROIC` (`inflation._real_returns`, Fisher on `Excess_Inflation_Y0`; Nov 4, 2026: a high-inflation currency's
+    nominal profit growth would otherwise read as growth that earns its keep in the lists that test it).
     """
     nopat_new, cap_new = _col(df, f"NOPAT_{cfg.latest}"), _col(df, f"Invested_Capital_{cfg.latest}")
     nopat_old = pd.Series(np.nan, index=df.index)
@@ -203,7 +228,9 @@ def _management(df: pd.DataFrame, cfg: Settings) -> None:
         nopat_old, cap_old = nopat.where(both, nopat_old), cap.where(both, cap_old)
     added = cap_new - cap_old
     enough = (cap_old > 0) & (added >= cfg.incremental_min_growth * cap_old)
-    incremental = ((nopat_new - nopat_old) * 100 / added.where(enough)).clip(-50, cfg.roic_cap)
+    nominal = (nopat_new - nopat_old) / added.where(enough)
+    excess = _col(df, f"Excess_Inflation_{cfg.latest}").fillna(0.0)
+    incremental = (((1 + nominal) / (1 + excess) - 1) * 100).clip(-50, cfg.roic_cap)
     df["Incremental_ROIC"] = incremental.mask(df["Financial_Mode"])
 
     revenue = _distinct(df, "Total Revenue", cfg.avg_years, cfg)

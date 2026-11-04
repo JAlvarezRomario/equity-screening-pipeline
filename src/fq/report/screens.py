@@ -85,6 +85,7 @@ def in_best_fraction(df: pd.DataFrame) -> pd.Series:
 # ordered by combined rank.
 ASSET_PLAY_COLUMNS = [
     ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
+    ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
     ("Book Compounding / yr", "Book_Per_Share_Compounding", "+.1f", 1, "%"),
     ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
@@ -266,6 +267,36 @@ def net_cash_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
+# The "Net-nets" list (Graham's own screen; user's choice, Nov 4, 2026): net current assets alone, current assets less
+# every liability, at or above the price. Display only; constants here, as the Shortlist's.
+NET_NET_MIN_NCAV = 100.0  # NCAV / price, %
+NET_NET_COLUMNS = [
+    ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
+    ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
+    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
+
+
+def net_net_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """Operating companies (no bank, insurer or holding: their current assets mean nothing) whose net current asset
+    value per share (`NCAV_to_Price`) is at least `NET_NET_MIN_NCAV` of the price, with positive owner earnings and
+    shares not issued (`Settings.net_cash_min_share_reduction`): the fixed assets and the business come free, and
+    the net current assets are neither burned nor diluted. No `in_best_fraction` cut, since a net-net rarely scores
+    high on Quality; trusted as `ranking.top_n` (distress, suspect data and accruals stay out), in combined rank
+    order. Display only."""
+    s = Settings()
+    keep = (
+        ~_flag(df, "Financial_Mode")
+        & (_num(df, "NCAV_to_Price") >= NET_NET_MIN_NCAV)
+        & (_num(df, "Owner_Yield") > 0)
+        & (_num(df, "Share_Reduction_Rate") >= s.net_cash_min_share_reduction)
+    )
+    return top_n(df[keep], "Rank", n)
+
+
 # The "Shortlist 100" list (user's choice, Oct 29, 2026): the hand-off for research in depth, every diagnostic the
 # cache already holds applied at once. Display only; the thresholds live here, not in `Settings`, so the method
 # fingerprint (`evaluate.METHOD_MODULES`) and every snapshot's method group stay as they are.
@@ -321,8 +352,16 @@ FLAT_TOLERANCE = 0.02  # a year within this share of the year before is flat, no
 # Operating companies: ROIC and operating margin may slip this share in a year if the newest is at or above the oldest
 # (user's choice, Nov 4, 2026: at 2%, with the industries left out, 3 of the benchmark passed; at 10%, 10).
 OPERATING_MAX_DIP = 0.10
+# Growth that earns its keep (Buffett's reinvestment runway; Nov 4, 2026): the capital added since the oldest annual
+# report earns at least this, in US terms (`Incremental_ROIC`; blank when capital barely grew passes). Both lists.
+LIST_MIN_INCREMENTAL_ROIC = 15.0
+# Pricing power (Nov 4, 2026): the gross margin now at most this many points below the year of the highest US inflation
+# (`Gross_Margin_Held`; blank passes). Operating companies and the Shortlist's inflation stress test.
+MAX_MARGIN_LOSS = 2.0
 OPERATING_COLUMNS = [
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Incremental ROIC", "Incremental_ROIC", ".0f", 1, "%"),
+    ("Gross Margin Since Inflation", "Gross_Margin_Held", "+.1f", 1, " pp"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
     ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
@@ -334,9 +373,20 @@ FAST_COLUMNS = [
     ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Incremental ROIC", "Incremental_ROIC", ".0f", 1, "%"),
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
+
+
+def _earns_its_keep(df: pd.DataFrame) -> pd.Series:
+    """`Incremental_ROIC` not below `LIST_MIN_INCREMENTAL_ROIC` (blank passes)."""
+    return ~(_num(df, "Incremental_ROIC") < LIST_MIN_INCREMENTAL_ROIC)
+
+
+def _margin_held(df: pd.DataFrame) -> pd.Series:
+    """`Gross_Margin_Held` not below -`MAX_MARGIN_LOSS` (blank passes)."""
+    return ~(_num(df, "Gross_Margin_Held") < -MAX_MARGIN_LOSS)
 
 
 def _annual(df: pd.DataFrame, concept: str, periods: list[str]) -> np.ndarray:
@@ -409,7 +459,8 @@ def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     share and revenue up every year but at most one flat, owner earnings close to their rising trend, ROIC and
     operating margin never down more than `OPERATING_MAX_DIP` in a year and the newest at or above the oldest
     (`_never_fell`); the share count never up (nor since the last
-    report); `in_best_fraction`. Combined rank order, trusted as `ranking.top_n`. Display only."""
+    report); growth that earns its keep (`_earns_its_keep`) and costs passed on (`_margin_held`); `in_best_fraction`.
+    Combined rank order, trusted as `ranking.top_n`. Display only."""
     s = Settings()
     years, k = s.annual_years, s.improver_min_years
     owner = _owner_per_share(df, years)
@@ -426,6 +477,8 @@ def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & _never_fell(df, "operatingMargins", years, k, OPERATING_MAX_DIP)
         & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
         & ~(_num(df, "Ordinary Shares Number_TTM") > _num(df, f"Ordinary Shares Number_{s.latest}") * MAX_NEW_SHARES)
+        & _earns_its_keep(df)
+        & _margin_held(df)
         & in_best_fraction(df)
     )
     return top_n(df[keep], "Rank", n)
@@ -437,7 +490,8 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     operating companies only (user's choice, Nov 4, 2026: banks and insurers filled half of it on the 2022-25 rate
     cycle, and their margin says little); over at least `Settings.improver_min_years` annual reports (own currency)
     owner earnings per share positive and close to their rising trend, revenue and operating margin up every year but
-    at most one flat, the share count never up; `_lasting_business`; `in_best_fraction`.
+    at most one flat, the share count never up; `_lasting_business`; growth that earns its keep (`_earns_its_keep`:
+    fast growth bought with capital earning little is no compounder); `in_best_fraction`.
     Combined rank order, trusted as `ranking.top_n`. Display only."""
     s = Settings()
     years, k = s.annual_years, s.improver_min_years
@@ -452,6 +506,7 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & _up_but_one_flat(df, "operatingMargins", years, k)
         & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
         & _lasting_business(df)
+        & _earns_its_keep(df)
         & in_best_fraction(df)
     )
     return top_n(df[keep], "Rank", n)
@@ -552,6 +607,7 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
         ("not fragile to AI", ~_in_industries(df, "shortlist_ai_fragile.txt")),
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),
         ("net debt within half of equity", net_debt_ok | financial),
+        ("kept its margin through inflation", _margin_held(df)),
         ("beats the bond", ~(num("Owner_Yield") < hurdle)),
         ("durable returns",
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
@@ -563,7 +619,8 @@ def shortlist_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_
     """The companies worth researching in depth: `in_best_fraction` of the combined ranking and every condition of
     `_shortlist_gates` (per-share growth without dilution, owner earnings not shrinking, cash-backed and clean
     earnings, growth that earns its keep, a sound balance sheet, nothing breaking now, not fragile to AI, recession
-    leaders only, net debt within half of equity, an owner yield above the bond `hurdle`, durable returns); trusted
+    leaders only, net debt within half of equity, the gross margin kept through inflation, an owner yield above the
+    bond `hurdle`, durable returns); trusted
     as `ranking.top_n`, in combined rank order. Display only."""
     keep = in_best_fraction(df)
     for _, mask in _shortlist_gates(df, hurdle):

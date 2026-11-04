@@ -276,9 +276,9 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book, Net cash,
-    # Off the radar, Dividend carry, Temporary trouble.
-    assert len(panels) == 13
+    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book, Net-nets,
+    # Net cash, Off the radar, Dividend carry, Temporary trouble.
+    assert len(panels) == 14
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -594,6 +594,39 @@ def test_net_cash_list(cfg):
     df.loc[rows[3], "FCF_Positive_Share"] = 50.0  # the pile is burned
     assert list(net_cash_list(df, len(df))["Ticker"]) == [df.loc[rows[0], "Ticker"]]
     assert 'data-panel="hl-net-cash">Net cash</button>' in build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
+
+
+def test_net_net_list_needs_net_current_assets_above_the_price_without_the_best_fraction(cfg):
+    from fq.ranking import trusted
+    from fq.report.pills import tags
+    from fq.report.screens import net_net_list
+
+    df = _ranked(cfg).copy()
+    df = df[df["Rank"].notna() & trusted(df)].head(5).copy()
+    df.loc[:, ["NCAV_to_Price", "Owner_Yield", "Share_Reduction_Rate"]] = [120.0, 5.0, 0.0]
+    df["Financial_Mode"] = False
+    df["In_Best_Fraction"] = False  # no best-fraction cut: net-nets rarely score high on Quality
+    rows = df.index
+    df.loc[rows[1], "NCAV_to_Price"] = 80.0  # the fixed assets are not free
+    df.loc[rows[2], "Owner_Yield"] = -1.0  # burning the net current assets
+    df.loc[rows[3], "Share_Reduction_Rate"] = -3.0  # diluting them
+    df.loc[rows[4], "Financial_Mode"] = True  # a lender's current assets mean nothing
+    assert list(net_net_list(df, len(df))["Ticker"]) == [df.loc[rows[0], "Ticker"]]
+    assert "net-net" in [t["word"] for t in tags(df.loc[rows[0]])]
+    assert "net-net" not in [t["word"] for t in tags(df.loc[rows[1]])]
+    html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
+    assert 'data-panel="hl-net-nets">Net-nets</button>' in html and "Graham&#39;s net-nets" in html
+
+
+def test_list_filters_for_reinvestment_and_pricing_power(cfg):
+    from fq.report.screens import LIST_MIN_INCREMENTAL_ROIC, MAX_MARGIN_LOSS, _earns_its_keep, _margin_held
+
+    df = pd.DataFrame({
+        "Incremental_ROIC": [LIST_MIN_INCREMENTAL_ROIC, LIST_MIN_INCREMENTAL_ROIC - 1, np.nan],
+        "Gross_Margin_Held": [-MAX_MARGIN_LOSS, -MAX_MARGIN_LOSS - 0.5, np.nan],
+    })  # fmt: skip
+    assert list(_earns_its_keep(df)) == [True, False, True]  # a blank passes, as in every list
+    assert list(_margin_held(df)) == [True, False, True]
 
 
 def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):

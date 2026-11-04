@@ -32,6 +32,10 @@ def tags(row: pd.Series) -> list[dict]:
         add("below book", "Tangible book per share (net debt counted against it) at or above the share price, or "
             "growing fast enough to pass it within 3 years, with positive owner earnings and ROIC, bounded debt and "
             "no dilution: the Below book list's test.")  # fmt: skip
+    ncav = pd.to_numeric(row.get("NCAV_to_Price"), errors="coerce")
+    if ncav >= NET_NET_PILL_MIN:
+        add("net-net", f"Net current assets (current assets less every liability, preferred and minorities) are "
+            f"{ncav:.0f}% of the share price: Graham's net-net, the fixed assets come free.")  # fmt: skip
     if flag("Financial_Mode") and isinstance(row.get("Business_Model"), str):
         out.append({"word": row["Business_Model"], "why": FINANCIAL_PILL, "cls": "", "mark": "", "badge": False})
     if flag("Cyclical"):
@@ -78,6 +82,7 @@ def company_flags(row: pd.Series) -> list[tuple[str, str]]:
 
 
 BUYBACK_PILL_MIN = 2.0  # %/yr: a compounder that also shrinks its share count (the former Compounder-cannibals tab)
+NET_NET_PILL_MIN = 100.0  # NCAV / price, %: the "net-net" pill (Graham)
 WHT0_PILL = ("No withholding tax on dividends paid to non-resident individuals in its country (statutory rate, "
              "lists/dividend_wht.txt).")  # fmt: skip
 OWNER_LED_MIN = 20.0  # % of shares held by insiders for the "owner-led" pill (the benchmark's median is about 13%)

@@ -27,6 +27,8 @@
   <li>Normal return on capital (ROIC) of {{ r.operating_min_roic }}% or more; owner earnings of at least {{ r.operating_min_yield }}% of the price.</li>
   <li>Over at least {{ r.min_years }} annual reports, in the company's own currency: owner earnings per share positive, up every year and close to their trend; revenue up every year; return on capital and operating margin never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started. Owner earnings and revenue may have one flat year (within 2%).</li>
   <li>The share count never up, nor since the last annual report.</li>
+  <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added since the oldest annual report.</li>
+  <li>Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so the costs were passed on.</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
 </ul>
 <details><summary>Industries left out</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, entertainment, broadcasting, paper, publishing, packaging, grocers, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, education, internet content, business services).</p></details>{% endcall %}{% endmacro %}
@@ -35,6 +37,7 @@
   <li>Owner earnings per share compounding at {{ r.fast_min_growth }}% a year or more in US dollars, discounted for any bumps; revenue per share at {{ r.fast_min_revenue }}% a year or more.</li>
   <li>Owner earnings of at least {{ r.fast_min_yield }}% of the price today.</li>
   <li>Over at least {{ r.min_years }} annual reports: owner earnings per share positive and close to their rising trend; revenue and operating margin up every year, one flat year allowed; the share count never up.</li>
+  <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added, so the growth was not bought with capital earning little.</li>
   <li>Operating companies only: no banks, insurers or holdings, whose earnings rose with interest rates.</li>
   <li>Not cyclical, not at peak margins, not in an industry fragile to AI.</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
@@ -52,6 +55,13 @@
   <li>Value &ge; 50, positive returns and earnings power, no dilution.</li>
   <li>Operating companies: bounded debt, free cash flow positive in most years, Quality &ge; 35.</li>
   <li>Financials: capital of at least 6% of assets, Quality &ge; 50.</li>
+</ul><p>Net current assets (current assets less every liability) per share are shown beside it, not required: Graham's stricter test has a list of its own, Net-nets.</p>{% endcall %}{% endmacro %}
+
+{% macro net_nets(r) %}{% call rules("Graham's net-nets: companies whose current assets, less every liability, are worth at least the share price, so the factories and the business come free.") %}<ul>
+  <li>Net current assets (current assets less all liabilities, preferred stock and minorities) per share of at least {{ r.net_net_min }}% of the share price.</li>
+  <li>Positive owner earnings, and shares not issued, so the net current assets are neither burned nor diluted.</li>
+  <li>Operating companies only: a bank's or insurer's current assets mean nothing.</li>
+  <li>Not cut to the best {{ r.top }} of the combined ranking: a net-net rarely scores high on Quality. Distressed balance sheets and suspect figures still stay out.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro net_cash(r) %}{% call rules("Companies whose spare cash is a large part of their market value: a buyer gets the cash with the business.") %}<ul>
@@ -89,7 +99,7 @@
   <li><strong>Growth without dilution</strong>: revenue (book for banks, insurers and holdings) per share growing, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
   <li><strong>Cash</strong>: free cash flow positive in at least {{ r.fcf }}% of the years.</li>
   <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
-  <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried.</li>
+  <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried; the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so costs can be passed on.</li>
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%.</li>
   <li><strong>Stress tests</strong>: no industry naturally fragile to AI (IT services, consulting, staffing, advertising, publishing, education, business services); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
   <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (Greenblatt's bar: a business must pay more than a bond); Value &ge; {{ r.value }}.</li>

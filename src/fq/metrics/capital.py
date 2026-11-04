@@ -211,15 +211,17 @@ def _to_value_base(df: pd.DataFrame, yields: pd.Series) -> pd.Series:
 
 
 def _book_ratios(df: pd.DataFrame, cfg: Settings) -> None:
-    """Book value and tangible book per share as % of today's price (newest period), shareholder net cash / debt as %
-    of market cap (`Net_Cash_to_Cap`), enterprise-delevered tangible NAV (`Effective_NAV_to_Price`), and whether the
-    NAV chart shows."""
+    """Book value, tangible book and net current asset value (`NCAV_to_Price`, Graham's net-net test; not for banks,
+    insurers and holdings, whose current assets mean nothing) per share as % of today's price (newest period),
+    shareholder net cash / debt as % of market cap (`Net_Cash_to_Cap`), enterprise-delevered tangible NAV
+    (`Effective_NAV_to_Price`), and whether the NAV chart shows."""
     for name, prefix in (("NAV_to_Price", "NAVPS_Pct"), ("BV_to_Price", "BVPS_Pct")):
         df[name] = _latest(df, prefix, cfg)
     df["Show_NAV_Chart"] = df[["NAV_to_Price", "BV_to_Price"]].max(axis=1) >= cfg.nav_chart_threshold_pct
+    fin = df["Financial_Mode"] == True  # noqa: E712
+    df["NCAV_to_Price"] = _latest(df, "NCAVPS_Pct", cfg).where(~fin)
     # Shareholder-basis spare cash minus financial debt and preferred stock (`Minority Interest` is already out of
     # common equity, and `Excess_Cash` leaves out operating till-cash and client/float money).
-    fin = df["Financial_Mode"] == True  # noqa: E712
     fin_net_debt = df["Value_Debt"].fillna(0) + df["Value_Preferred"].fillna(0) - df["Excess_Cash"].fillna(0)
     eq_val = df["Equity_Value"].where(df["Equity_Value"] > 0)
     df["Net_Cash_to_Cap"] = (-fin_net_debt * 100.0 / eq_val).where(~fin)

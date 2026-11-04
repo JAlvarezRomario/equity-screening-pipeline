@@ -136,6 +136,13 @@ def _period_metrics(df: pd.DataFrame, period: str, cfg: Settings) -> None:
     per_price = lambda total: total / shares.where(shares > 0) / df["currentPrice"].where(df["currentPrice"] > 0) * 100  # noqa: E731
     df[f"BVPS_Pct_{period}"] = per_price(book)
     df[f"NAVPS_Pct_{period}"] = per_price(tangible)
+    # Graham's net current asset value: current assets less every liability, preferred and minorities (what the
+    # common shareholder keeps if the fixed assets are worth nothing). Blank without both rows.
+    ncav = (
+        c("Current Assets") - c("Total Liabilities Net Minority Interest")
+        - c("Preferred Stock").fillna(0) - c("Minority Interest").fillna(0)
+    )  # fmt: skip
+    df[f"NCAVPS_Pct_{period}"] = per_price(ncav)
 
     # No revenue means the period is unusable: blank every derived yield.
     no_rev = _col(df, f"Total Revenue_{period}", 0).fillna(0) == 0

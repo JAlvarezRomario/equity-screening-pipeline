@@ -96,6 +96,7 @@ TABS: tuple[Tab, ...] = (
     Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list),
         heading="The Cannibals"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list)),
+    Tab("Net-nets", "net_nets", "hl-net-nets", sc.NET_NET_COLUMNS, _plain(sc.net_net_list)),
     Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list)),
     Tab("Off the radar", "off_radar", "hl-radar", sc.OFF_RADAR_COLUMNS, _plain(sc.off_radar_list)),
     Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list),
