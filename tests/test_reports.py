@@ -615,7 +615,7 @@ def test_net_net_list_needs_net_current_assets_above_the_price_without_the_best_
     assert "net-net" in [t["word"] for t in tags(df.loc[rows[0]])]
     assert "net-net" not in [t["word"] for t in tags(df.loc[rows[1]])]
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-net-nets">Net-nets</button>' in html and "Graham&#39;s net-nets" in html
+    assert 'data-panel="hl-net-nets">Net-nets</button>' in html and "the plant and the business come at no cost" in html
 
 
 def test_list_filters_for_reinvestment_and_pricing_power(cfg):

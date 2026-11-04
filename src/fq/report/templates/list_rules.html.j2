@@ -55,9 +55,9 @@
   <li>Value &ge; 50, positive returns and earnings power, no dilution.</li>
   <li>Operating companies: bounded debt, free cash flow positive in most years, Quality &ge; 35.</li>
   <li>Financials: capital of at least 6% of assets, Quality &ge; 50.</li>
-</ul><p>Net current assets (current assets less every liability) per share are shown beside it, not required: Graham's stricter test has a list of its own, Net-nets.</p>{% endcall %}{% endmacro %}
+</ul><p>Net current assets (current assets less every liability) per share are shown beside it, not required: the stricter test has a list of its own, Net-nets.</p>{% endcall %}{% endmacro %}
 
-{% macro net_nets(r) %}{% call rules("Graham's net-nets: companies whose current assets, less every liability, are worth at least the share price, so the factories and the business come free.") %}<ul>
+{% macro net_nets(r) %}{% call rules("Companies whose current assets, less every liability, are worth at least the share price: the plant and the business come at no cost.") %}<ul>
   <li>Net current assets (current assets less all liabilities, preferred stock and minorities) per share of at least {{ r.net_net_min }}% of the share price.</li>
   <li>Positive owner earnings, and shares not issued, so the net current assets are neither burned nor diluted.</li>
   <li>Operating companies only: a bank's or insurer's current assets mean nothing.</li>
@@ -86,7 +86,7 @@
   <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro trouble(r) %}{% call rules("Good businesses whose profit just fell and has stopped falling: cheap if the trouble passes.") %}<p>Where value investors find their best ideas (Greenblatt, Pzena): a good business falling off its trend.</p><ul>
+{% macro trouble(r) %}{% call rules("Good businesses whose profit just fell and has stopped falling: cheap if the trouble passes.") %}<p>A good business that has fallen off its trend: often where the price falls further than the business.</p><ul>
   <li><strong>Good business</strong>: normal return on capital (on equity for financials) of {{ r.roic }}% or more, Quality &ge; {{ r.trouble_quality }}, free cash flow positive in at least {{ r.fcf }}% of the years.</li>
   <li><strong>Customers still there</strong>: revenue over the last twelve months at least {{ r.trouble_revenue }}% of the three years before (banks, insurers and holdings not asked).</li>
   <li><strong>Profit just fell</strong>: a lasting fall in clean pre-tax profit, or operating profit down more than {{ r.trouble_drop }}% (banks, insurers and holdings only the first).</li>
@@ -95,14 +95,14 @@
   <li><strong>Not dying</strong>: not distressed, revenue not in a long decline, not fragile to AI, net debt at most {{ r.net_debt_equity }}% of equity, figures and business model trusted.</li>
 </ul><p>Value scores them on today's lower earnings, so most sit low in the combined ranking. Read these with most care: is the problem temporary?</p>{% endcall %}{% endmacro %}
 
-{% macro shortlist(r) %}{% call rules("Our best candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
+{% macro shortlist(r) %}{% call rules("Candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
   <li><strong>Growth without dilution</strong>: revenue (book for banks, insurers and holdings) per share growing, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
   <li><strong>Cash</strong>: free cash flow positive in at least {{ r.fcf }}% of the years.</li>
   <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
   <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried; the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so costs can be passed on.</li>
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%.</li>
   <li><strong>Stress tests</strong>: no industry naturally fragile to AI (IT services, consulting, staffing, advertising, publishing, education, business services); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
-  <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (Greenblatt's bar: a business must pay more than a bond); Value &ge; {{ r.value }}.</li>
+  <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (a business should pay more than a bond); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital (on equity) of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>
 </ul>{% endcall %}{% endmacro %}

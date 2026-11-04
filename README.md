@@ -13,7 +13,7 @@ quality. It applies the same written rules to every company and records where ea
 - [What it does](#what-it-does)
 - [Key figures](#key-figures)
 - [Architecture at a glance](#architecture-at-a-glance)
-- [Engineering highlights](#engineering-highlights)
+- [System highlights](#system-highlights)
 - [Quickstart](#quickstart)
 - [Repository map](#repository-map)
 - [Data source and terms](#data-source-and-terms)
@@ -51,7 +51,7 @@ with one page per company.
 | Companies ranked | 9,485 (of 9,670 with data, from a 9,902-ticker benchmark of 52 index and market lists) |
 | Markets | 69 countries, each company read in its own reporting currency |
 | Data | 482 raw and 863 derived columns per company, in parquet |
-| Code | ~10,000 lines of Python, 378 offline tests |
+| Code | ~10,000 lines of Python, 391 offline tests |
 | LLM cost | $42.80 so far for 391 graded companies, tracked per call |
 
 ## Architecture at a glance
@@ -87,21 +87,29 @@ The full design is in [ARCHITECTURE.md](ARCHITECTURE.md): the [data flow](ARCHIT
 [layers](ARCHITECTURE.md#layers), [trade-offs](ARCHITECTURE.md#trade-offs) and
 [failure modes](ARCHITECTURE.md#failure-modes).
 
-## Engineering highlights
+## System highlights
 
-- **The AI can't touch the scores.** The scoring code never imports the LLM, and a test enforces it.
-  [Layers →](ARCHITECTURE.md#layers)
-- **The LLM is run like any other cost.** Grades are cached on a prompt hash, capped per run and priced before
-  they are spent. [LLM boundary →](ARCHITECTURE.md#the-llm-boundary)
-- **Fetching is incremental.** A planner fetches a company only when a report is due or its data is stale, within a
-  per-run budget. [One run →](ARCHITECTURE.md#one-run-step-by-step)
-- **Optional stages fail safe.** Writes are atomic, and if grading or the forward test fails, the site still
-  builds. [Failure modes →](ARCHITECTURE.md#failure-modes)
-- **Evaluation can't be fooled by hindsight.** Scores are tagged with a hash of the scoring code, and the forward
-  test is frozen and append-only. [Data model →](ARCHITECTURE.md#data-model)
-- **Messy source data is repaired in the open.** Each company records where its figures came from.
+- **One boundary, three interfaces.** The operator's machine is the only trust boundary. Three interfaces cross
+  it: statements and prices from Yahoo, page text to Gemini, and the static site to Cloudflare.
+  [System context →](ARCHITECTURE.md#system-context)
+- **A pure scoring core.** Scoring is a fixed sequence of functions with no I/O. It may not import the network,
+  the site or the LLM, and a test checks those import rules. [Layers →](ARCHITECTURE.md#layers)
+- **Repeatable results.** The same inputs give the same scores. Each run's scores carry a hash of the scoring
+  code, and dated copies of the raw cache let any past date be rescored with the current method.
+  [Quality attributes →](ARCHITECTURE.md#quality-attributes)
+- **Bounded use of outside services.** A company is fetched only when a report is due or its data is old, within a
+  per-run budget. Grades are cached on a prompt hash, capped per run and costed before they run.
+  [One run →](ARCHITECTURE.md#one-run-step-by-step) · [LLM boundary →](ARCHITECTURE.md#the-llm-boundary)
+- **Partial failure keeps the output.** Writes are atomic and the cache schema is checked on load. Grading and the
+  forward test run apart from the rest, so if either fails, the site still builds.
   [Failure modes →](ARCHITECTURE.md#failure-modes)
-- **Designed and built solo, with an AI coding agent working under enforced rules.**
+- **Data checks at the input.** Unit errors and anomalies are tested, each repair is recorded per company, and
+  doubtful companies are kept off the lists. [Data flow →](ARCHITECTURE.md#data-flow)
+- **Evaluation fixed in advance.** The forward test is frozen when it starts and only ever appended to.
+  [Data model →](ARCHITECTURE.md#data-model)
+- **Configuration as data.** Index lists, business-model overrides and exclusions are text files. Criteria and
+  weights are named settings.
+- **Built by one person with an AI coding agent,** under written rules, the key ones enforced by tests.
   [How it is developed →](ARCHITECTURE.md#how-the-project-is-developed)
 
 ## Quickstart

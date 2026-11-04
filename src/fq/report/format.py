@@ -104,7 +104,7 @@ COLUMN_HELP = {
                               "discount, %.",
     "NAV_to_Price": "Tangible book value per share / share price, %.",
     "NCAV_to_Price": "Net current asset value (current assets less every liability, preferred and minorities) per "
-                     "share / share price, %: Graham's net-net test, 100 or more = the fixed assets come free (N/A "
+                     "share / share price, %: 100 or more = the fixed assets come at no cost (N/A "
                      "for banks, insurers and holdings).",
     "BV_to_Price": "Common book value per share / share price, %.",
     "Repeat_Count": "How many highlight lists the company qualifies for (hover the number for which): every company a screened list admits, and the 20 shown by Cheap and good, Cheapest and Best businesses.",

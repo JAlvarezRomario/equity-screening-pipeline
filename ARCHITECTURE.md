@@ -21,14 +21,14 @@ reasons for it. The docstrings are the source of truth for each function.
 
 ## Summary
 
-Three ideas shape the design:
+The design rests on three choices:
 
 1. **The scores are deterministic and auditable; AI stays at the edge.** Every score is arithmetic on reported
    figures. An LLM grade only reorders what the lists show, and a test makes it impossible for the scoring code to
    import the LLM.
 2. **The pipeline is incremental and fault tolerant.** A planner fetches each company only when something changed,
    within a per-run budget. Writes are atomic, and an optional stage that fails never blocks the site.
-3. **Evaluation is honest by construction.** Each run's scores are tagged with a hash of the scoring code, and a
+3. **Evaluation is fixed in advance.** Each run's scores are tagged with a hash of the scoring code, and a
    frozen, append-only forward test measures the lists against the market in real time.
 
 | Scale (Nov 2026) | |
@@ -36,7 +36,7 @@ Three ideas shape the design:
 | Benchmark | 9,902 tickers from 52 index and market lists, 69 countries |
 | Raw cache | 9,938 companies × 482 columns (32 MB parquet) |
 | Ranked table | 9,670 companies × 863 columns; 9,485 ranked |
-| Code | ~10,000 lines of Python, 378 offline tests |
+| Code | ~10,000 lines of Python, 391 offline tests |
 | LLM spend so far | $42.80 for 391 graded companies |
 
 ## System context
@@ -318,7 +318,7 @@ Gemini SDK is imported only inside the one function that calls it.
 
 ## The LLM boundary
 
-**The model judges; it never scores.**
+**The model grades; it does not score.**
 
 | Aspect | Design |
 |---|---|
@@ -376,7 +376,7 @@ Gemini SDK is imported only inside the one function that calls it.
 ## Operations and testing
 
 - **Environment:** `uv` with a locked `uv.lock` (yfinance pinned); lint and format with Ruff.
-- **Tests:** 378 tests on synthetic data, with no network. They cover method rules, extraction edge cases taken
+- **Tests:** 391 tests on synthetic data, with no network. They cover method rules, extraction edge cases taken
   from real failures, the layer rules, agreement between the front page and company pages, and forward-test
   accounting.
 - **Schedule:** a monthly job refreshes prices and adds the month-end to the forward test. Deploying is always by
@@ -386,7 +386,7 @@ Gemini SDK is imported only inside the one function that calls it.
 
 ## How the project is developed
 
-**Built with an AI coding agent inside explicit guard-rails:**
+**Developed with an AI coding agent under written rules:**
 
 - A short instructions file (`CLAUDE.md`, kept out of this repository) is the map the agent loads every
   session: layout, rules (for example "LLM only in `grading.py`", "never delete `data/forward/`") and recipes for

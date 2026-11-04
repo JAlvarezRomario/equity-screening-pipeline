@@ -17,7 +17,7 @@ def tags(row: pd.Series) -> list[dict]:
         out.append({"word": word, "why": why, "cls": cls, "mark": mark})
 
     if flag("Compounder"):
-        add("compounder", "Mastercard-league: high returns on capital that are steady or rising, revenue and owner "
+        add("compounder", "High returns on capital that are steady or rising, revenue and owner "
             "earnings per share compounding smoothly, shares not meaningfully rising, and recent numbers held.",
             "pill-comp", "★ ")  # fmt: skip
     if flag("Cannibal"):
@@ -35,7 +35,7 @@ def tags(row: pd.Series) -> list[dict]:
     ncav = pd.to_numeric(row.get("NCAV_to_Price"), errors="coerce")
     if ncav >= NET_NET_PILL_MIN:
         add("net-net", f"Net current assets (current assets less every liability, preferred and minorities) are "
-            f"{ncav:.0f}% of the share price: Graham's net-net, the fixed assets come free.")  # fmt: skip
+            f"{ncav:.0f}% of the share price: the fixed assets come at no cost.")  # fmt: skip
     if flag("Financial_Mode") and isinstance(row.get("Business_Model"), str):
         out.append({"word": row["Business_Model"], "why": FINANCIAL_PILL, "cls": "", "mark": "", "badge": False})
     if flag("Cyclical"):
