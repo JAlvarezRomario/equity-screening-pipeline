@@ -15,6 +15,7 @@ Malaysia: 0  # single-tier system: dividends are tax-exempt
 United Arab Emirates: 0
 Qatar: 0
 Kuwait: 0  # PwC: no domestic WHT; a 15% on listed dividends to foreign corporate holders (Law 2/2008) is disputed
+Bahrain: 0  # no withholding on dividends; added Nov 4, 2026 (GFH.KW)
 Bermuda: 0
 Cayman Islands: 0
 Jersey: 0
@@ -39,6 +40,7 @@ China: 10  # A and H shares
 Brazil: 10  # Law 15,270/2025, from Jan 1, 2026 (was 0)
 Mexico: 10
 Thailand: 10
+Egypt: 10  # non-resident individuals; added Nov 4, 2026 (VALMORE.KW)
 Panama: 10
 
 # Over 10%.

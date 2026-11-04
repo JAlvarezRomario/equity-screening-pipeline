@@ -1,0 +1,58 @@
+# Mexican companies on the Bolsa Mexicana de Valores (Yahoo `.MX`), market cap >= 100 M USD (1,860 M MXN at that day's
+# rate), net of every other list (the Mexican members of `msci_em.txt`, FEMSAUBD.MX beside FEMSAUB.MX). Built Nov 4,
+# 2026 from Yahoo's screener (exchange MEX), user's choice: the 10% withholding markets. Left out: 604 foreign
+# companies quoted on the SIC (the global market, home listings elsewhere), 13 FIBRAs and other trusts, second series of
+# the same company. Statutory dividend withholding 10% (`dividend_wht.txt`). Refresh by hand quarterly.
+VISTAA.MX
+LIVEPOLC-1.MX
+MFRISCOA-1.MX
+CHDRAUIB.MX
+Q.MX
+CMOCTEZ.MX
+SIMECB.MX
+AXTELCPO.MX
+BBAJIOO.MX
+VESTA.MX
+GENTERA.MX
+SORIANAB.MX
+GCC.MX
+CUERVO.MX
+SITES1A-1.MX
+AERO.MX
+TLEVISACPO.MX
+ORBIA.MX
+ALSEA.MX
+RA.MX
+FRAGUAB.MX
+BAFARB.MX
+FVIA16.MX
+ALPEKA.MX
+LASITE.MX
+ESENTIAII.MX
+GBMO.MX
+BOLSAA.MX
+CIEB.MX
+HERDEZ.MX
+VOLARA.MX
+LABB.MX
+CYDSASAA.MX
+ACTINVRB.MX
+VINTE.MX
+NEMAKA.MX
+TRAXIONA.MX
+AGUA.MX
+CULTIBAB.MX
+CTAXTELA.MX
+PASAB.MX
+MEDICAB.MX
+PV.MX
+GISSAA.MX
+GICSAB.MX
+HOTEL.MX
+HCITY.MX
+VITROA.MX
+AUTLANB.MX
+FINDEP.MX
+CADUA.MX
+TMMA.MX
+SPORTS.MX
