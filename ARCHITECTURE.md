@@ -261,8 +261,8 @@ erDiagram
 |---|---|---|---|---|
 | RAW | `data/raw.parquet` | 11k+ rows | upsert per fetch, atomic | rebuilt only when `SCHEMA_VERSION` changes |
 | RANKED | `data/ranked_<label>.parquet` | 10k+ rows | overwritten every rank | derived, rebuildable |
-| RAW_ARCHIVE | `data/snapshots/raw/<date>.parquet` | one per run day | one per run day | kept, so old dates can be rescored |
-| SNAPSHOT | `data/snapshots/<label>_<date>.parquet` | one per run day | one per day; a same-day run replaces it | kept |
+| RAW_ARCHIVE | `data/snapshots/raw/<date>.parquet` | one file per date | one per run day | kept, so old dates can be rescored |
+| SNAPSHOT | `data/snapshots/<label>_<date>.parquet` | one file per date | one per day; a same-day run replaces it | kept |
 | GRADE | `data/grades.parquet` | about 400 rows | upsert when due, saved per company | kept: costly to rebuild |
 | GRADE_GATE, COHORT | `data/forward/` | about 400 rows each | frozen once | **never deleted** |
 | LEDGER | `data/forward/ledger.parquet` | one row per holding and month | appended each month-end | **never deleted** |
