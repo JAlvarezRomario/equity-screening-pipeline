@@ -1,7 +1,7 @@
 # Architecture
 
-A batch data pipeline that turns about 9,900 companies' raw financial statements into comparable scores, a static
-website and a self-checking forward test. It runs on one machine. This document covers the design and the
+A batch data pipeline that turns the financial statements of 11k+ companies into comparable scores, a static
+website and a forward test. It runs on one machine. This document covers the design and the
 reasons for it. The docstrings are the source of truth for each function.
 
 ## Contents
@@ -24,20 +24,19 @@ reasons for it. The docstrings are the source of truth for each function.
 The design rests on three choices:
 
 1. **The scores are deterministic and auditable; AI stays at the edge.** Every score is arithmetic on reported
-   figures. An LLM grade only reorders what the lists show, and a test makes it impossible for the scoring code to
-   import the LLM.
-2. **The pipeline is incremental and fault tolerant.** A planner fetches each company only when something changed,
-   within a per-run budget. Writes are atomic, and an optional stage that fails never blocks the site.
+   figures. An LLM grade only reorders what the lists show, and a test fails if the scoring code imports the LLM.
+2. **The pipeline is incremental and fault tolerant.** A planner fetches a company only when a report is due, its data is
+   incomplete or more than 90 days old, within a per-run budget. Writes are atomic, and an optional stage that fails never blocks the site.
 3. **Evaluation is fixed in advance.** Each run's scores are tagged with a hash of the scoring code, and a
-   frozen, append-only forward test measures the lists against the market in real time.
+   frozen, append-only forward test measures the lists against the market each month.
 
 | Scale (Nov 2026) | |
 |---|---|
-| Benchmark | 9,902 tickers from 52 index and market lists, 69 countries |
-| Raw cache | 9,938 companies × 482 columns (32 MB parquet) |
-| Ranked table | 9,670 companies × 863 columns; 9,485 ranked |
-| Code | ~10,000 lines of Python, 391 offline tests |
-| LLM spend so far | $42.80 for 391 graded companies |
+| Benchmark | 11k+ tickers from 50+ index and market lists, about 70 countries |
+| Raw cache | 11k+ companies × about 480 columns (under 50 MB of parquet) |
+| Ranked table | 10k+ companies × about 870 columns |
+| Code | about 12,000 lines of Python, plus about 400 offline tests |
+| LLM spend so far | under $50, for about 400 graded companies |
 
 ## System context
 
@@ -82,10 +81,10 @@ pattern.
 ```mermaid
 flowchart TB
     Y(["Yahoo Finance"]) -->|"statements · quotes"| F["<code>fetch</code><br/>planner + download"]
-    F -->|"upsert, atomic"| RAW[("<code>raw.parquet</code><br/>1 row / ticker · 482 cols")]
+    F -->|"upsert, atomic"| RAW[("<code>raw.parquet</code><br/>1 row / ticker · ~480 cols")]
     RAW --> CORE["<code>metrics</code> → <code>filters</code> → <code>ranking</code><br/>pure functions"]
     RAW -->|"copy per run date"| RA[("<code>snapshots/raw/</code><br/>dated archive")]
-    CORE -->|"overwrite"| RK[("<code>ranked_‹label›.parquet</code><br/>1 row / ticker · 863 cols")]
+    CORE -->|"overwrite"| RK[("<code>ranked_‹label›.parquet</code><br/>1 row / ticker · ~870 cols")]
     CORE -->|"one per run date"| SN[("<code>snapshots/</code><br/>scores + method hash")]
     RK --> HL["<code>highlights</code><br/>the 14 lists"]
     HL --> GR["<code>grading</code>"]
@@ -109,7 +108,7 @@ flowchart TB
     class RAW,RA,RK,SN,GD,LG,OUT store
 ```
 
-Blue boxes are pure functions with no I/O, amber boxes reach outside the machine, grey cylinders are stored
+Blue boxes read local files and write nothing, amber boxes reach outside the machine, grey cylinders are stored
 data, and the site builder (uncoloured) only writes local files. The metric core is a fixed sequence of steps, each writing named columns that later steps read
 (`uv run python -m fq.columns` generates the column catalogue):
 
@@ -124,8 +123,8 @@ data, and the site builder (uncoloured) only writes local files. The metric core
 | `valuation` | the Value inputs (owner yield on a normal year) |
 | `flags` | suspect-data and model-review flags that keep a company off every list |
 
-Each company is scored as a percentile within its peer group (operating, asset-heavy, bank, insurer) across the
-whole benchmark, so its score doesn't depend on which run it is in. Each criterion is a named entry in
+Each criterion is a percentile against the benchmark's companies (banks, insurers and holdings against their own
+kind), so a company's score does not depend on which run it is in. Each criterion is a named entry in
 `settings.py`, and its input is computed in the matching `metrics/` step.
 
 [Back to contents](#contents)
@@ -179,8 +178,8 @@ sequenceDiagram
 |---|---|
 | new | not in the cache (the run's own new tickers bypass the budget) |
 | earnings passed | an earnings date passed since the last fetch, plus 2 days |
-| quarter due | last quarter end + 3 months + 45 days |
 | annual due | last fiscal year end + 1 year + 90 days |
+| quarter due | last quarter end + 3 months + 45 days |
 | new fields | the fetched field set changed since (`FIELDS_VERSION`) |
 | incomplete | TTM or a critical line missing, retried after 7 days |
 | old | older than 90 days |
@@ -192,8 +191,8 @@ Every command and option: `uv run fq --help`.
 
 ## Data model
 
-**Eight datasets. Two of them can't be rebuilt and are protected:** the grades, which cost money, and the forward
-test, which can't be re-run once Yahoo forgets a delisted company.
+**Eight datasets. Two are protected:** the grades, which cost money to rebuild, and the forward test, which
+cannot be re-run once Yahoo drops a delisted company.
 
 ```mermaid
 erDiagram
@@ -258,15 +257,15 @@ erDiagram
     }
 ```
 
-| Dataset | Path | Rows today | Written | Kept |
+| Dataset | Path | Size (Nov 2026) | Written | Kept |
 |---|---|---|---|---|
-| RAW | `data/raw.parquet` | 9,938 | upsert per fetch, atomic | rebuilt only when `SCHEMA_VERSION` changes |
-| RANKED | `data/ranked_<label>.parquet` | 9,670 | overwritten every rank | derived, rebuildable |
-| RAW_ARCHIVE | `data/snapshots/raw/<date>.parquet` | 12 days | one per run day | kept, so old dates can be rescored |
-| SNAPSHOT | `data/snapshots/<label>_<date>.parquet` | 21 runs | one per day; a same-day run replaces it | kept |
-| GRADE | `data/grades.parquet` | 391 | upsert when due, saved per company | kept: costly to rebuild |
-| GRADE_GATE, COHORT | `data/forward/` | 387, 381 | frozen once | **never deleted** |
-| LEDGER | `data/forward/ledger.parquet` | 2,118 | appended each month-end | **never deleted** |
+| RAW | `data/raw.parquet` | 11k+ rows | upsert per fetch, atomic | rebuilt only when `SCHEMA_VERSION` changes |
+| RANKED | `data/ranked_<label>.parquet` | 10k+ rows | overwritten every rank | derived, rebuildable |
+| RAW_ARCHIVE | `data/snapshots/raw/<date>.parquet` | one per run day | one per run day | kept, so old dates can be rescored |
+| SNAPSHOT | `data/snapshots/<label>_<date>.parquet` | one per run day | one per day; a same-day run replaces it | kept |
+| GRADE | `data/grades.parquet` | about 400 rows | upsert when due, saved per company | kept: costly to rebuild |
+| GRADE_GATE, COHORT | `data/forward/` | about 400 rows each | frozen once | **never deleted** |
+| LEDGER | `data/forward/ledger.parquet` | one row per holding and month | appended each month-end | **never deleted** |
 
 Periods are relative (`TTM`, `Y0` = latest annual report, `Y1`, ...); real dates live in `PeriodEnd_<period>`. No
 calendar year appears in code or column names.
@@ -322,7 +321,7 @@ Gemini SDK is imported only inside the one function that calls it.
 
 | Aspect | Design |
 |---|---|
-| Input | The company's own page as markdown, stripped of every conclusion the system draws (scores, ranks, badges), so nothing anchors the grade |
+| Input | The company's own page as markdown, without the system's conclusions (scores, ranks, badges), so they do not influence the grade |
 | Process | Two independent grading passes (`gemini-4-argon`) averaged, then a synthesis by a cheaper model (`gemini-3.8-flash`) |
 | Output | Moat and Management, 1 to 5. A gate keeps a company at the top of its list or moves it to the bottom. Scores and ranks are untouched |
 | Caching | One row per company, keyed on `Prompt_Hash` (prompt, models, passes, page format). Redone only when that hash, the latest annual report or the one-year age limit says so |
@@ -337,7 +336,7 @@ Gemini SDK is imported only inside the one function that calls it.
 |---|---|---|
 | Reproducibility | Deterministic core; each snapshot carries a hash of the scoring code; dated raw archives let any past date be rescored with today's method | `evaluate.method_fingerprint`, `pipeline.rescore` |
 | Reliability | Atomic parquet writes; schema check on load; the forward test and grading are isolated, so their failure never blocks the site | `fetch.save_raw`, `health.check_schema`, `pipeline.forward_step` |
-| Data quality | Unit-error and anomaly checks, provenance per company, suspect companies kept off every list | `metrics/cleaning.py`, `ranking.trusted` |
+| Data quality | Unit-error and anomaly checks, the TTM and exchange-rate source and anomaly notes per company, suspect companies kept off every list | `metrics/cleaning.py`, `ranking.trusted` |
 | Cost | Incremental fetching; grades cached on a hash with a per-run cap | `refresh.select`, `grading.due` |
 | Performance | Unchanged company pages skipped by fingerprint; capped render processes for an 8 GB machine; the full ranking's rows load lazily | `company_page.PAGE_INPUTS`, `FQ_RENDER_WORKERS` |
 | Security and privacy | Autoescape on untrusted text, secrets from the environment, private stores gitignored, site behind access control | `report/html.py`, `.gitignore` |
@@ -349,12 +348,12 @@ Gemini SDK is imported only inside the one function that calls it.
 
 | Choice | Instead of | Why | Revisit when |
 |---|---|---|---|
-| Parquet files | A database | One writer, batch access, wide columnar tables, nothing to operate | Several writers or concurrent readers |
+| Parquet files | A database | One writer, batch access, wide columnar tables, no server to run | Several writers or concurrent readers |
 | Static site | A web app | No server to secure, free hosting, cacheable pages | Readers need their own queries |
-| Batch runs | Streaming | Fundamentals change quarterly, and the scores look years ahead, so weekly prices are enough | Never, for this purpose |
-| LLM at the edge | LLM inside the scores | Scores must be reproducible, cheap and explainable line by line | Never for scores |
-| One machine | Cloud jobs | The stores total under 100 MB of parquet; the 8 GB memory limit is handled by capping render workers | The universe grows tenfold |
-| Criteria chosen by reasoning | Weights fitted to past returns | Fitting to price history overfits; the forward test judges the result instead | — |
+| Batch runs | Streaming | Fundamentals change quarterly, and the scores look years ahead, so weekly prices are enough | If the method comes to need daily prices |
+| LLM at the edge | LLM inside the scores | Scores must be reproducible, cheap and explainable line by line | Not for scores |
+| One machine | Cloud jobs | The stores take under 1 GB, most of it dated archives; the 8 GB memory limit is handled by capping render workers | The universe grows tenfold |
+| Criteria chosen by reasoning | Weights fitted to past returns | Weights fitted to price history tend to overfit; the forward test measures the result instead | — |
 
 [Back to contents](#contents)
 
@@ -376,7 +375,7 @@ Gemini SDK is imported only inside the one function that calls it.
 ## Operations and testing
 
 - **Environment:** `uv` with a locked `uv.lock` (yfinance pinned); lint and format with Ruff.
-- **Tests:** 391 tests on synthetic data, with no network. They cover method rules, extraction edge cases taken
+- **Tests:** about 400 tests on synthetic data, with no network. They cover method rules, extraction edge cases taken
   from real failures, the layer rules, agreement between the front page and company pages, and forward-test
   accounting.
 - **Schedule:** a monthly job refreshes prices and adds the month-end to the forward test. Deploying is always by
@@ -388,13 +387,12 @@ Gemini SDK is imported only inside the one function that calls it.
 
 **Developed with an AI coding agent under written rules:**
 
-- A short instructions file (`CLAUDE.md`, kept out of this repository) is the map the agent loads every
-  session: layout, rules (for example "LLM only in `grading.py`", "never delete `data/forward/`") and recipes for
+- A short instructions file (`CLAUDE.md`, kept out of this repository) is loaded by the agent every session: layout, rules (for example "LLM only in `grading.py`", "never delete `data/forward/`") and recipes for
   adding a list, a criterion or a metric step.
 - Private decision records give each choice its date and reason, so a later change can be judged against why
   the current one was made.
-- The rules that matter most are tests, not conventions: import layers, the LLM boundary, front-page and
+- The main rules are enforced by tests: import layers, the LLM boundary, front-page and
   company-page agreement.
-- A backlog holds known, parked work, so scope stays deliberate.
+- A backlog lists known work that is parked until it is chosen.
 
 [Back to contents](#contents)

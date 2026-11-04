@@ -1,7 +1,7 @@
 # Turning over the Rocks: a global equity screening pipeline
 
-A batch pipeline that ranks about 9,500 listed companies in 69 countries on value and
-quality. It applies the same written rules to every company and records where each figure comes from.
+A batch pipeline that ranks 10k+ listed companies in about 70 countries on value and
+quality. It applies the same written rules to every company and notes the figures it had to repair.
 
 > **Not financial advice.** The rankings are a starting point for reading a company's reports, not a
 > recommendation to buy or sell. See [Data source and terms](#data-source-and-terms).
@@ -48,11 +48,11 @@ with one page per company.
 
 | | |
 |---|---|
-| Companies ranked | 9,485 (of 9,670 with data, from a 9,902-ticker benchmark of 52 index and market lists) |
-| Markets | 69 countries, each company read in its own reporting currency |
-| Data | 482 raw and 863 derived columns per company, in parquet |
-| Code | ~10,000 lines of Python, 391 offline tests |
-| LLM cost | $42.80 so far for 391 graded companies, tracked per call |
+| Companies ranked | 10k+, from a benchmark of 11k+ tickers drawn from 50+ index and market lists |
+| Markets | about 70 countries; statements read in their reporting currency, returns compared in US terms |
+| Data | about 480 raw columns per company and about 870 in the ranked table, in parquet |
+| Code | about 12,000 lines of Python, plus about 400 offline tests |
+| LLM cost | under $50 so far, for about 400 graded companies; recorded per company |
 
 ## Architecture at a glance
 
@@ -92,8 +92,9 @@ The full design is in [ARCHITECTURE.md](ARCHITECTURE.md): the [data flow](ARCHIT
 - **One boundary, three interfaces.** The operator's machine is the only trust boundary. Three interfaces cross
   it: statements and prices from Yahoo, page text to Gemini, and the static site to Cloudflare.
   [System context →](ARCHITECTURE.md#system-context)
-- **A pure scoring core.** Scoring is a fixed sequence of functions with no I/O. It may not import the network,
-  the site or the LLM, and a test checks those import rules. [Layers →](ARCHITECTURE.md#layers)
+- **A separate scoring core.** Scoring is a fixed sequence of functions that read the cache and local reference
+  files and write nothing. It may not import the network, the site or the LLM, and a test checks those import
+  rules. [Layers →](ARCHITECTURE.md#layers)
 - **Repeatable results.** The same inputs give the same scores. Each run's scores carry a hash of the scoring
   code, and dated copies of the raw cache let any past date be rescored with the current method.
   [Quality attributes →](ARCHITECTURE.md#quality-attributes)
@@ -103,8 +104,8 @@ The full design is in [ARCHITECTURE.md](ARCHITECTURE.md): the [data flow](ARCHIT
 - **Partial failure keeps the output.** Writes are atomic and the cache schema is checked on load. Grading and the
   forward test run apart from the rest, so if either fails, the site still builds.
   [Failure modes →](ARCHITECTURE.md#failure-modes)
-- **Data checks at the input.** Unit errors and anomalies are tested, each repair is recorded per company, and
-  doubtful companies are kept off the lists. [Data flow →](ARCHITECTURE.md#data-flow)
+- **Data checks at the input.** Unit errors and implausible twelve-month figures are tested, blanked or noted per
+  company, and companies with doubtful data are kept off the lists. [Data flow →](ARCHITECTURE.md#data-flow)
 - **Evaluation fixed in advance.** The forward test is frozen when it starts and only ever appended to.
   [Data model →](ARCHITECTURE.md#data-model)
 - **Configuration as data.** Index lists, business-model overrides and exclusions are text files. Criteria and
