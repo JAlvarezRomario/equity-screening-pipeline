@@ -93,6 +93,7 @@
     <h3>{{ t.heading }}</h3>
     {{ texts[t.key](rule) }}
     {% if t.funnel %}<p class="list-funnel muted">{% for label, count in t.funnel %}{{ label }}: {{ "{:,}".format(count) }}{% if not loop.last %} &rarr; {% endif %}{% endfor %}.</p>{% endif %}
+    {% if t.mix %}<p class="list-mix muted">Banks, insurers and holdings: {{ t.mix.financial }} of the {{ t.mix.total }} {{ "shown" if t.ranked else "that qualify" }} ({% for label, n in t.mix.models %}{{ label }} {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}); {{ "%.0f"|format(t.mix.universe_share) }}% of the companies ranked.</p>{% endif %}
     {{ qualified(t.rows, t.total, t.ranked) }}
     {% if t.rows %}{{ list_tables(t.rows, t.headers) }}{% else %}<p class="empty">None in this run.</p>{% endif %}
   </section>

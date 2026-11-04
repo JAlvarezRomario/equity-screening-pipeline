@@ -139,7 +139,7 @@ def tab_views(h: Highlights) -> list[dict]:
     total (the stored `name` stays out of sight, `Tab.label`)."""
     return [{"name": t.label or t.name, "panel": t.panel, "heading": t.label or t.heading or t.name, "key": t.key,
              "group": t.group, "ranked": t.ranked, "rows": _list_rows(h, t), "total": h.total(t.name),
-             "headers": headers(t.columns), "funnel": h.funnel(t.name)} for t in TABS]  # fmt: skip
+             "headers": headers(t.columns), "funnel": h.funnel(t.name), "mix": h.mix(t.name)} for t in TABS]  # fmt: skip
 
 
 def tab_groups(top: str) -> dict[str, dict[str, str]]:

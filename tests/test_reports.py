@@ -980,3 +980,35 @@ def test_ai_screen_applies_to_every_list_but_the_pure_scores(cfg):
     from fq.report.screens import shortlist_funnel
 
     assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted
+
+
+def test_financial_mix_notes_a_list_where_financials_are_over_represented():
+    from fq.report.screens import financial_mix
+
+    universe = pd.DataFrame({"Financial_Mode": [True] * 10 + [False] * 90})  # 10% of the companies ranked
+    models = ["insurer"] * 3 + ["bank"] * 2 + ["holding"]
+
+    def members(financial: int, total: int) -> pd.DataFrame:
+        return pd.DataFrame({"Financial_Mode": [True] * financial + [False] * (total - financial),
+                             "Business_Model": models[:financial] + ["operating"] * (total - financial)})  # fmt: skip
+
+    mix = financial_mix(members(6, 20), universe)  # 30%, three times their share
+    assert (
+        mix["financial"] == 6
+        and mix["total"] == 20
+        and mix["models"] == [("insurers", 3), ("banks", 2), ("holdings", 1)]
+    )
+    assert round(mix["universe_share"]) == 10
+    assert financial_mix(members(3, 20), universe) is None  # 15%: under twice their share
+    assert financial_mix(members(0, 20), universe) is None  # none at all
+    assert financial_mix(members(3, 4), universe) is None  # too few members to say anything
+    assert financial_mix(members(6, 20), universe.iloc[0:0]) is None  # nothing to compare with
+
+
+def test_the_index_says_when_financials_fill_a_list(cfg):
+    from fq.report.highlights import TAB_ORDER, Highlights
+
+    ranked = _ranked(cfg)
+    h = Highlights.compute(ranked, cfg)
+    html = build_site(ranked, cfg).read_text(encoding="utf-8")
+    assert ("list-mix" in html) == any(h.mix(name) for name in TAB_ORDER)  # the note appears exactly where it is due

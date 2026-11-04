@@ -251,6 +251,12 @@ class Highlights:
         tab = TAB[name]
         return None if tab.funnel is None else tab.funnel(self.lists, self.hurdle)
 
+    def mix(self, name: str) -> dict | None:
+        """The sector-mix note of tab `name` (`screens.financial_mix`): over every company that qualifies, over the
+        rows shown for a ranked tab (its qualifying set is the whole ranking)."""
+        members = self.shown(name) if TAB[name].ranked else self.picks[name][0](self.lists, len(self.lists))
+        return sc.financial_mix(members, self.lists)
+
     def candidates(self) -> pd.DataFrame:
         """Every company on two or more lists, graded or not (`repeater_candidates`)."""
         return repeater_candidates(self.lists, {k: v for k, v in self.picks.items() if k != REPEATERS})

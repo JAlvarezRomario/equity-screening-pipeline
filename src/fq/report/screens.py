@@ -779,3 +779,29 @@ def trouble_funnel(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> list[
         left &= mask.to_numpy(dtype=bool)
         steps.append((label, int(left.sum())))
     return steps
+
+
+# The sector-mix note (user's choice, Nov 4, 2026, annotation and no caps): where banks, insurers and holdings are at
+# least `MIX_RATIO` times their share of the companies ranked, a list says how many of its members they are. They
+# pass the Shortlist's tests five times as easily (four tests are blank for them), so the page shows it instead of
+# hiding it. Display only; constants here, as the Shortlist's.
+MIX_RATIO = 2.0
+MIX_MIN_MEMBERS = 5  # a shorter list says nothing about a mix
+MIX_LABELS = {"bank": "banks", "insurer": "insurers", "holding": "holdings"}
+
+
+def financial_mix(members: pd.DataFrame, universe: pd.DataFrame) -> dict | None:
+    """How many of a list's `members` are banks, insurers and holdings (`Financial_Mode`), when that is at least
+    `MIX_RATIO` times their share of `universe` (the companies a list may show); otherwise None. Returns
+    {"financial", "total", "models": [(plural label, count), ...] most first, "universe_share": %}."""
+    if len(members) < MIX_MIN_MEMBERS or universe.empty:
+        return None
+    share = float(_flag(universe, "Financial_Mode").mean())
+    financial = members[_flag(members, "Financial_Mode")]
+    if financial.empty or len(financial) / len(members) < MIX_RATIO * share:
+        return None
+    counts = (
+        financial["Business_Model"].value_counts() if "Business_Model" in financial.columns else pd.Series(dtype=int)
+    )
+    models = [(MIX_LABELS.get(str(m), str(m)), int(c)) for m, c in counts.items()]
+    return {"financial": len(financial), "total": len(members), "models": models, "universe_share": share * 100}
