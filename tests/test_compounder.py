@@ -8,7 +8,6 @@ from conftest import make_raw
 from fq.metrics import calculate_metrics
 from fq.metrics.common import TTM_SHARED_SPAN, _ttm_span, adjusted_r2
 from fq.ranking import apply_dual_ranking, compounder
-from fq.report.screens import compounder_list
 
 MASTERCARD = {
     "Business_Model": "operating",
@@ -62,12 +61,6 @@ def test_untrusted_or_cyclical_companies_are_not_compounders(cfg):
         THIN={"Insufficient_Data": True},
     )
     assert compounder(df, cfg).tolist() == [True] + [False] * 5
-
-
-def test_the_list_is_cheapest_first_with_no_value_floor(cfg):
-    df = _rows(DEAR={"Value_Score": 10.0}, CHEAP={"Value_Score": 85.0}, MID={"Value_Score": 40.0}, NOT={})
-    df["Compounder"] = [True, True, True, False]
-    assert compounder_list(df)["Ticker"].tolist() == ["CHEAP", "MID", "DEAR"]
 
 
 def test_owner_earnings_compounding_is_the_usd_per_share_trend(cfg):
@@ -133,48 +126,6 @@ def test_off_the_radar_keeps_small_little_followed_steady_growers_in_rank_order(
     assert off_radar_list(df)["Ticker"].tolist() == ["A", "B", "NO_ANALYSTS"]
 
 
-def test_better_every_year_needs_every_measure_rising_and_shares_not_rising():
-    from fq.report.screens import improver_list
-
-    def company(
-        ticker,
-        rank,
-        oe=(130, 120, 110),
-        rev=(300, 280, 260),
-        roic=(15, 14, 13),
-        margin=(12, 11, 10),
-        shares=(10, 10, 11),
-        financial=False,
-    ):
-        row = {"Ticker": ticker, "Rank": rank, "Financial_Mode": financial}
-        for i in range(3):
-            row |= {
-                f"Owner_Earnings_Y{i}": oe[i],
-                f"Total Revenue_Y{i}": rev[i],
-                f"ROIC_Y{i}": roic[i],
-                f"operatingMargins_Y{i}": margin[i],
-                f"Ordinary Shares Number_Y{i}": shares[i],
-            }
-        return row
-
-    df = pd.DataFrame(
-        [
-            company("B", 2.0),
-            company("A", 1.0),
-            company("BANK", 3.0, margin=(5, 9, 12), financial=True),  # margin not applicable
-            company("OE_FLAT", 4.0, oe=(120, 120, 110)),
-            company("REV_DIP", 5.0, rev=(300, 250, 260)),
-            company("ROIC_DIP", 6.0, roic=(15, 16, 13)),
-            company("MARGIN_DIP", 7.0, margin=(12, 13, 10)),
-            company("DILUTING", 8.0, shares=(11, 10, 10)),
-            company("OE_PER_SHARE_DIP", 9.0, oe=(130, 120, 110), shares=(13, 10, 10)),
-            company("TWO_YEARS", 10.0, oe=(130, 120, np.nan)),
-            company("LOSS", 11.0, oe=(-1, -2, -3)),
-        ]
-    )
-    assert improver_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
-
-
 def test_dividend_carry_needs_untaxed_covered_rising_dividends_in_the_best_quintile():
     from fq.report.screens import dividend_carry_list
 
@@ -202,44 +153,81 @@ def test_dividend_carry_needs_untaxed_covered_rising_dividends_in_the_best_quint
     assert dividend_carry_list(df)["Ticker"].tolist() == ["A", "B"]
 
 
-def test_nectar_needs_every_trait_and_leaves_out_the_avoided_industries():
-    from fq.report.screens import nectar_list
+def _twenty_year_row(ticker, rank, owner=(130, 120, 110, 100), revenue=(400, 300, 200, 100), shares=(10, 10, 10, 11),
+                     roic=(20, 19, 18, 17), margin=(0.22, 0.21, 0.20, 0.19), **over):  # fmt: skip
+    """A company both 20-year lists admit, before `over`."""
+    out = {"Ticker": ticker, "Rank": rank, "Owner_Yield": 8.0, "ROIC_Norm": 20.0, "Owner_Earnings_Compounding": 18.0,
+           "Per_Share_Compounding": 10.0, "Cyclical": False, "Financial_Mode": False, "Peak_Margin_Ratio": 1.0,
+           "industry": "Packaged Foods", "In_Best_Fraction": True}  # fmt: skip
+    for i, p in enumerate(("Y0", "Y1", "Y2", "Y3")):
+        out |= {
+            f"Owner_Earnings_{p}": owner[i],
+            f"Total Revenue_{p}": revenue[i],
+            f"Ordinary Shares Number_{p}": shares[i],
+            f"ROIC_{p}": roic[i],
+            f"operatingMargins_{p}": margin[i],
+        }
+    return out | over
 
-    def row(ticker, **over):
-        out = {"Ticker": ticker, "Rank": len(ticker), "Owner_Yield": 12.0, "Cyclical": False,
-               "industry": "Packaged Foods", "ROIC_Variability": 0.05, "In_Best_Fraction": True, "Net_Cash_to_Cap": 5.0,
-               "Owner_Earnings_Compounding": 5.0, "ROIC_Norm": 13.0}  # fmt: skip
-        for p, owner, revenue, shares in zip(("Y0", "Y1", "Y2", "Y3"), (130, 120, 110, 100), (400, 300, 200, 100),
-                                             (10, 10, 10, 11), strict=True):  # fmt: skip
-            out |= {
-                f"Owner_Earnings_{p}": owner,
-                f"Total Revenue_{p}": revenue,
-                f"Ordinary Shares Number_{p}": shares,
-                f"ROIC_{p}": owner / 10,
-            }
-        return out | over
 
+def test_operating_companies_need_high_returns_a_yield_and_smooth_growth_on_every_front():
+    from fq.report.screens import operating_list
+
+    r = _twenty_year_row
     df = pd.DataFrame([
-        row("KEEP"),
-        row("DEARER", Owner_Yield=5.9),
-        row("CYCLICAL", Cyclical=True),
-        row("BIOTECH", industry="Biotechnology"),
-        row("AIRISK", industry="Consulting Services"),
-        row("BUMPY", ROIC_Variability=0.2),
-        row("LOWRANK", In_Best_Fraction=False),
-        row("ROICDOWN", **{"ROIC_Y0": 11.5}),
-        row("OEDIP", **{"Owner_Earnings_Y1": 135}),
-        row("FLATYEAR", **{"Owner_Earnings_Y1": 130}),
-        row("NODEBTNOT", Net_Cash_to_Cap=-1.0),
-        row("BANKNOCASH", Net_Cash_to_Cap=None),
-        row("LOWERYIELD", Owner_Yield=6.5),
-        row("ISSUEDSINCE", **{"Ordinary Shares Number_TTM": 11}),
-        row("STABLEHIGHROIC", ROIC_Norm=25.0, **{"ROIC_Y0": 10.0}),
-        row("TWOFLATS", **{"Owner_Earnings_Y1": 130, "Owner_Earnings_Y2": 130}),
-        row("REVDOWN", **{"Total Revenue_Y0": 250}),
-        row("DILUTES", **{"Ordinary Shares Number_Y0": 12}),
-        row("ERRATIC", **{"Owner_Earnings_Y1": 20}),
-        row("SHRINKS", **{"Owner_Earnings_Y0": 90, "Owner_Earnings_Y1": 100, "Owner_Earnings_Y2": 110,
-                          "Owner_Earnings_Y3": 120}),
+        r("B", 2.0),
+        r("A", 1.0),
+        r("FLAT_HIGH_ROIC", 3.0, roic=(30, 30, 30, 30)),  # a high return may stay flat
+        r("FLAT_MARGIN", 4.0, margin=(0.2, 0.2, 0.2, 0.2)),
+        r("ROIC_SLIPS", 4.5, roic=(20, 18.5, 19, 17)),  # a year down 3%, still above where it started
+        r("ONE_FLAT_OE", 5.0, owner=(130, 130, 110, 100)),
+        r("BANK", 6.0, Financial_Mode=True),
+        r("LOW_ROIC", 6.0, ROIC_Norm=14.0),
+        r("DEAR", 6.0, Owner_Yield=5.9),
+        r("CYCLICAL", 6.0, Cyclical=True),
+        r("PEAK", 6.0, Peak_Margin_Ratio=2.0),
+        r("AVOIDED", 6.0, industry="Biotechnology"),
+        r("AI_RISK", 6.0, industry="Consulting Services"),
+        r("ROIC_SLIDES", 6.0, roic=(17, 18, 19, 20)),
+        r("MARGIN_SLIDES", 6.0, margin=(0.18, 0.20, 0.21, 0.22)),
+        r("MARGIN_DROPS", 6.0, margin=(0.22, 0.18, 0.21, 0.19)),  # down 14% in a year
+        r("REVENUE_DIP", 6.0, revenue=(300, 320, 200, 100)),
+        r("OE_DIP", 6.0, owner=(130, 135, 110, 100)),
+        r("ERRATIC_OE", 6.0, owner=(130, 20, 110, 100)),
+        r("DILUTES", 6.0, shares=(12, 10, 10, 11)),
+        r("ISSUED_SINCE", 6.0, **{"Ordinary Shares Number_TTM": 11}),
+        r("LOW_RANK", 6.0, In_Best_Fraction=False),
     ])  # fmt: skip
-    assert nectar_list(df)["Ticker"].tolist() == ["KEEP", "FLATYEAR", "LOWERYIELD", "STABLEHIGHROIC"]
+    assert operating_list(df)["Ticker"].tolist() == [
+        "A",
+        "B",
+        "FLAT_HIGH_ROIC",
+        "FLAT_MARGIN",
+        "ROIC_SLIPS",
+        "ONE_FLAT_OE",
+    ]
+
+
+def test_fast_growers_need_fast_smooth_owner_earnings_rising_margins_and_a_yield():
+    from fq.report.screens import fast_grower_list
+
+    r = _twenty_year_row
+    df = pd.DataFrame([
+        r("B", 2.0),
+        r("A", 1.0),
+        r("LOW_ROIC", 3.0, ROIC_Norm=9.0),  # no return floor: fast growth already shows the returns
+        r("BANK", 4.0, Financial_Mode=True),  # operating companies only
+        r("SLOW", 5.0, Owner_Earnings_Compounding=14.0),
+        r("SALES_SLOW", 5.0, Per_Share_Compounding=7.0),
+        r("DEAR", 5.0, Owner_Yield=3.9),
+        r("MARGIN_FLAT", 5.0, margin=(0.2, 0.2, 0.2, 0.2)),
+        r("MARGIN_FALLS", 5.0, margin=(0.18, 0.21, 0.20, 0.19)),
+        r("REVENUE_DIP", 5.0, revenue=(300, 320, 200, 100)),
+        r("ERRATIC_OE", 5.0, owner=(130, 20, 110, 100)),
+        r("LOSS", 5.0, owner=(130, 120, 110, -5)),
+        r("DILUTES", 5.0, shares=(12, 10, 10, 11)),
+        r("CYCLICAL", 5.0, Cyclical=True),
+        r("AI_RISK", 5.0, industry="Consulting Services"),
+        r("LOW_RANK", 5.0, In_Best_Fraction=False),
+    ])  # fmt: skip
+    assert fast_grower_list(df)["Ticker"].tolist() == ["A", "B", "LOW_ROIC"]

@@ -276,16 +276,17 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Three top lists, Compounders, Cannibals, Below book, Net cash, Off the radar, Better every year, Dividend carry,
-    # Temporary trouble, Shortlist, Repeaters, Nectar.
-    assert len(panels) == 14
+    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book, Net cash,
+    # Off the radar, Dividend carry, Temporary trouble.
+    assert len(panels) == 13
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
     # Three rows of tabs; two shown by their plain label, stored under their frozen name.
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in ("Start here", "By style", "Raw scores"))
-    assert "Steady growers, net cash" in html and "Untaxed dividends" in html and ">Nectar<" not in html
+    assert "Untaxed dividends" in html and ">Dividend carry<" not in html
+    assert "Operating companies" in html and "Fast growers" in html and "Steady growers, net cash" not in html
 
 
 def test_revenue_and_shares_axes_start_at_zero(cfg):
@@ -677,14 +678,14 @@ def test_industry_leader_is_the_top_tenth_and_always_the_top_three():
 def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
     from fq.ranking import trusted
     from fq.report.highlights import highlight_picks
-    from fq.report.screens import compounder_list, in_best_fraction
+    from fq.report.screens import cannibal_list, in_best_fraction
     from fq.settings import Settings
 
     df = _ranked(cfg).copy()
     best = in_best_fraction(df)
     assert best.sum() == np.ceil(Settings().highlight_top_fraction * df["Rank"].notna().sum())
-    df["Compounder"] = True
-    assert set(compounder_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
+    df["Cannibal"] = True
+    assert set(cannibal_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
     picks = highlight_picks(6.0)
     total = {name: len(pick(df, len(df))) for name, (pick, _) in picks.items()}
     assert best.sum() < total["Cheapest"] == total["Best businesses"] <= trusted(df).sum()
@@ -814,13 +815,13 @@ def test_repeaters_count_lists_order_by_count_then_rank_and_need_a_pass():
     head = lambda tickers: lambda d, n: d[d["Ticker"].isin(list(tickers))].head(n)  # noqa: E731
     picks = {
         "Cheap and good": (head("BCDE"), 1),  # a ranked list: only B, the row it shows, counts
-        "Compounders": (head("ABCDE"), 1),  # a screen: everyone it admits counts, beyond the row shown
+        "Fast growers": (head("ABCDE"), 1),  # a screen: everyone it admits counts, beyond the row shown
         "Net cash": (head("AD"), 20),
         "Cannibals": (head("AE"), 20),
     }
     every = hl.repeater_candidates(df, picks)
     assert list(every["Ticker"]) == ["A", "B", "D", "E"]  # A on 3; then B, D, E on 2 by rank; C on 1 only
-    assert every.set_index("Ticker").at["A", "Repeat_Lists"] == "Compounders, Cannibals, Net cash"
+    assert every.set_index("Ticker").at["A", "Repeat_Lists"] == "Fast growers, Cannibals, Net cash"
     shown = hl.repeater_list(df, 20, picks)
     assert list(shown["Ticker"]) == ["A", "B"]  # D ungraded and E below the bar stay out
     assert tuple(hl.highlight_picks(6.0)) == hl.TAB_ORDER and hl.REPEATERS in hl.TAB_ORDER

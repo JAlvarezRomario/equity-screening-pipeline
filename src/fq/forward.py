@@ -29,7 +29,8 @@ later corrections (a split or dividend recorded late) are found by measuring the
 into the new month, never by rewriting a row (`reconcile`; one month back only). A month whose dividends look
 implausible (`DIVIDEND_JUMP`) is kept but checked. Whatever these touch is marked `Check` and named on the page.
 
-Lists born after the freeze are added once in `ADDED_FILE` (`LATE_LISTS`), bought at the same close: allowed only when no
+Lists born after the freeze are added once each (`LATE_LISTS`): the first in `ADDED_FILE`, each later publication date in a
+file of its own (`ADDED_GLOB`), every one written once, bought at the same close: allowed only when no
 price after it reached the list's choice (ranked from a cache written before the main markets traded again).
 """
 
@@ -61,6 +62,7 @@ CHUNK = 400  # tickers per price request
 LOOKBACK_DAYS = 10  # the download starts this long before the first mark, so a holiday still has a close
 GATE_FILE = "grade_gate.parquet"  # the moat and management gate, frozen once (`freeze_gate`)
 ADDED_FILE = "cohort_added.parquet"  # the lists added after the freeze, written once (`freeze_late_lists`)
+ADDED_GLOB = "cohort_added_*.parquet"  # later additions, one file per publication date, each written once
 # List -> the date of its saved tabs. Repeaters (born Oct 31) was first saved on Sunday Nov 1, before any main market
 # traded after the pivot's close. It admits only companies that pass the grade, so the frozen gate does not apply.
 # Nectar on its final rules (user's choice, Nov 2, 2026), ranked from the same cache as the re-frozen cohort, so no later
@@ -161,24 +163,39 @@ def freeze_late_lists(
     method: str = "",
     grades: pd.DataFrame | None = None,
 ) -> None:
-    """Write `ADDED_FILE` once `late` holds every list of `LATE_LISTS` (its saved tabs: Ticker, List, in the order
-    shown): same pivot as the cohort, each list's own publication date, less the members `grades` (with `Passes`) fail,
-    as the frozen gate does not cover them. `cohort.parquet` is not touched."""
-    if not LATE_LISTS or (folder / ADDED_FILE).exists() or not set(LATE_LISTS) <= set(late):
-        return
+    """Freeze each list of `LATE_LISTS` no added file holds yet, a publication date at a time once `late` holds every
+    list of that date (its saved tabs: Ticker, List, in the order shown): same pivot as the cohort, the list's own
+    publication date, less the members `grades` (with `Passes`) fail, as the frozen gate does not cover them. The first
+    addition goes to `ADDED_FILE`, each later date to a file of its own (`ADDED_GLOB`), so no stored file is ever
+    rewritten; `cohort.parquet` is not touched."""
+    have = {name for path in _added_files(folder) for name in pd.read_parquet(path, columns=["List"])["List"]}
+    due = {name: when for name, when in LATE_LISTS.items() if name not in have}
     failed = set() if grades is None else set(grades.loc[grades["Passes"].eq(False), "Ticker"])
-    held = {name: tabs.loc[(tabs["List"] == name) & ~tabs["Ticker"].isin(failed)] for name, tabs in late.items()}
-    parts = [freeze_cohort(held[name], ranked, set(), start, when, method)
-             for name, when in LATE_LISTS.items()]  # fmt: skip
-    save_cohort(pd.concat(parts, ignore_index=True), folder / ADDED_FILE)
-    log.info("Forward test: %s added", ", ".join(LATE_LISTS))
+    for when in sorted(set(due.values())):
+        names = [name for name, w in due.items() if w == when]
+        if not set(names) <= set(late):
+            continue
+        path = folder / ADDED_FILE
+        if path.exists():
+            path = folder / ADDED_GLOB.replace("*", f"{when:%Y-%m-%d}")
+        held = {
+            name: late[name].loc[(late[name]["List"] == name) & ~late[name]["Ticker"].isin(failed)] for name in names
+        }
+        parts = [freeze_cohort(held[name], ranked, set(), start, when, method) for name in names]
+        save_cohort(pd.concat(parts, ignore_index=True), path)
+        log.info("Forward test: %s added", ", ".join(names))
+
+
+def _added_files(folder: Path) -> list[Path]:
+    """The stored additions to the cohort, oldest first."""
+    first = [folder / ADDED_FILE] if (folder / ADDED_FILE).exists() else []
+    return first + sorted(folder.glob(ADDED_GLOB))
 
 
 def load_cohort(folder: Path) -> pd.DataFrame:
     """The frozen cohort plus the lists added after it."""
-    cohort = pd.read_parquet(folder / "cohort.parquet")
-    added = folder / ADDED_FILE
-    return pd.concat([cohort, pd.read_parquet(added)], ignore_index=True) if added.exists() else cohort
+    parts = [pd.read_parquet(folder / "cohort.parquet"), *(pd.read_parquet(p) for p in _added_files(folder))]
+    return pd.concat(parts, ignore_index=True) if len(parts) > 1 else parts[0]
 
 
 def back_start(start: pd.Timestamp) -> pd.Timestamp:

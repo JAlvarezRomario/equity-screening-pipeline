@@ -313,6 +313,17 @@ def test_late_list_is_added_once_outside_the_cohort_and_backfilled(tmp_path, mon
                          "Graded_At": pd.to_datetime(["2024-04-07"])})  # fmt: skip
     assert "NEW" in set(forward.apply_gate(cohort, gate)["Ticker"])  # the gate does not apply to it
 
+    # A list born later still: its own file, the first addition left as it was.
+    first = (folder / forward.ADDED_FILE).read_bytes()
+    monkeypatch.setattr(forward, "LATE_LISTS", {"Repeaters": pd.Timestamp("2024-04-07"),
+                                                "Fast": pd.Timestamp("2024-04-14")})  # fmt: skip
+    fast = pd.DataFrame({"List": ["Fast"], "Ticker": ["B"]})
+    cohort, _ = forward.step(folder, tabs, ranked, set(), today, fetch, lambda c: None, late={"Fast": fast})
+    assert (folder / forward.ADDED_FILE).read_bytes() == first
+    assert (folder / "cohort_added_2024-04-14.parquet").exists()
+    assert cohort[cohort["List"] == "Fast"]["Ticker"].tolist() == ["B"]
+    assert cohort[cohort["List"] == "Repeaters"]["Ticker"].tolist() == ["NEW", "A"]
+
 
 def test_dividend_recorded_late_is_carried_once_into_the_next_month(tmp_path, monkeypatch):
     folder = _setup(tmp_path, monkeypatch)

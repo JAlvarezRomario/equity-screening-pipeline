@@ -22,13 +22,22 @@
   <li>Banks, insurers and holdings against their own kind. Price is not considered.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro compounders(r) %}{% call rules("Businesses that keep earning high, steady returns and growing per share, year after year.") %}<ul>
-  <li>Operating companies only (no banks, insurers or holdings), not cyclical, Quality &ge; 70.</li>
-  <li>Returns on capital in the top quarter, steady or rising.</li>
-  <li>Revenue and owner earnings per share compounding smoothly; shares not meaningfully rising.</li>
-  <li>Free cash flow positive in most years and converted from profit; net debt at most 3&times; operating profit (EBIT).</li>
-  <li>Recent revenue, operating profit and analysts' estimates held.</li>
-  <li>No price condition of its own, but it keeps only the best {{ r.top }} of the combined ranking. "Buyback" marks those also retiring 2% or more of their shares a year.</li>
+{% macro operating(r) %}{% call rules("Operating businesses with high returns that grow smoothly every year without issuing shares, at a price that already pays well: companies to hold for twenty years.") %}<ul>
+  <li>No banks, insurers or holdings; not cyclical, not at peak margins, in industries built to last and not exposed to AI.</li>
+  <li>Normal return on capital (ROIC) of {{ r.operating_min_roic }}% or more; owner earnings of at least {{ r.operating_min_yield }}% of the price.</li>
+  <li>Over at least {{ r.min_years }} annual reports, in the company's own currency: owner earnings per share positive, up every year and close to their trend; revenue up every year; return on capital and operating margin never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started. Owner earnings and revenue may have one flat year (within 2%).</li>
+  <li>The share count never up, nor since the last annual report.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
+</ul>
+<details><summary>Industries left out</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, entertainment, broadcasting, paper, publishing, packaging, grocers, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, education, internet content, business services).</p></details>{% endcall %}{% endmacro %}
+
+{% macro fast_growers(r) %}{% call rules("Owner earnings per share growing very fast and smoothly, in businesses already paying a fair yield: growth that is earned, not promised.") %}<ul>
+  <li>Owner earnings per share compounding at {{ r.fast_min_growth }}% a year or more in US dollars, discounted for any bumps; revenue per share at {{ r.fast_min_revenue }}% a year or more.</li>
+  <li>Owner earnings of at least {{ r.fast_min_yield }}% of the price today.</li>
+  <li>Over at least {{ r.min_years }} annual reports: owner earnings per share positive and close to their rising trend; revenue and operating margin up every year, one flat year allowed; the share count never up.</li>
+  <li>Operating companies only: no banks, insurers or holdings, whose earnings rose with interest rates.</li>
+  <li>Not cyclical, not at peak margins, not in an industry fragile to AI.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cannibals(r) %}{% call rules("Companies buying back a large part of their own shares each year, paid from the cash they make.") %}<ul>
@@ -57,12 +66,6 @@
   <li>Value &ge; {{ r.radar_min_value }}, Quality &ge; {{ r.radar_min_quality }}, return on capital &ge; {{ r.radar_min_roic }}%.</li>
   <li>Revenue per share compounding at {{ r.radar_min_compounding }}%/yr or more, owner earnings not falling, no dilution, recent numbers held.</li>
   <li>No financial services or real estate, nothing cyclical or at peak margins.</li>
-</ul>{% endcall %}{% endmacro %}
-
-{% macro improvers(r) %}{% call rules("Companies whose earnings per share, sales, returns and margins rose in every recent year.") %}<ul>
-  <li>In every one of their last {{ r.improver_min_years }} or more annual reports, with no gap: owner earnings per share, revenue, return on capital (on equity for banks, insurers and holdings) and operating margin (not for those three, where it says little) each rose.</li>
-  <li>The share count never rose; the latest owner earnings positive; statements in their own currency.</li>
-  <li>No price condition of its own, but it keeps only the best {{ r.top }} of the combined ranking.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, covered by what the business earns.") %}<ul>
@@ -100,11 +103,3 @@
   <li>Only companies whose moat and management grade passes the bar (both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}); ungraded ones are graded before they can enter.</li>
   <li>Most of them are on the Shortlist too: the same answer, reached from several directions.</li>
 </ul>{% endcall %}{% endmacro %}
-
-{% macro nectar(r) %}{% call rules("Cheap, steady businesses with net cash that grow every year without issuing shares, in industries built to last and not exposed to AI.") %}<ul>
-  <li>Net cash; owner earnings of at least {{ r.nectar_min_yield }}% of the price; not cyclical.</li>
-  <li>Over at least {{ r.nectar_min_years }} annual reports: owner earnings per share positive, up every year and close to their trend; return on capital up every year and steady, or merely steady when its normal level is above {{ r.nectar_stable_roic }}%; each allowed one flat year (within 2%).</li>
-  <li>Revenue up every year in the company's own currency; the share count never up, nor since the last annual report.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
-</ul>
-<details><summary>Industries left out</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, entertainment, broadcasting, paper, publishing, packaging, grocers, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, education, internet content, business services).</p></details>{% endcall %}{% endmacro %}

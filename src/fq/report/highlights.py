@@ -91,14 +91,13 @@ TABS: tuple[Tab, ...] = (
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
-    Tab("Nectar", "nectar", "hl-nectar", sc.NECTAR_COLUMNS, _plain(sc.nectar_list), label="Steady growers, net cash"),
-    Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
+    Tab("Operating companies", "operating", "hl-operating", sc.OPERATING_COLUMNS, _plain(sc.operating_list)),
+    Tab("Fast growers", "fast_growers", "hl-fast", sc.FAST_COLUMNS, _plain(sc.fast_grower_list)),
     Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list),
         heading="The Cannibals"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list)),
     Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list)),
     Tab("Off the radar", "off_radar", "hl-radar", sc.OFF_RADAR_COLUMNS, _plain(sc.off_radar_list)),
-    Tab("Better every year", "improvers", "hl-improvers", sc.IMPROVER_COLUMNS, _plain(sc.improver_list)),
     Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list),
         label="Untaxed dividends"),
     Tab("Temporary trouble", "trouble", "hl-trouble", sc.TROUBLE_COLUMNS, _hurdled(sc.trouble_list),
@@ -112,13 +111,16 @@ TABS: tuple[Tab, ...] = (
 TAB = {t.name: t for t in TABS}
 TAB_ORDER = tuple(t.name for t in TABS)
 RANKED_TABS = tuple(t.name for t in TABS if t.ranked)
+# Retired tabs the forward test still follows under their stored names (Nov 4, 2026: Nectar, Compounders and Better
+# every year gave way to Operating companies and Fast growers), with the reader's name where it differed.
+RETIRED_LABELS = {"Nectar": "Steady growers, net cash"}
 
 
 def label(name: str) -> str:
-    """What a reader sees for the stored list `name` (`Tab.label`, else the name; a list no tab has, such as the
-    forward test's portfolio line, keeps its own)."""
+    """What a reader sees for the stored list `name` (`Tab.label`, else the name; a retired tab its `RETIRED_LABELS`
+    name; a list no tab has, such as the forward test's portfolio line, keeps its own)."""
     tab = TAB.get(name)
-    return (tab.label or tab.name) if tab else name
+    return (tab.label or tab.name) if tab else RETIRED_LABELS.get(name, name)
 
 
 def _memo(pick: Pick) -> Pick:

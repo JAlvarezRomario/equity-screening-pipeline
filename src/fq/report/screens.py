@@ -68,17 +68,6 @@ def industry_averages(df: pd.DataFrame, bench: pd.DataFrame | None = None) -> di
     return {"headers": headers, "rows": rows, "scope": (benchmark(df) or ("benchmark",))[0] if use_bench else None}
 
 
-# The Compounders list (`ranking.compounder`, "Mastercard-like"): the traits that put a company on it, then the usual
-# facts (user's choice, Oct 21, 2026).
-COMPOUNDER_COLUMNS = [
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
-    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
 def in_best_fraction(df: pd.DataFrame) -> pd.Series:
     """In the best `Settings.highlight_top_fraction` of the combined ranking (`Rank` of the run's ranked companies), as
     every highlight list but "Best businesses" asks. `html.build_site` stores it as `In_Best_Fraction` on the whole
@@ -90,18 +79,6 @@ def in_best_fraction(df: pd.DataFrame) -> pd.Series:
         return pd.Series(True, index=df.index)
     rank = pd.to_numeric(df["Rank"], errors="coerce")
     return rank <= np.ceil(Settings().highlight_top_fraction * rank.notna().sum())
-
-
-def compounder_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Flagged `Compounder` companies in the best fraction of the combined ranking, ordered by combined rank."""
-    if "Compounder" not in df.columns:
-        return df.head(0)
-    d = df[(df["Compounder"] == True) & in_best_fraction(df)]  # noqa: E712
-    if "Rank" in d.columns:
-        return d.sort_values("Rank", ascending=True).head(n)
-    if "Value_Score" in d.columns:
-        return d.sort_values("Value_Score", ascending=False).head(n)
-    return d.head(n)
 
 
 # The Asset plays list (`ranking.asset_play`): tangible and common book bargains exceeding 100% of price,
@@ -196,16 +173,6 @@ def off_radar_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
-# The "Better every year" list: what put a company on it, then the usual facts (user's choice, Oct 28, 2026).
-IMPROVER_COLUMNS = [
-    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
-    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
 def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: int, rising: bool = True) -> pd.Series:
     """Over the consecutive annual reports from Y0 back (at least `min_years`), `concept` rose every year (`rising`),
     or never rose. A missing Y0 or a gap after fewer than `min_years` fails."""
@@ -218,32 +185,6 @@ def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: i
     step = newer > older if rising else newer <= older
     ok = np.where(run[:, 1:], step, True).all(axis=1) & (run.sum(axis=1) >= min_years)
     return pd.Series(ok, index=df.index)
-
-
-def improver_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Companies better every year (`Settings.improver_min_years` annual reports at least, audited, so TTM's overlap
-    with Y0 is left out): owner earnings per share, revenue, ROIC (ROE for financials) and operating margin (not for
-    banks, insurers and holdings, where it says little) each rose every year, the share count never rose, and the
-    latest owner earnings are positive; in combined rank order, trusted as `ranking.top_n`. Statements in their own
-    currency (an exchange rate is not the business). Display only."""
-    s = Settings()
-    years, k = s.annual_years, s.improver_min_years
-    num = lambda col: (  # noqa: E731
-        pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
-    )
-    owner = pd.DataFrame({f"OE_PS_{p}": num(f"Owner_Earnings_{p}") / num(f"Ordinary Shares Number_{p}").where(
-        lambda x: x > 0) for p in years}, index=df.index)  # fmt: skip
-    financial = df["Financial_Mode"].fillna(False).astype(bool) if "Financial_Mode" in df.columns else False
-    keep = (
-        _every_year(owner, "OE_PS", years, k)
-        & (owner[f"OE_PS_{s.latest}"] > 0)
-        & _every_year(df, "Total Revenue", years, k)
-        & _every_year(df, "ROIC", years, k)
-        & (_every_year(df, "operatingMargins", years, k) | financial)
-        & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
-        & in_best_fraction(df)
-    )
-    return top_n(df[keep], "Rank", n)
 
 
 # The "Dividend carry" list: what put a company on it, then the usual facts (user's choice, Oct 29, 2026).
@@ -365,39 +306,73 @@ def _in_industries(df: pd.DataFrame, name: str) -> pd.Series:
     return industry.map(lambda i: isinstance(i, str) and industry_key(i) in keys).astype(bool)
 
 
-# The "Nectar" list (user's design, Nov 2, 2026): what put a company on it, then the usual facts.
-NECTAR_COLUMNS = [
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+# The "Operating companies" and "Fast growers" lists (user's design, Nov 4, 2026; they replaced Nectar, Compounders and
+# Better every year, which overlapped them): businesses a holder could keep for 20 years, since a long holding returns
+# roughly its owner yield now plus the per-share growth high returns on capital sustain. Display only; constants here,
+# as the Shortlist's, so the method fingerprint stays as it is.
+OPERATING_MIN_ROIC = 15.0  # normalised ROIC, %
+OPERATING_MIN_YIELD = 6.0  # owner earnings yield, %
+FAST_MIN_OE_GROWTH = 15.0  # `Owner_Earnings_Compounding`, %/yr: the USD per-share trend x its adjusted R²
+FAST_MIN_YIELD = 4.0  # owner earnings yield, %: already profitable, not a promise
+FAST_MIN_REVENUE_GROWTH = 8.0  # `Per_Share_Compounding`, %/yr: sales per share grow too, not only margins
+MAX_NEW_SHARES = 1.005  # latest share count / the last annual report's: above this, shares were issued
+MAX_OWNER_SPREAD = 0.2  # owner earnings per share: spread around their rising trend line / their mean
+FLAT_TOLERANCE = 0.02  # a year within this share of the year before is flat, not a fall (user's choice, Nov 2, 2026)
+# Operating companies: ROIC and operating margin may slip this share in a year if the newest is at or above the oldest
+# (user's choice, Nov 4, 2026: at 2%, with the industries left out, 3 of the benchmark passed; at 10%, 10).
+OPERATING_MAX_DIP = 0.10
+OPERATING_COLUMNS = [
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
+    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
-NECTAR_MIN_YIELD = 6.0  # owner earnings yield, %
-NECTAR_MAX_NEW_SHARES = 1.005  # latest share count / the last annual report's: above this, shares were issued
-NECTAR_STABLE_ROIC = 20.0  # normalised ROIC above this may stay flat instead of rising, if steady
-NECTAR_MAX_OWNER_SPREAD = 0.2  # owner earnings per share: spread around their rising trend line / their mean
-NECTAR_MAX_ROIC_VARIABILITY = 0.1  # `ROIC_Variability`, spread around its trend: about the median company's
-NECTAR_FLAT = 0.02  # a year within this share of the year before is flat, not a fall (user's choice, Nov 2, 2026)
+FAST_COLUMNS = [
+    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
+    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
 
 
-def _up_but_one_flat(df: pd.DataFrame, concept: str, periods: list[str], min_years: int) -> pd.Series:
-    """As `_every_year`, but one year may be flat (`NECTAR_FLAT`) instead of up; a real fall fails."""
-    values = pd.DataFrame(
+def _annual(df: pd.DataFrame, concept: str, periods: list[str]) -> np.ndarray:
+    """`concept` over the annual `periods` (newest first), NaN where missing."""
+    return pd.DataFrame(
         {p: pd.to_numeric(df[f"{concept}_{p}"], errors="coerce") if f"{concept}_{p}" in df.columns else np.nan
          for p in periods}, index=df.index,
     ).to_numpy(dtype=float)  # fmt: skip
+
+
+def _up_but_one_flat(df: pd.DataFrame, concept: str, periods: list[str], min_years: int) -> pd.Series:
+    """As `_every_year`, but one year may be flat (`FLAT_TOLERANCE`) instead of up; a real fall fails."""
+    values = _annual(df, concept, periods)
     run = np.cumprod(~np.isnan(values), axis=1).astype(bool)
     newer, older = values[:, :-1], values[:, 1:]
     up = np.where(run[:, 1:], newer > older, True)
-    flat = np.where(run[:, 1:], newer >= older - np.abs(older) * NECTAR_FLAT, True)
+    flat = np.where(run[:, 1:], newer >= older - np.abs(older) * FLAT_TOLERANCE, True)
     ok = flat.all(axis=1) & ((~up).sum(axis=1) <= 1) & (run.sum(axis=1) >= min_years)
     return pd.Series(ok, index=df.index)
 
 
+def _never_fell(df: pd.DataFrame, concept: str, periods: list[str], min_years: int, dip: float) -> pd.Series:
+    """Over the consecutive annual reports from Y0 back (at least `min_years`), no year below the one before by more
+    than the share `dip`, and the newest at or above the oldest: held or rising, never sliding."""
+    values = _annual(df, concept, periods)
+    run = np.cumprod(~np.isnan(values), axis=1).astype(bool)
+    n = run.sum(axis=1)
+    newer, older = values[:, :-1], values[:, 1:]
+    held = np.where(run[:, 1:], newer >= older - np.abs(older) * dip, True).all(axis=1)
+    oldest = np.where(run, values, np.nan)[np.arange(len(values)), np.maximum(n - 1, 0)]
+    return pd.Series(held & (n >= min_years) & (values[:, 0] >= oldest), index=df.index)
+
+
 def _owner_earnings_smooth(per_share: pd.DataFrame, min_years: int) -> pd.Series:
     """Owner earnings per share (columns newest first) positive in every annual report, at least `min_years` of them,
-    on a rising trend line and within `NECTAR_MAX_OWNER_SPREAD` of it."""
+    on a rising trend line and within `MAX_OWNER_SPREAD` of it."""
 
     def smooth(row: np.ndarray) -> bool:
         values = row[~np.isnan(row)]
@@ -405,39 +380,78 @@ def _owner_earnings_smooth(per_share: pd.DataFrame, min_years: int) -> pd.Series
             return False
         x = np.arange(len(values))
         slope, intercept = np.polyfit(x, values, 1)
-        return bool(slope > 0 and np.std(values - (intercept + slope * x)) / values.mean() <= NECTAR_MAX_OWNER_SPREAD)
+        return bool(slope > 0 and np.std(values - (intercept + slope * x)) / values.mean() <= MAX_OWNER_SPREAD)
 
     rows = per_share.to_numpy(dtype=float)[:, ::-1]
     return pd.Series([smooth(row) for row in rows], index=per_share.index, dtype=bool)
 
 
-def nectar_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Durable, cheap and boring: in the best fifth, net cash, owner yield >= `NECTAR_MIN_YIELD`, not cyclical, owner earnings per share up in every annual report but at most one flat year,
-    ROIC (ROE for financials) the same or, normalised above `NECTAR_STABLE_ROIC`, merely steady, revenue (own currency)
-    up in every one and the share count never up (nor since the last report), over at least `Settings.improver_min_years` of them, owner earnings and ROIC smooth, outside the industries of
-    `nectar_avoid.txt` and `shortlist_ai_fragile.txt`. Combined rank order, trusted as `ranking.top_n`. Display only."""
+def _owner_per_share(df: pd.DataFrame, years: list[str]) -> pd.DataFrame:
+    """Owner earnings per share in the company's own currency, one column `OE_PS_<year>` per annual report."""
+    return pd.DataFrame({f"OE_PS_{p}": _num(df, f"Owner_Earnings_{p}") / _num(df, f"Ordinary Shares Number_{p}").where(
+        lambda x: x > 0) for p in years}, index=df.index)  # fmt: skip
+
+
+def _lasting_business(df: pd.DataFrame) -> pd.Series:
+    """Not cyclical, not earning well above its usual margin (`Peak_Margin_Ratio`), not in an industry fragile to AI:
+    what both 20-year lists ask before they look at growth."""
+    return (
+        ~_flag(df, "Cyclical")
+        & ~(_num(df, "Peak_Margin_Ratio") > Settings().peak_margin_ratio)
+        & ~_in_industries(df, "shortlist_ai_fragile.txt")
+    )
+
+
+def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """Operating companies that compound smoothly at a price already paying well: no bank, insurer or holding,
+    `_lasting_business` and outside `operating_avoid.txt`; normalised ROIC >= `OPERATING_MIN_ROIC` and owner yield >=
+    `OPERATING_MIN_YIELD`; over at least `Settings.improver_min_years` annual reports (own currency) owner earnings per
+    share and revenue up every year but at most one flat, owner earnings close to their rising trend, ROIC and
+    operating margin never down more than `OPERATING_MAX_DIP` in a year and the newest at or above the oldest
+    (`_never_fell`); the share count never up (nor since the last
+    report); `in_best_fraction`. Combined rank order, trusted as `ranking.top_n`. Display only."""
     s = Settings()
     years, k = s.annual_years, s.improver_min_years
-    num = lambda col: (  # noqa: E731
-        pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
-    )
-    owner = pd.DataFrame({p: num(f"Owner_Earnings_{p}") / num(f"Ordinary Shares Number_{p}").where(lambda x: x > 0)
-                          for p in years}, index=df.index)  # fmt: skip
-    rising = owner.rename(columns=lambda p: f"OE_PS_{p}")
-    cyclical = df["Cyclical"].fillna(False).astype(bool) if "Cyclical" in df.columns else False
+    owner = _owner_per_share(df, years)
     keep = (
-        (num("Owner_Yield") >= NECTAR_MIN_YIELD)
-        & (num("Net_Cash_to_Cap") > 0)
-        & ~cyclical
-        & ~_in_industries(df, "nectar_avoid.txt")
-        & ~_in_industries(df, "shortlist_ai_fragile.txt")
-        & (num("ROIC_Variability") <= NECTAR_MAX_ROIC_VARIABILITY)
-        & _up_but_one_flat(rising, "OE_PS", years, k)
-        & (_up_but_one_flat(df, "ROIC", years, k) | (num("ROIC_Norm") > NECTAR_STABLE_ROIC))
-        & _every_year(df, "Total Revenue", years, k)
-        & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
-        & ~(num("Ordinary Shares Number_TTM") > num(f"Ordinary Shares Number_{s.latest}") * NECTAR_MAX_NEW_SHARES)
+        ~_flag(df, "Financial_Mode")
+        & _lasting_business(df)
+        & ~_in_industries(df, "operating_avoid.txt")
+        & (_num(df, "ROIC_Norm") >= OPERATING_MIN_ROIC)
+        & (_num(df, "Owner_Yield") >= OPERATING_MIN_YIELD)
+        & _up_but_one_flat(owner, "OE_PS", years, k)
         & _owner_earnings_smooth(owner, k)
+        & _up_but_one_flat(df, "Total Revenue", years, k)
+        & _never_fell(df, "ROIC", years, k, OPERATING_MAX_DIP)
+        & _never_fell(df, "operatingMargins", years, k, OPERATING_MAX_DIP)
+        & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
+        & ~(_num(df, "Ordinary Shares Number_TTM") > _num(df, f"Ordinary Shares Number_{s.latest}") * MAX_NEW_SHARES)
+        & in_best_fraction(df)
+    )
+    return top_n(df[keep], "Rank", n)
+
+
+def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """Very fast, smooth growth that already pays: owner earnings per share compounding at >= `FAST_MIN_OE_GROWTH`
+    (USD trend x its adjusted R²), revenue per share at >= `FAST_MIN_REVENUE_GROWTH`, owner yield >= `FAST_MIN_YIELD`;
+    operating companies only (user's choice, Nov 4, 2026: banks and insurers filled half of it on the 2022-25 rate
+    cycle, and their margin says little); over at least `Settings.improver_min_years` annual reports (own currency)
+    owner earnings per share positive and close to their rising trend, revenue and operating margin up every year but
+    at most one flat, the share count never up; `_lasting_business`; `in_best_fraction`.
+    Combined rank order, trusted as `ranking.top_n`. Display only."""
+    s = Settings()
+    years, k = s.annual_years, s.improver_min_years
+    owner = _owner_per_share(df, years)
+    keep = (
+        ~_flag(df, "Financial_Mode")
+        & (_num(df, "Owner_Earnings_Compounding") >= FAST_MIN_OE_GROWTH)
+        & (_num(df, "Per_Share_Compounding") >= FAST_MIN_REVENUE_GROWTH)
+        & (_num(df, "Owner_Yield") >= FAST_MIN_YIELD)
+        & _owner_earnings_smooth(owner, k)
+        & _up_but_one_flat(df, "Total Revenue", years, k)
+        & _up_but_one_flat(df, "operatingMargins", years, k)
+        & _every_year(df, "Ordinary Shares Number", years, k, rising=False)
+        & _lasting_business(df)
         & in_best_fraction(df)
     )
     return top_n(df[keep], "Rank", n)

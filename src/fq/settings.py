@@ -539,10 +539,9 @@ class Settings:
     off_radar_min_oe_growth: float = 0.0
     off_radar_min_share_reduction: float = -0.5
     off_radar_sectors_out: tuple[str, ...] = ("Financial Services", "Real Estate")
-    # "Better every year" list (`format.improver_list`, user's choice Oct 28, 2026), display only: over at least
-    # `improver_min_years` consecutive annual reports from Y0, owner earnings per share, revenue, ROIC (ROE for
-    # financials) and operating margin (not for financials) each rose every year, and the share count never rose;
-    # latest owner earnings positive; trusted as `ranking.top_n`, in combined rank order.
+    # The fewest annual reports, consecutive from Y0, over which the "Operating companies" and "Fast growers" lists
+    # (`screens.operating_list`, `fast_grower_list`, Nov 4, 2026) test growth year by year; display only. Named after
+    # "Better every year" (Oct 28, 2026), which they replaced.
     improver_min_years: int = 3
     # "Dividend carry" list (`format.dividend_carry_list`, user's choice Oct 29, 2026), display only: no dividend
     # withholding for a non-resident, `Dividend_Yield` at least `carry_min_yield` (%) and above `carry_borrow_rate` (%,

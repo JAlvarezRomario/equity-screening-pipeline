@@ -83,7 +83,7 @@ def test_report_shows_only_the_group_with_benchmark_context(cfg):
     assert "<dt>Analysts</dt>" not in page  # in the headline, not repeated in the key figures
 
     text = index.read_text(encoding="utf-8")
-    order = [text.index(s) for s in ("Turning over the Rocks", "<h3>Cheap and good</h3>", "<h3>Compounders</h3>", "<h3>Cheapest</h3>", "The map: Value vs Quality",
+    order = [text.index(s) for s in ("Turning over the Rocks", "<h3>Cheap and good</h3>", "<h3>Operating companies</h3>", "<h3>Cheapest</h3>", "The map: Value vs Quality",
                                      "<h2>Full ranking</h2>")]  # fmt: skip
     assert order == sorted(order)
 
