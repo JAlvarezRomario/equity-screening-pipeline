@@ -40,7 +40,7 @@ STALE_DAYS = 7
 _cache: dict[str, dict] = {}
 _status = {"source": "not loaded", "asof": None}
 _history: dict[str, pd.Series | None] = {}
-HISTORY_PERIOD = "10y"
+HISTORY_PERIOD = "max"  # dividend records reach back decades (`fetch.declared_currency_payments`)
 
 
 def status() -> str:

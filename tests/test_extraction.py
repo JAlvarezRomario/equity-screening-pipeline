@@ -56,6 +56,18 @@ def test_ttm_source_and_crosscheck():
     assert out["Total Revenue_TTM"] == 40.4 and meta["ttm_source"] == "yahoo_ttm" and meta["ttm_check"] is None
 
 
+def test_average_share_counts_are_the_mean_of_the_quarters_never_converted_and_put_on_the_price_basis():
+    q = stmt(QUARTERS, **{"Total Revenue": [10, 10, 10, 10], "Diluted Average Shares": [104, 102, 100, 98]})
+    rows = ["Total Revenue", "Diluted Average Shares"]
+    out, _, _ = _statement_columns(pd.DataFrame(), q, pd.DataFrame(), rows, Settings(), 0.5, "sum")
+    assert out["Total Revenue_TTM"] == 20.0  # a flow: summed, then in USD
+    assert out["Diluted Average Shares_TTM"] == 101.0  # an average: the mean, a count: no exchange rate
+    row = {"currentPrice": 80.97, "marketCap": 115.25e9, "Ordinary Shares Number_TTM": 5.6936e9,
+           "Diluted Average Shares_TTM": 5.8e9}  # fmt: skip
+    ratio = _align_share_basis(row, ["TTM"], "PDD")
+    assert row["Diluted Average Shares_TTM"] == 5.8e9 / ratio
+
+
 def test_half_year_reported_as_a_quarter_is_not_summed():
     # ACS.MC as served: the Dec "quarter" is the whole second half, so four "quarters" hold six months twice.
     annual = stmt(["2025-12-31"], **{"Total Revenue": [49.8]})
@@ -235,6 +247,11 @@ def test_prices_only_refresh(cfg, monkeypatch):
     known = fetch.refresh_prices(out, list(out["Ticker"]), cfg)
     known = fetch.refresh_prices(known, list(known["Ticker"]), cfg, now=pd.Timestamp.now() + pd.Timedelta(days=2))
     assert known.loc[0, "Daily_Turnover_Shares"] == 5000.0
+    # Yahoo serving no prices at all (throttled) keeps the cached ones instead of failing the run.
+    empty = pd.DataFrame()
+    monkeypatch.setattr(fetch, "_price_history", lambda tickers: (empty, empty, empty))
+    kept = fetch.refresh_prices(raw, list(raw["Ticker"]), cfg)
+    assert kept["currentPrice"].tolist() == raw["currentPrice"].tolist()
 
 
 def test_pe_ratios_move_with_the_quote_not_the_currency():

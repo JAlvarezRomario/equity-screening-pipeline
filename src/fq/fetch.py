@@ -201,7 +201,8 @@ def _statement_columns(
             if use_quarters and _contiguous_quarters(qtr):
                 parts = [_value(qtr, when, concept, used) for when in qtr.index[:4]]
                 if not any(pd.isna(x) for x in parts):
-                    value = float(sum(parts))
+                    # An average (shares) over a year is the mean of its quarters; a flow is their sum.
+                    value = float(np.mean(parts) if concept in S.AVERAGE_CONCEPTS else sum(parts))
                     yahoo = yahoo_ttm() if i == 0 else np.nan
                     if i == 0 and pd.notna(yahoo) and ttm.index[0] == qtr.index[0] and value != 0:
                         meta["ttm_check"] = abs(yahoo - value) / abs(value)
@@ -260,7 +261,7 @@ def _apply_splits(row: dict, factors: dict[str, float], ticker: str) -> list[str
     ref = row.get("sharesOutstanding") or row.get("impliedSharesOutstanding")
     changed = []
     for period, factor in factors.items():
-        for concept in ("Ordinary Shares Number", "Share Issued"):
+        for concept in S.SHARE_COUNT_CONCEPTS:
             key = f"{concept}_{period}"
             raw = row.get(key)
             if raw is None or pd.isna(raw) or raw <= 0:
@@ -296,7 +297,7 @@ def _align_share_basis(
     if any(0.8 <= ratio * f <= 1.25 for f in (1.0, (splits or {}).get(period, 1.0))):
         return None
     for p in periods:
-        for concept in ("Ordinary Shares Number", "Share Issued"):
+        for concept in S.SHARE_COUNT_CONCEPTS:
             value = row.get(f"{concept}_{p}")
             if value is not None and pd.notna(value):
                 row[f"{concept}_{p}"] = value / ratio
@@ -320,7 +321,7 @@ def economic_share_basis(row: dict, periods: list[str], ticker: str, ratio: floa
     economic = own + sister_shares * ratio
     factor = economic / latest
     for p in periods:
-        for concept in ("Ordinary Shares Number", "Share Issued"):
+        for concept in S.SHARE_COUNT_CONCEPTS:
             value = row.get(f"{concept}_{p}")
             if value is not None and pd.notna(value):
                 row[f"{concept}_{p}"] = value * factor
@@ -378,6 +379,8 @@ def yearly_shares(points: pd.Series, splits: pd.Series, ref: float | None) -> di
     for year, pts in s.groupby(s.index.year):
         late = pts[pts.index.quarter == 4]
         out[str(year)] = float((late if len(late) else pts).median())
+    if not out:  # every point zero or unreadable (OIO): no history, not a failed fetch
+        return {}
     latest = out[max(out)]
     if ref and ref > 0 and not 0.8 <= latest / ref <= 1.25:
         out = {y: v * ref / latest for y, v in out.items()}
@@ -390,6 +393,33 @@ def yearly_dividends(dividends: pd.Series, today: pd.Timestamp) -> dict[str, flo
     s = _naive_series(dividends)
     s = s[s.index.year < today.year]
     return {str(year): float(v) for year, v in s.groupby(s.index.year).sum().items()}
+
+
+def dividend_payments(dividends: pd.Series) -> dict[str, float]:
+    """Every dividend payment Yahoo keeps, {"YYYY-MM-DD": per share} (quote currency, split-adjusted as served), so a
+    special can be told from a raise cut back later, which yearly sums cannot (`report.dividend_record`)."""
+    s = _naive_series(dividends)
+    return {f"{d:%Y-%m-%d}": float(v) for d, v in s.items()}
+
+
+def declared_currency_payments(payments: dict[str, float], quote: str, declared: str) -> dict[str, float] | None:
+    """`payments` in the reporting currency `declared` at each payment day's rate (`fx.rate_on`), for a company quoted
+    in another currency (a Hong Kong share paying RMB dividends in HKD): the exchange rate then does not read as a
+    raise or a cut. A payment older than Yahoo's exchange rates takes the oldest rate known (the record stays whole, in
+    one currency). None when the two are the same currency (a minor unit such as pence differs only by scale) or no
+    rate is known."""
+    base = lambda c: fx.MINOR_UNITS.get(c, (c, 1))[0]  # noqa: E731
+    if not payments or not quote or not declared or base(quote) == base(declared):
+        return None
+    ratios = {}
+    for day in payments:
+        q, d = fx.rate_on(quote, day), fx.rate_on(declared, day)
+        ratios[day] = q / d if q and d else None
+    known = [r for r in ratios.values() if r is not None]
+    if not known:
+        return None
+    first = known[0]  # payments are oldest first: earlier gaps are before the rates begin
+    return {day: amount * (ratios[day] if ratios[day] is not None else first) for day, amount in payments.items()}
 
 
 HOLDERS_SHOWN = 10  # largest holders kept per company (`top_holders`)
@@ -736,9 +766,14 @@ def fetch_ticker(ticker: str, cfg: S.Settings, rates: dict[str, float]) -> dict 
     price, cap = row.get("currentPrice"), row.get("marketCap")
     basis = cap / price if price and cap and price > 0 and cap > 0 else row.get("sharesOutstanding")
     shares_hist = yearly_shares(_safe_series(lambda: obj.get_shares_full(start=HISTORY_START)), splits, basis)
-    dps_hist = yearly_dividends(_safe_series(lambda: obj.dividends), pd.Timestamp.now())
+    dividends = _safe_series(lambda: obj.dividends)
+    dps_hist = yearly_dividends(dividends, pd.Timestamp.now())
+    payments = dividend_payments(dividends)
+    payments_fx = declared_currency_payments(payments, currency, fin_currency)
     row["Shares_Hist"] = json.dumps(shares_hist) if shares_hist else None
     row["DPS_Hist"] = json.dumps(dps_hist) if dps_hist else None
+    row["DPS_Payments"] = json.dumps(payments) if payments else None
+    row["DPS_Payments_FX"] = json.dumps(payments_fx) if payments_fx else None
     row |= holder_columns(obj, splits, basis)  # the largest holders (shown only), one more request
 
     row["CapEx_Estimated"] = ", ".join(_patch_capex_and_fcf(row, cfg.fiscal_years, ticker)) or None
@@ -1034,6 +1069,9 @@ def refresh_prices(
         return out
     rates = fx.get_rates(cfg.data_dir / "fx_rates.json")
     close, low, volume = _price_history(todo)
+    if isinstance(close, pd.DataFrame) and close.empty:  # Yahoo served no prices at all (throttled): keep the cached
+        log.warning("No prices downloaded for %d tickers; cached prices kept", len(todo))
+        return out
     stats = price_stats(close, low, volume)
     closes = stats["Last_Close"]
     out = out.astype({c: float for c in PRICE_STATS if c in out.columns})

@@ -50,3 +50,12 @@ VIS.MC
 VIT-B.ST
 WLDN
 WTM
+# Back in Nov 5, 2026 (user's choice): US companies cached from an earlier list but in no index list now
+AWI
+HAYW
+LEVI
+MOD
+POWL
+PRIM
+SITE
+SPWH

@@ -25,6 +25,11 @@ def test_yearly_shares_median_of_late_points_drops_spikes():
     assert out == {"2020": 100.0, "2021": 98.0}  # Q4 median, the one-day spike out
 
 
+def test_yearly_shares_of_only_zero_points_is_empty():
+    days = pd.date_range(end=pd.Timestamp.now().normalize(), periods=4, freq="90D")
+    assert yearly_shares(pd.Series(0.0, index=days), pd.Series(dtype=float), ref=100) == {}
+
+
 def test_yearly_shares_drops_points_on_another_basis():
     # Swire: counts of every class (3.6x) mixed among economic shares, even as a year's only late point.
     pts = _series({f"2025-{m:02d}-15": 100.0 for m in range(1, 13)} | {"2025-11-17": 360.0, "2026-01-06": 101.0,

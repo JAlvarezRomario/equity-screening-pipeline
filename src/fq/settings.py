@@ -198,6 +198,9 @@ CONCEPTS_INCOME = [
     "Total Unusual Items", "Normalized Income",  # one-offs (pre-tax) and net income without them
     "Net Policyholder Benefits And Claims",  # only insurers report it (`metrics.flags._model_review`: MNG, LGEN)
     "Cost Of Revenue", "Selling General And Administration",  # Beneish M-score (`metrics.quality._beneish`)
+    # Average share counts of the period, diluted (options, convertibles) and basic (Nov 4, 2026): stored, not yet
+    # read by any metric; `AVERAGE_CONCEPTS`, `SHARE_COUNT_CONCEPTS`.
+    "Diluted Average Shares", "Basic Average Shares",
 ]  # fmt: skip
 
 CONCEPTS_BALANCE = [
@@ -259,8 +262,9 @@ COMPOSITES: dict[str, list[str]] = {
 QUARTERLY_CONCEPTS = ["Total Revenue", "Pretax Income", "Net Income", "Total Unusual Items", "Interest Expense"]
 N_QUARTERS = 5
 QUARTERS = [f"Q{i}" for i in range(N_QUARTERS)]
-# Long per-share series fetched besides the statements (`fetch.yearly_shares`, `fetch.yearly_dividends`; shown only).
-HISTORY_SERIES = ("shares_full", "dividends")
+# Long per-share series fetched besides the statements (`fetch.yearly_shares`, `fetch.yearly_dividends`; shown only),
+# and each dividend payment (`fetch.dividend_payments`, Nov 4, 2026: the Unbroken dividends list).
+HISTORY_SERIES = ("shares_full", "dividends", "dividend_payments")
 # Fingerprint of what a fetch collects. Stored per company (`Fields_Version`): a company fetched with
 # another set is due for a full fetch (`refresh.reason`: "new fields"), so adding a row here reaches the
 # cache gradually, within `max_full_fetches` per run, instead of needing `--full`.
@@ -282,12 +286,19 @@ NON_CURRENCY_CONCEPTS = frozenset(
     {
         "Ordinary Shares Number",
         "Share Issued",
+        "Diluted Average Shares",
+        "Basic Average Shares",
         "Full Time Employees",
         "numberOfAnalystOpinions",
         "heldPercentInsiders",
         "heldPercentInstitutions",
     }
 )
+# Income-statement rows that are averages over the period, not flows: their TTM is the mean of the four quarters.
+AVERAGE_CONCEPTS = frozenset({"Diluted Average Shares", "Basic Average Shares"})
+# Every stored share count: split, ADR and share-class adjustments apply to all of them (`fetch._apply_splits`,
+# `_align_share_basis`, `economic_share_basis`), so they stay on one basis.
+SHARE_COUNT_CONCEPTS = ("Ordinary Shares Number", "Share Issued", "Diluted Average Shares", "Basic Average Shares")
 
 # [metric, "top" (higher is better) | "bottom" (lower is better), weight]
 Criterion = tuple[str, str, float]

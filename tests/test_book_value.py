@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from conftest import make_raw
 from fq.fetch import _apply_splits, split_factors
@@ -61,9 +62,11 @@ def test_split_factors_apply_only_before_the_split():
 
 
 def test_unadjusted_share_counts_are_restated():
-    row = {"sharesOutstanding": 2.23e9, "Ordinary Shares Number_Y0": 2.2e9, "Ordinary Shares Number_Y1": 1.5e9}
+    row = {"sharesOutstanding": 2.23e9, "Ordinary Shares Number_Y0": 2.2e9, "Ordinary Shares Number_Y1": 1.5e9,
+           "Diluted Average Shares_Y1": 1.52e9}  # fmt: skip
     assert _apply_splits(row, {"Y1": 1.5}, "BN.TO") == ["Y1"]
     assert row["Ordinary Shares Number_Y1"] == 2.25e9
+    assert row["Diluted Average Shares_Y1"] == pytest.approx(2.28e9)  # every share count on today's basis
 
 
 def test_already_adjusted_share_counts_are_left_alone():
