@@ -1,12 +1,15 @@
 """Returns in US terms: a 30% return in a currency losing 30% a year is no return at all (user's rule, Oct 28,
 2026: what is scored and shown must compare with the dollar).
 
-Growth and compounding are already measured in USD of the time (`valuation`, `flows`), so a falling currency
-washes out there. Returns on capital are not: profit and capital are both in the local currency, so the ratio
-keeps its inflation. `_excess_inflation` finds each period's inflation beyond US inflation (IMF, `fq.inflation`),
-`_real_returns` divides it out of `ROIC_<p>` (ROE for financials), and `flows._capital_retention` charges banks,
-insurers and holdings the local inflation on their book. Statements already restated for inflation (IAS 29) hold
-real returns, so they get US inflation back instead (`_basis`): every return ends in US nominal terms.
+Profit and capital are both in the local currency, so a return keeps its inflation. `_excess_inflation` finds each
+period's inflation beyond US inflation (IMF, `fq.inflation`), `_real_returns` divides it out of `ROIC_<p>` (ROE for
+financials), and `flows._capital_retention` charges banks, insurers and holdings the local inflation on their book.
+Growth and compounding take the same step (`common.us_terms`, `common.local_inflation`; Nov 6, 2026, user's choice:
+they were in USD at each year's exchange rate, a market price whose real swings over a few years outweigh real
+growth, and which read IAS 29 years already in today's money as a collapse). Statements already restated for
+inflation (IAS 29) hold real returns, so they get US inflation back instead (`_basis`): every return ends in US
+nominal terms. `Excess_Inflation_10Y` is the statements' currency's over the ten complete years before the fetch,
+for the dividend record's growth (`report.dividend_record`; dividends are paid in nominal money, restated or not).
 """
 
 import numpy as np
@@ -18,6 +21,8 @@ from fq.settings import HYPERINFLATION_CURRENCIES, Settings
 
 # A fiscal year is dated by the calendar year it mostly covers (a March year end belongs to the year before).
 HALF_YEAR = pd.Timedelta(days=182)
+# The dividend record's growth window (`report.dividend_record.GROWTH_YEARS`): `Excess_Inflation_10Y` spans it.
+LONG_YEARS = 10
 
 
 def _basis(df: pd.DataFrame) -> pd.Series:
@@ -108,6 +113,21 @@ def _excess_inflation(df: pd.DataFrame, cfg: Settings) -> None:
         inflation.rate(series, c, int(y)) if pd.notna(y) else np.nan for c, y in zip(currency, newest, strict=True)
     ]
     df["Inflation_US"] = [inflation.rate(series, "USD", int(y)) if pd.notna(y) else np.nan for y in newest]
+    # The currency's own excess (never the restated special: a dividend is paid in nominal money) over the complete
+    # years before the fetch, as the dividend record counts them (`long_history`, `report.dividend_record`).
+    empty = pd.Series([None] * len(df), index=df.index, dtype=object)
+    last = pd.to_datetime(df.get("Fetched_At", empty), errors="coerce").dt.year - 1
+    df["Excess_Inflation_10Y"] = [_long_excess(series, c, int(y)) if pd.notna(y) else np.nan
+                                  for c, y in zip(currency, last, strict=True)]  # fmt: skip
+
+
+def _long_excess(series: dict, currency, last_year: int) -> float:
+    """Geometric mean of `currency`'s excess inflation over US over the `LONG_YEARS` years to `last_year`; NaN when
+    unknown."""
+    rates = [inflation.excess(series, currency, y) for y in range(last_year - LONG_YEARS + 1, last_year + 1)]
+    if any(r is None for r in rates):
+        return np.nan
+    return float(np.exp(np.mean(np.log1p(rates))) - 1)
 
 
 def _us_back(series: dict, year: int) -> float | None:

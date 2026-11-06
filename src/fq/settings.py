@@ -316,8 +316,9 @@ VALUE_CRITERIA: tuple[Criterion, ...] = (("Owner_Yield", "top", 1.0),)
 # Quality (user's rule, Oct 26, 2026): return on capital, normalised ROIC (operating) or ROE (financials), adjusted
 # for its trend (capped at +/-10 pp), shrunk for variability (unsteadiness), with a haircut for severe leverage.
 # Since Oct 28, 2026 (user's choice: what a moat and management do is not measurable, what they leave a long-term
-# holder is) also what one share of the business grew by (USD revenue per share, book per share for financials,
-# trend x R²) and whether the share count shrank, both the same question for every model, so market-wide.
+# holder is) also what one share of the business grew by (revenue per share in US terms since Nov 6, 2026, book per
+# share for financials, trend x adjusted R²) and whether the share count shrank, both the same question for every
+# model, so market-wide.
 # `Return_Quality` alone (0.7) still meets `min_coverage`.
 QUALITY_CRITERIA: tuple[Criterion, ...] = (
     ("Return_Quality", "top", 0.7),

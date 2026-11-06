@@ -17,6 +17,7 @@ from fq.metrics.common import (
     _text,
     _ttm_span,
     adjusted_r2,
+    us_terms,
 )
 from fq.settings import Settings
 from fq.universe import is_cyclical_industry
@@ -98,14 +99,16 @@ def _stability(df: pd.DataFrame, cfg: Settings) -> None:
         (margin.notna().sum(axis=1) >= 3) & ~df["Financial_Mode"]
     )
     df["Gross_Margin_Held"] = _gross_margin_held(df, margin)
-    # One exchange rate for every period, so the ratio is the change in the reporting currency.
-    annual = _frame(df, "Total Revenue", cfg.annual_years)
+    # In US terms (`common.us_terms`, Nov 6, 2026): the change in the reporting currency net of its inflation beyond
+    # US, so a falling currency's price rises are no revenue held; no exchange rate of the past.
+    revenue_us = us_terms(_frame(df, "Total Revenue", [*cfg.annual_years, "TTM"]), df, cfg)
+    annual = revenue_us[cfg.annual_years]
     annual = annual.where(annual > 0)
     pairs = zip(annual.columns[:-1], annual.columns[1:], strict=True)  # (newer, older) neighbours
     changes = pd.DataFrame({new: (annual[new] / annual[old] - 1) * 100 for new, old in pairs}, index=df.index)
     # The latest fall counts too: a TTM ending well after Y0 (it covers mostly other quarters, `_distinct`) against
     # Y0 (QFIN: TTM revenue -17% on Y0 while every annual report rose).
-    ttm = _col(df, "Total Revenue_TTM").where(_col(df, "Total Revenue_TTM") > 0)
+    ttm = revenue_us["TTM"].where(revenue_us["TTM"] > 0)
     later = (_ttm_span(df, cfg) >= TTM_SHARED_SPAN).fillna(False)
     changes["TTM"] = ((ttm / annual[cfg.latest] - 1) * 100).where(later)
     df["Revenue_Worst_Change"] = changes.min(axis=1).where(changes.notna().sum(axis=1) >= 2)
@@ -113,7 +116,7 @@ def _stability(df: pd.DataFrame, cfg: Settings) -> None:
     # Candidates (reported, not ranked): the capital cycle. Fast asset growth (Cooper-Gulen-Schill) and
     # profit running ahead of operating cash (Sloan's accruals). Not for balance-sheet businesses, whose
     # assets and operating cash flow move with deposits and reserves.
-    assets = _frame(df, "Total Assets", [cfg.latest, cfg.prior])
+    assets = us_terms(_frame(df, "Total Assets", [cfg.latest, cfg.prior]), df, cfg)
     growth = (assets[cfg.latest] / assets[cfg.prior].where(assets[cfg.prior] > 0) - 1) * 100
     df["Asset_Growth"] = growth.mask(earnings_based)
     total = _distinct(df, "Total Assets", years, cfg)

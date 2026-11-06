@@ -140,7 +140,7 @@ def calculate_metrics(df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
     _data_suspect(df, cfg)
     _peak_margin(df, cfg)
     _distress(df, cfg)  # needs Interest_Coverage and FCF_Reported
-    _revenue_decline(df, cfg)  # needs FX_Hist and Inflation_US_<p>
+    _revenue_decline(df, cfg)  # needs Excess_Inflation and Inflation_US_<p>
     _accounting_flag(df, cfg)  # needs Accruals and Beneish_M
     _model_review(df, cfg)
     long_history(df, cfg)  # the long share-count and dividend record, shown only

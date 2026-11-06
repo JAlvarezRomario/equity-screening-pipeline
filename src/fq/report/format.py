@@ -123,6 +123,9 @@ COLUMN_HELP = {
                                "never scored.",
     "Regular_DPS_Growth_10Y": "Regular dividend per share (specials left out, declared currency), % a year over 10 "
                               "years. Shown, never scored.",
+    "Regular_DPS_Growth_10Y_US": "Regular dividend per share (specials left out), % a year over 10 years in US terms: "
+                                 "the declared currency's growth net of its inflation beyond US inflation over those "
+                                 "years. Shown, never scored.",
     "heldPercentInsiders":"Shares held by insiders (managers, directors, founding families, a parent company), % "
                            "(Yahoo). Shown, never scored.",
 }  # fmt: skip

@@ -14,6 +14,8 @@ from fq.metrics.common import (
     _slot,
     _ttm_span,
     adjusted_r2,
+    local_inflation,
+    us_terms,
 )
 from fq.metrics.normalise import _pretax_power, earnings_collapse, normalized_fcf_yield, run_rate
 from fq.settings import GAINS_INSIDE_MODELS, Settings
@@ -87,7 +89,10 @@ def _owner_yield(df: pd.DataFrame, cfg: Settings, level_basis: pd.DataFrame) -> 
     The trend measures the same flow as the level (Oct 28, 2026): before financing (the after-tax interest
     `flows._financing` adds back), so leverage does not magnify it, and in constant currency (today's rate, as the
     level), so a currency that already fell is not charged again; real growth is then net of the currency's own
-    inflation (the US inflation of those years compounded with `Excess_Inflation`). The rate is the slope over the
+    inflation (`common.local_inflation`: the US inflation of those years compounded with `Excess_Inflation`). Banks,
+    insurers, holdings and health insurers fit it on the level's own flow, `FCF_Owner` (clean net income less the
+    book kept against inflation; Nov 6, 2026: raw net income held one-offs the level leaves out). The rate is the
+    slope over the
     line's value at the newest period or the level, whichever is larger (`_trend_denominator`), weighed by its
     adjusted R² (`common.adjusted_r2`), and the projection runs from the level's own date (`level_basis.Age`: a
     median sits ~1.5 years back) to 3 years ahead. Under `trend_min_points` values there is no trend. Cyclicals and the models
@@ -99,15 +104,17 @@ def _owner_yield(df: pd.DataFrame, cfg: Settings, level_basis: pd.DataFrame) -> 
     shares = shares.where(shares > 0)
     # `_distinct`: a TTM that shares most of its quarters with Y0 does not count the same year twice.
     interest_back = _frame(df, "FCF_PreFin", periods) - _frame(df, "FCF_Adj", periods)
-    eps_frame = (_distinct(df, "FCF_Reported", periods, cfg) + interest_back.fillna(0.0)) / shares
+    flow = _distinct(df, "FCF_Reported", periods, cfg) + interest_back.fillna(0.0)
+    earnings_based = df["Financial_Mode"].fillna(False).astype(bool) | (df["Business_Model"] == "float")
+    flow = flow.where(~earnings_based, _distinct(df, "FCF_Owner", periods, cfg), axis=0)
+    eps_frame = flow / shares
 
     book = pd.DataFrame({p: _book_per_share(df, p) for p in periods})
     rev_ps = _frame(df, "Total Revenue", periods) / shares
     scale_frame = rev_ps.where(~df["Financial_Mode"], book, axis=0)
     # The inflation of the years the trend is fitted on (`metrics.inflation`), not the 2.5% assumed ahead: 2022-26 US
     # CPI averaged ~4.3%, and the gap read as real growth. Restated (IAS 29) statements get 0: already real.
-    us_then = _col(df, "Inflation_US_Mean").fillna(cfg.inflation)
-    local_inflation = (1 + us_then) * (1 + _col(df, f"Excess_Inflation_{cfg.latest}").fillna(0.0)) - 1
+    inflation_then = local_inflation(df, cfg)
 
     y0 = _dates(df, cfg.latest)
     times = pd.DataFrame(
@@ -153,7 +160,7 @@ def _owner_yield(df: pd.DataFrame, cfg: Settings, level_basis: pd.DataFrame) -> 
         newest = abs(float(y_mean + slope * (x.max() - x_mean)))  # the line at the newest period
         denom = _trend_denominator(newest, float(level_ps.loc[idx]), mean_scale, cfg)
 
-        g_raw = (1 + slope / denom) / (1 + local_inflation.loc[idx]) - 1
+        g_raw = (1 + slope / denom) / (1 + inflation_then.loc[idx]) - 1
         g = min(max(g_raw, cfg.trend_floor_down / 100.0), cfg.trend_cap_up / 100.0) * adjusted_r2(r2, len(y))
 
         if mid_cycle[i]:
@@ -232,7 +239,8 @@ def _steady_growth(
 
 
 def _growth(df: pd.DataFrame, cfg: Settings) -> None:
-    """`Growth_Used`: USD revenue slope, the lower of total and per share; it decides which capex buys growth
+    """`Growth_Used`: revenue slope in US terms (`common.us_terms`; the `_USD` columns are US dollar equivalents, no
+    exchange rate of the past), the lower of total and per share; it decides which capex buys growth
     (`flows._organic_growth_capex`) and flags implausible yields (`flags._data_suspect`).
 
     Per share catches dilution; taking the lower of the two stops buybacks from counting again
@@ -242,7 +250,8 @@ def _growth(df: pd.DataFrame, cfg: Settings) -> None:
     when unknown.
     """
     years = {_slot(p): p for p in cfg.annual_years}
-    usd = {k: _col(df, f"Total Revenue_{p}") * _col(df, f"FX_Hist_{p}").fillna(1.0) for k, p in years.items()}
+    revenue = us_terms(_frame(df, "Total Revenue", cfg.annual_years), df, cfg)
+    usd = {k: revenue[p] for k, p in years.items()}
     shares = {k: _col(df, f"Ordinary Shares Number_{p}") for k, p in years.items()}
     usd_per_share = pd.DataFrame({k: usd[k] / shares[k].where(shares[k] > 0) for k in years})
     total = _log_slope_growth(pd.DataFrame(usd))
@@ -255,7 +264,8 @@ def _growth(df: pd.DataFrame, cfg: Settings) -> None:
     df["SBC_Dilution"] = (sbc.clip(lower=0) * 100 / df["marketCap"].where(df["marketCap"] > 0)).fillna(0)
     g = np.fmin(total, per_share + df["SBC_Dilution"])  # fmin ignores a missing side
     # Financial mode: revenue says little about a balance sheet; it grows as book value per share does.
-    book = {k: _book_per_share(df, p) * _col(df, f"FX_Hist_{p}").fillna(1.0) for k, p in years.items()}
+    book_us = us_terms(pd.DataFrame({p: _book_per_share(df, p) for p in years.values()}, index=df.index), df, cfg)
+    book = {k: book_us[p] for k, p in years.items()}
     df["Book_Growth_USD"] = _log_slope_growth(pd.DataFrame(book)).where(df["Financial_Mode"])
     g = g.where(~df["Financial_Mode"], df["Book_Growth_USD"]).clip(cfg.growth_floor, cfg.growth_cap)
     g = g.where(~df["Cyclical"] | (g <= 0), g * cfg.cyclical_growth_factor)  # halving a decline would soften it
@@ -264,66 +274,65 @@ def _growth(df: pd.DataFrame, cfg: Settings) -> None:
 
 def _per_share_compounding(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     """Quality: what a long-term holder's share of the business grew by, buybacks and dilution included: the trend
-    of USD revenue per share x its R² (bumps shrink it), over the annual years and TTM, each placed at its real
-    period end (Y0 left out where TTM covers most of it, `_distinct`), at least 3 values (Yahoo serves 3-4 annual
-    reports: LOG.MC 3). Financial mode: USD book value per share (`capital._book_per_share`, every balance date its
-    own point), since a lender or insurer grows through its book; one yardstick, ranked market-wide (user's choice,
-    Oct 20, 2026)."""
+    of revenue per share in US terms (`common.us_terms`: local growth net of the currency's inflation beyond US, no
+    exchange rate of the past; Nov 6, 2026) x its adjusted R² (bumps and chance shrink it), over the annual years and
+    TTM, each placed at its real period end (Y0 left out where TTM covers most of it, `_distinct`), at least
+    `trend_min_points` values (Nov 6, 2026, as every scored trend since Oct 28). Financial mode: book value per share
+    in US terms (`capital._book_per_share`, every balance date its own point), since a lender or insurer grows
+    through its book; one yardstick, ranked market-wide (user's choice, Oct 20, 2026)."""
     periods = cfg.fiscal_years
-    fx_then = pd.DataFrame({p: _col(df, f"FX_Hist_{p}") for p in periods}).fillna(1.0)
-    book = pd.DataFrame({p: _book_per_share(df, p) for p in periods}) * fx_then
+    book = us_terms(pd.DataFrame({p: _book_per_share(df, p) for p in periods}, index=df.index), df, cfg)
     df["Book_Per_Share_Compounding"] = _compounding(df, cfg, book)
-    per_share = _usd_per_share(df, cfg, _frame(df, "Total Revenue", periods))
+    per_share = _us_per_share(df, cfg, _frame(df, "Total Revenue", periods))
     return _compounding(df, cfg, per_share.where(~df["Financial_Mode"], book, axis=0))
 
 
 def _owner_earnings_compounding(df: pd.DataFrame, cfg: Settings) -> pd.Series:
-    """Display and the Compounder list (`ranking.compounder`), never scored: the trend of USD owner earnings per share
+    """Display and the Compounder list (`ranking.compounder`), never scored: the trend of US-terms owner earnings per share
     (`Owner_Earnings_<p>`, the company chart's blue bars) x its adjusted R² (Oct 30, 2026: as the scored trends, so a
     noisy series is not credited a third of its slope), as `_per_share_compounding` measures revenue. A
     Mastercard grows earnings per share faster than revenue as margins widen; a business whose earnings stall while
     revenue grows is not compounding for its owner. Owner earnings are noisy, so not a Quality criterion (user's
     choice, Oct 21, 2026)."""
-    per_share = _usd_per_share(df, cfg, _frame(df, "Owner_Earnings", cfg.fiscal_years))
-    return _compounding(df, cfg, per_share, adjusted=True)
+    per_share = _us_per_share(df, cfg, _frame(df, "Owner_Earnings", cfg.fiscal_years))
+    return _compounding(df, cfg, per_share)
 
 
-def _usd_per_share(df: pd.DataFrame, cfg: Settings, values: pd.DataFrame) -> pd.DataFrame:
-    """A flow per share in USD at each period's own rate; Y0 left out where TTM covers most of it (`_distinct`)."""
+def _us_per_share(df: pd.DataFrame, cfg: Settings, values: pd.DataFrame) -> pd.DataFrame:
+    """A flow per share in US terms (`common.us_terms`); Y0 left out where TTM covers most of it (`_distinct`)."""
     periods = cfg.fiscal_years
-    fx_then = pd.DataFrame({p: _col(df, f"FX_Hist_{p}") for p in periods}).fillna(1.0)
     shares = _frame(df, "Ordinary Shares Number", periods)
-    per_share = values * fx_then / shares.where(shares > 0)
+    per_share = us_terms(values[periods], df, cfg) / shares.where(shares > 0)
     mostly_shared = (_ttm_span(df, cfg) < TTM_SHARED_SPAN).fillna(False)
     per_share[cfg.latest] = per_share[cfg.latest].mask(mostly_shared & per_share["TTM"].notna())
     return per_share
 
 
-def _compounding(df: pd.DataFrame, cfg: Settings, per_share: pd.DataFrame, adjusted: bool = False) -> pd.Series:
-    """Log-slope x R² (adjusted R² if `adjusted`) of per-share values over TTM and the annual years at their real
-    period ends (at least 3)."""
+def _compounding(df: pd.DataFrame, cfg: Settings, per_share: pd.DataFrame) -> pd.Series:
+    """Log-slope x adjusted R² of per-share values over TTM and the annual years at their real period ends, at least
+    `trend_min_points` of them (Nov 6, 2026: plain R² on three points credited noise about half its slope)."""
     periods = cfg.fiscal_years
     y0 = _dates(df, cfg.latest)
     times = pd.DataFrame(
         {p: ((y0 - _dates(df, p)).dt.days / 365.25).fillna(float(_slot(p)) if p != "TTM" else np.nan) for p in periods}
     )
-    compounding, _ = _steady_growth(per_share, min_years=3, trend_only=True, times=times, adjusted=adjusted)
+    compounding, _ = _steady_growth(
+        per_share, min_years=cfg.trend_min_points, trend_only=True, times=times, adjusted=True
+    )
     return compounding
 
 
 def _revenue_cagr(df: pd.DataFrame, cfg: Settings, per_share: bool = False) -> pd.Series:
-    """USD revenue (or revenue per share) CAGR between the oldest and newest annual slots with a value.
-
-    Each year is converted at its own exchange rate, so growth that only reflects inflation in a
-    falling currency does not count (the USD-investor view: what the cash flows are worth in USD).
-    """
+    """Revenue (or revenue per share) CAGR in US terms (`common.us_terms`) between the oldest and newest annual slots
+    with a value: growth that only reflects a currency's inflation beyond US does not count, and no exchange rate of
+    the past enters (Nov 6, 2026)."""
     cols = {_slot(p): p for p in cfg.annual_years if f"Total Revenue_{p}" in df.columns}
     if len(cols) < 2:
         return pd.Series(np.nan, index=df.index)
+    revenue_us = us_terms(_frame(df, "Total Revenue", list(cols.values())), df, cfg)
 
     def value(p: str) -> pd.Series:
-        # USD at the period's own exchange rate (missing history: today's rate).
-        rev = _col(df, f"Total Revenue_{p}") * _col(df, f"FX_Hist_{p}").fillna(1.0)
+        rev = revenue_us[p]
         if per_share:
             shares = _col(df, f"Ordinary Shares Number_{p}")
             rev = rev / shares.where(shares > 0)

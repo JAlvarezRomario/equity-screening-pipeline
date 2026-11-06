@@ -341,12 +341,15 @@ def _scores(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame, own_kind: 
         result = weighted_percentile_score(df, candidates, 0.0, cfg.winsor_pct, reference, market_criteria=market)
         for column, pct in (result[2] if result is not None else {}).items():
             out[f"Cand_Pct_{column}"] = pct * 100
-    # Shown percentiles (for highlight lists like Compounders, Asset Plays, and company display):
+    # Shown percentiles (for highlight lists like Compounders, Asset Plays, and company display): operating and
+    # asset-heavy companies on one market, as `Return_Quality` (Nov 6, 2026: the 93 ranked asset-heavy companies took
+    # `Pct_ROIC_Norm` among themselves, median 50 on a 6.5% ROIC against 10.2% for operating companies).
     shown = [(c, d, 1.0) for c, d in getattr(cfg, "shown_percentiles", ()) if c in df.columns]
     if shown:
         market = tuple(c for c, _, _ in shown) if own_kind else getattr(cfg, "shown_market_criteria", ())
+        wide = () if own_kind else cfg.quality_market_families
         result = weighted_percentile_score(df, shown, 0.0, cfg.winsor_pct, reference, 0.0, cfg.sector_min_members,
-                                           (), market)  # fmt: skip
+                                           wide, market)  # fmt: skip
         for column, pct in (result[2] if result is not None else {}).items():
             if f"Pct_{column}" not in out.columns:
                 out[f"Pct_{column}"] = pct * 100
@@ -729,9 +732,14 @@ def value_quality_correlation(df: pd.DataFrame, profitable_only: bool = True, op
     and low-quality, distorting the market correlation upward. Excludes banks, insurers and holdings
     by default too (user's choice, Oct 28, 2026): their Value (profit / market cap = ROE / price-to-book)
     and Quality (ROE) share ROE, so they correlate by arithmetic (+0.60 vs +0.17 for operating companies).
+    With both (the default) and a `Rank_Group`, the ranked companies alone (`rankable`, Nov 6, 2026): REITs,
+    utilities and loss-makers are scored on scales of their own.
     """
     if not {"Value_Score", "Quality_Score"} <= set(df.columns):
         return float("nan")
+    if operating_only and profitable_only and "Rank_Group" in df.columns and rankable(df).sum() >= 3:
+        pair = df.loc[rankable(df), ["Value_Score", "Quality_Score"]].dropna()
+        return float(pair.corr(method="spearman").iloc[0, 1]) if len(pair) >= 3 else float("nan")
     mask = comparable(df)
     if operating_only and (mask & ~_flag(df, "Financial_Mode")).sum() >= 3:
         mask &= ~_flag(df, "Financial_Mode")

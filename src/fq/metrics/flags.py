@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from fq.metrics.capital import EV_FLOOR_SHARE, _client_money_signs
-from fq.metrics.common import _col, _dates, _distinct, _frame, _latest, _text, adjusted_r2
+from fq.metrics.common import _col, _dates, _distinct, _frame, _latest, _text, adjusted_r2, local_inflation
 from fq.settings import Settings
 from fq.universe import model_overrides
 
@@ -104,9 +104,12 @@ def _distress(df: pd.DataFrame, cfg: Settings) -> None:
 def _revenue_decline(df: pd.DataFrame, cfg: Settings) -> None:
     """Flag a business whose sales shrink in real terms: still scored, out of the highlight lists.
 
-    Real USD revenue: each period at its own exchange rate (`FX_Hist`, as `valuation._growth`), net of US inflation
-    (`Inflation_US_Mean` over the trend, each year's own rate for a fall, `Inflation_US_<p>`), so a falling currency
-    or a price rise neither makes nor hides a decline. Two ways to be clear: a log-linear trend over TTM and the
+    Real revenue: in the statements' currency at today's constant rate, net of that money's inflation
+    (`common.local_inflation`: US inflation, `Inflation_US_Mean` over the trend and each year's own rate for a fall,
+    compounded with `Excess_Inflation`; 0 for restated statements), so a falling currency or a price rise neither
+    makes nor hides a decline. No exchange rate of the past (Nov 6, 2026: the yen's fall flagged ~200 Japanese
+    companies growing in yen, a strong euro and pound hid real declines, and IAS 29 years already in today's money
+    read as a collapse). Two ways to be clear: a log-linear trend over TTM and the
     annual reports at their real period ends (Y0 left out where TTM covers most of it, `_distinct`; at least
     `trend_min_points`) at or below `revenue_decline_rate` %/yr with an adjusted R² of at least
     `revenue_decline_min_r2` (noise around a flat line is not a decline), or a fall in every stored annual year over
@@ -115,11 +118,10 @@ def _revenue_decline(df: pd.DataFrame, cfg: Settings) -> None:
     for banks, insurers and holdings (their revenue says little; book value per share is their growth).
     """
     periods = cfg.fiscal_years
-    fx = pd.DataFrame({p: _col(df, f"FX_Hist_{p}") for p in periods}, index=df.index).fillna(1.0)
-    usd = (_distinct(df, "Total Revenue", periods, cfg) * fx).where(lambda v: v > 0)
+    usd = _distinct(df, "Total Revenue", periods, cfg).where(lambda v: v > 0)
     y0 = _dates(df, cfg.latest)
     times = pd.DataFrame({p: (_dates(df, p) - y0).dt.days / 365.25 for p in periods}, index=df.index)
-    us_mean = _col(df, "Inflation_US_Mean").fillna(cfg.inflation)
+    us_mean = local_inflation(df, cfg)
     rate, fit = pd.Series(np.nan, index=df.index), pd.Series(np.nan, index=df.index)
     for i, (values, t) in enumerate(zip(usd.to_numpy(), times.to_numpy(), strict=True)):
         ok = np.isfinite(values) & np.isfinite(t)
@@ -133,13 +135,10 @@ def _revenue_decline(df: pd.DataFrame, cfg: Settings) -> None:
         rate.iloc[i] = (np.exp(slope) / (1 + us_mean.iloc[i]) - 1) * 100
         fit.iloc[i] = adjusted_r2(r2, n)
     years = cfg.annual_years  # newest first
-    annual = _frame(df, "Total Revenue", years) * fx[years]
+    annual = _frame(df, "Total Revenue", years)
     pairs = list(zip(years[:-1], years[1:], strict=True))
     real = pd.DataFrame(  # each year's real change, log
-        {
-            new: np.log(annual[new] / annual[old] / (1 + _col(df, f"Inflation_US_{new}").fillna(cfg.inflation)))
-            for new, old in pairs
-        },
+        {new: np.log(annual[new] / annual[old] / (1 + local_inflation(df, cfg, new))) for new, old in pairs},
         index=df.index,
     ).where(lambda v: np.isfinite(v))
     n_steps = real.notna().sum(axis=1)

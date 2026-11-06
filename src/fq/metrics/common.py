@@ -148,6 +148,43 @@ def _frame(df: pd.DataFrame, name: str, periods: list[str]) -> pd.DataFrame:
     return pd.DataFrame({p: _col(df, f"{name}_{p}") for p in periods}, index=df.index)
 
 
+def period_ages(df: pd.DataFrame, periods: list[str], cfg: Settings) -> pd.DataFrame:
+    """Years before the latest annual report (`Y0`) each period ends, from `PeriodEnd_*` (TTM a fraction below 0);
+    an unknown date takes its slot (`Y2` -> 2, TTM -> 0)."""
+    y0 = _dates(df, cfg.latest)
+    return pd.DataFrame(
+        {p: ((y0 - _dates(df, p)).dt.days / 365.25).fillna(0.0 if p == "TTM" else float(_slot(p))) for p in periods},
+        index=df.index,
+    )
+
+
+def _excess(df: pd.DataFrame, cfg: Settings) -> pd.Series:
+    """`Excess_Inflation` (one rate per company, `metrics.inflation._excess_inflation`), 0 where unknown."""
+    return _col(df, f"Excess_Inflation_{cfg.latest}").fillna(0.0).clip(lower=-0.99)
+
+
+def local_inflation(df: pd.DataFrame, cfg: Settings, period: str | None = None) -> pd.Series:
+    """The inflation of the statements' money (fraction): US inflation of `period` (`Inflation_US_<p>`; without a
+    period, `Inflation_US_Mean` over the history) compounded with `Excess_Inflation`; 0 for `restated` (IAS 29)
+    statements, already in today's money. Real growth = local growth / (1 + it) (Nov 6, 2026: no exchange rate)."""
+    us = _col(df, f"Inflation_US_{period}" if period else "Inflation_US_Mean").fillna(cfg.inflation)
+    out = (1 + us) * (1 + _excess(df, cfg)) - 1
+    return out.mask(_text(df, "Inflation_Basis").eq("restated"), 0.0)
+
+
+def us_terms(values: pd.DataFrame, df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
+    """Money figures by period (columns named by period, in the statements' currency at today's constant rate, as
+    stored) in US terms: each period x (1 + `Excess_Inflation`) ** its age (`period_ages`), so a growth rate read
+    on them is (1 + local growth) / (1 + excess) - 1, the Fisher step ROIC takes (`metrics.inflation`). A US company
+    is unchanged, a restated (IAS 29) one gets US inflation back. No exchange rate of the past enters (user's
+    choice, Nov 6, 2026: an exchange rate is a market price, and over a few years its real swings outweigh real
+    growth: the yen took ~7 points a year off Japanese per-share growth). Money only: never ratios, returns or
+    share counts."""
+    periods = list(values.columns)
+    scale = (1 + _excess(df, cfg)).to_numpy()[:, None] ** period_ages(df, periods, cfg).to_numpy()
+    return values * scale
+
+
 def _log_slope_growth(values: pd.DataFrame) -> pd.Series:
     """Yearly growth (%) from a least-squares line through log values; columns = years before Y0.
 

@@ -88,17 +88,25 @@ def test_fcf_consistency_and_conversion(cfg):
     assert pd.notna(df.loc[0, "ROIC_StdDev"]) and df.loc[0, "ROIC_StdDev"] >= 0
 
 
-def test_growth_is_per_share_and_in_usd_of_the_time(cfg):
-    raw = make_raw(cfg, n=3)
+def test_growth_is_per_share_and_in_us_terms_without_past_exchange_rates(cfg):
+    # Nov 6, 2026: no exchange rate of the past enters growth (a market price); the currency's inflation beyond US
+    # comes out instead (Fisher, as ROIC).
+    raw = make_raw(cfg, n=4)
+    raw["financialCurrency"] = None
+    raw.loc[3, "financialCurrency"] = "EGP"  # built-in table: 20% a year against 3% in the US
     for k, p in enumerate(cfg.annual_years):
         raw.loc[1, f"Ordinary Shares Number_{p}"] = 1e8 * 2 ** (-k / 4)  # company 1 doubles its share count
         raw.loc[2, f"FX_Hist_{p}"] = 1.5**k  # company 2: currency lost a third of its value each year
     df = calculate_metrics(raw, cfg)
     assert df.loc[1, "Revenue_Per_Share_CAGR"] < df.loc[1, "Revenue_Growth_CAGR"]
     local = calculate_metrics(raw.drop(columns=[c for c in raw.columns if c.startswith("FX_Hist")]), cfg)
-    g = local.loc[2, "Revenue_Growth_CAGR"] / 100
-    assert df.loc[2, "Revenue_Growth_CAGR"] == pytest.approx(((1 + g) / 1.5 - 1) * 100)
-    assert df.loc[0, "Revenue_Growth_CAGR"] == pytest.approx(local.loc[0, "Revenue_Growth_CAGR"])  # no history: today
+    assert df.loc[2, "Revenue_Growth_CAGR"] == pytest.approx(local.loc[2, "Revenue_Growth_CAGR"])
+    assert df.loc[2, "Per_Share_Compounding"] == pytest.approx(local.loc[2, "Per_Share_Compounding"])
+    as_usd = calculate_metrics(raw.assign(financialCurrency=None), cfg)
+    excess = df.loc[3, "Excess_Inflation_Y0"]
+    assert excess == pytest.approx(1.20 / 1.03 - 1)
+    g = as_usd.loc[3, "Revenue_Growth_CAGR"] / 100
+    assert df.loc[3, "Revenue_Growth_CAGR"] == pytest.approx(((1 + g) / (1 + excess) - 1) * 100, rel=2e-3)
 
 
 def test_financial_mode_for_lenders(cfg):
@@ -409,7 +417,9 @@ def test_fcf_base_uses_todays_exchange_rate(cfg):
         raw.loc[1, f"FX_Hist_{p}"] = 1.5**k  # the currency fell: old revenue was worth more USD then
     fx = calculate_metrics(raw, cfg)
     assert fx.loc[1, "FCFy_Norm"] == pytest.approx(plain.loc[1, "FCFy_Norm"])
-    assert fx.loc[1, "Revenue_Growth_CAGR"] < plain.loc[1, "Revenue_Growth_CAGR"]  # growth stays in USD then
+    # Nov 6, 2026: nor growth (in US terms by inflation, `common.us_terms`), nor the revenue decline flag.
+    assert fx.loc[1, "Revenue_Growth_CAGR"] == pytest.approx(plain.loc[1, "Revenue_Growth_CAGR"])
+    assert fx.loc[1, "Revenue_Decline"] == plain.loc[1, "Revenue_Decline"]
 
 
 def test_recent_change_scales_the_ttm_overlap(cfg):

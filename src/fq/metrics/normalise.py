@@ -10,6 +10,8 @@ from fq.settings import Settings
 # (user's choice, Oct 21, 2026: SJM's margin read "rose every year" on a 0.09-point first step and earning power
 # jumped from the median year to the latest).
 MARGIN_STEP = 0.005
+# A steady improver may hold flat for a year (`_pick_level`): a step down to this share of the year before is flat.
+STEADY_FLAT = 0.95
 
 
 def growth_profile(row: pd.Series, concept: str, years: list[str], step: float = 0.0) -> dict:
@@ -65,13 +67,15 @@ def _pick_level(
     # Over-earner check: latest > 1.5x anchor (30th percentile). A series that rose every year without a single step of
     # that size is a steady improver, not a peak (FICO's ROIC 41 -> 69, steps under 1.25x, read 48 and lost its trend
     # with it); a climb with any such step is a recovery from a trough and stays capped (FLXS 3.6 -> 7 -> 14.5 -> 21.4),
-    # as is a climb out of losses.
+    # as is a climb out of losses. Since Nov 6, 2026 a steady improver may also hold flat a year (`STEADY_FLAT`) when
+    # its last two steps rose (`RECENT_GROWTH_STABLE`): 30, 30, 38, 44, 50 was capped to 38 for the flat year alone.
     floor = 0.02 if is_fraction else 2.0
     anchor = max(float(np.percentile(vals, 30)), floor)
     steady_climb = (
-        status == "STRICT_GROWTH"
+        status in ("STRICT_GROWTH", "RECENT_GROWTH_STABLE")
         and vals[0] > 0
-        and all(b <= overearner_ratio * a for a, b in zip(vals, vals[1:], strict=False))
+        and vals[-1] > vals[0]
+        and all(STEADY_FLAT * a <= b <= overearner_ratio * a for a, b in zip(vals, vals[1:], strict=False))
     )
     if vals[-1] > overearner_ratio * anchor and (vals[-1] - anchor) >= floor and not steady_climb:
         return float(np.median(vals)), _median_positions(vals), True

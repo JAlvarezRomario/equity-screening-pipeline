@@ -15,8 +15,8 @@ import re
 import numpy as np
 import pandas as pd
 
-from fq.metrics.common import _col
-from fq.ranking import comparable
+from fq.metrics.common import _col, us_terms
+from fq.ranking import rankable
 from fq.settings import Settings
 
 LAGS = (1,)  # years back: Yahoo serves ~4 annual reports (Y4 is mostly empty), so 1 leaves three behind the score
@@ -70,20 +70,25 @@ def outcomes(now: pd.DataFrame, lagged: pd.DataFrame, lag: int, cfg: Settings) -
     """`OUTCOMES` per company (index = Ticker); `now` and `lagged` are `calculate_metrics` of today's cache and of
     `lag_raw`, in the same row order.
 
-    - revenue/share: log change from Y{lag} to Y0 (USD at today's rate both).
+    - revenue/share: log change from Y{lag} to Y0 in US terms (`common.us_terms`, as `Per_Share_Compounding`
+      measures it since Nov 6, 2026: today's rate both, net of the currency's inflation beyond US).
     - owner earnings/share vs normalised: today's Y0 owner FCF before financing per share (`FCF_Owner_Y0`) against
       the earnings power Value priced `lag` years earlier (`EPV_Yield` x `Value_Base`: the same flow, the price
-      cancelling out, per lagged Y0 share), log, +/-1 when the sign changed.
+      cancelling out, per lagged Y0 share, carried into US terms the same way), log, +/-1 when the sign changed.
     - ROIC vs normalised: today's Y0 ROIC - the lagged `ROIC_Norm`, in points.
     """
     latest = cfg.latest
     actual = _per_share(now, _col(now, f"FCF_Owner_{latest}"), latest)
-    priced = _per_share(lagged, lagged["EPV_Yield"] / 100 * lagged["Value_Base"], latest)
+    excess = (1 + _col(now, f"Excess_Inflation_{latest}").fillna(0.0)).clip(lower=0.01)
+    priced = _per_share(lagged, lagged["EPV_Yield"] / 100 * lagged["Value_Base"], latest) * excess.to_numpy() ** lag
+    revenue = us_terms(
+        pd.DataFrame({p: _col(now, f"Total Revenue_{p}") for p in (f"Y{lag}", latest)}, index=now.index), now, cfg
+    )
     frame = pd.DataFrame(
         {
             OUTCOMES[0]: change(
-                _per_share(now, _col(now, f"Total Revenue_Y{lag}"), f"Y{lag}"),
-                _per_share(now, _col(now, f"Total Revenue_{latest}"), latest),
+                _per_share(now, revenue[f"Y{lag}"], f"Y{lag}"),
+                _per_share(now, revenue[latest], latest),
                 "log",
             ),
             OUTCOMES[1]: change(priced.to_numpy(), actual.to_numpy(), "log"),
@@ -99,9 +104,11 @@ def _t(ic: float, n: int) -> float:
 
 def quality_ic(lagged: pd.DataFrame, after: pd.DataFrame, lag: int, cfg: Settings) -> pd.DataFrame:
     """One row per (measure, outcome): the rank correlation of the lagged Quality score, each Quality criterion's
-    percentile and each candidate's with what happened next (`outcomes`), over ranked models with a Quality score;
+    percentile and each candidate's with what happened next (`outcomes`), over the ranked companies (`rankable`:
+    profitable operating companies, one scale; Nov 6, 2026: every kind apart is scored among its own, so pooling a
+    bank's 90th percentile of banks with an industrial's mixed two yardsticks) with a Quality score;
     t = IC x sqrt((N - 2) / (1 - IC²)), one cross-section."""
-    ranked = lagged[comparable(lagged) & lagged["Quality_Score"].notna()].set_index("Ticker")
+    ranked = lagged[rankable(lagged) & lagged["Quality_Score"].notna()].set_index("Ticker")
     criteria = {c[0] for c in (*cfg.quality_criteria, *cfg.financial_quality_criteria)}
     measures = [
         "Quality_Score",

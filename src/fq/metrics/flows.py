@@ -4,7 +4,17 @@ import numpy as np
 import pandas as pd
 
 from fq.metrics.capital import _common_book_and_tangible
-from fq.metrics.common import _col, _dates, _depreciation, _frame, _liquidity, _slot, _spare_cash, _ttm_span
+from fq.metrics.common import (
+    _col,
+    _dates,
+    _depreciation,
+    _frame,
+    _liquidity,
+    _slot,
+    _spare_cash,
+    _ttm_span,
+    local_inflation,
+)
 from fq.settings import Settings
 
 
@@ -218,18 +228,21 @@ def _acquisitions(df: pd.DataFrame, cfg: Settings) -> None:
     df["Acquisition_Yield"] = (spend.mean(axis=1).clip(lower=0) * 100 / df["Equity_Value"]).mask(df["Financial_Mode"])
 
 
-def _us_inflation(df: pd.DataFrame, period: str, cfg: Settings) -> pd.Series:
-    """US inflation (fraction) over the year `period` covers (`metrics.inflation`), `cfg.inflation` when its date is
-    unknown: the price share of that year's USD revenue growth (8% in 2022 was price, not volume)."""
-    return _col(df, f"Inflation_US_{period}").fillna(cfg.inflation)
+def _price_share(df: pd.DataFrame, period: str, cfg: Settings) -> pd.Series:
+    """The inflation (fraction) of the statements' money over the year `period` covers (`common.local_inflation`:
+    that year's US inflation, `cfg.inflation` when its date is unknown, compounded with the currency's excess; 0
+    for restated statements): the price share of that year's revenue growth (8% in 2022 was price, not volume).
+    Revenue is read in the statements' currency at today's constant rate, never at a past exchange rate (Nov 6,
+    2026: the yen's fall read as lost volume, and IAS 29 years already in today's money as a collapse)."""
+    return local_inflation(df, cfg, period)
 
 
 def _organic_growth_capex(df: pd.DataFrame, cfg: Settings) -> None:
     """Owner earnings (Buffett, 1986): capex that grows the business is not a cost of keeping it.
 
     Greenwald's split for `cfg.organic_capex_models`: the growth a year needed = capital intensity
-    (median net PPE / revenue) x the revenue it added in real terms (USD of the time, like `_growth`, so inflation
-    in a falling currency is not growth, deflated by that year's US inflation, `_us_inflation`: price rises buy no
+    (median net PPE / revenue) x the revenue it added in real terms (net of that year's inflation of the
+    statements' money, `_price_share`, so inflation in a falling currency is not growth: price rises buy no
     volume, and replacing plant at today's prices is upkeep), never more than capex above depreciation (maintenance is at least depreciation). `Growth_Capex` is added back to `FCF_Adj`;
     `FCF_Reported` keeps all capex. Only growing (`Growth_Used` > 0),
     non-cyclical companies: an upswing's capacity is not lasting growth. TTM and the oldest year with
@@ -244,12 +257,11 @@ def _organic_growth_capex(df: pd.DataFrame, cfg: Settings) -> None:
     revenue = _frame(df, "Total Revenue", years)
     ppe = _frame(df, "Net PPE", years)
     intensity = (ppe / revenue.where(revenue > 0)).where(ppe >= 0).median(axis=1)
-    usd = revenue * _frame(df, "FX_Hist", years).fillna(1.0)
-    usd = usd.where(usd > 0)
+    usd = revenue.where(revenue > 0)  # constant currency; each step net of `_price_share`
     capex = _frame(df, "Capital Expenditure", years).abs()
     growth = pd.DataFrame(np.nan, index=df.index, columns=years)
     for new, old in zip(years[:-1], years[1:], strict=True):
-        added = (usd[new] / usd[old] / (1 + _us_inflation(df, new, cfg)) - 1).clip(lower=0) * revenue[new]
+        added = (usd[new] / usd[old] / (1 + _price_share(df, new, cfg)) - 1).clip(lower=0) * revenue[new]
         above = (capex[new] - _depreciation(df, new)).clip(lower=0)
         growth[new] = np.minimum(intensity * added, above).where(added.notna())
     measured = growth.notna() & capex.notna()
@@ -276,7 +288,7 @@ def _growth_working_capital(df: pd.DataFrame, cfg: Settings) -> None:
     funded by suppliers or customers (a retailer paid before it pays, subscriptions, advances) richer, and a real
     shrinker's release is no earning power either. Greenwald's split: intensity (median non-cash working capital /
     revenue: current assets less cash, less current liabilities other than debt, so deferred revenue and advances
-    count) x the revenue added beyond that year's US inflation (USD of the time, `_us_inflation`), signed, and never beyond what the
+    count) x the revenue added beyond that year's inflation (`_price_share`), signed, and never beyond what the
     cash-flow statement's `Change In Working Capital` moved that year in the same direction (no row: no
     adjustment). Inflation's share stays charged: it keeps volume, it does not add any. The oldest year and TTM
     take the ratio to revenue measured over the other years and Y0, as growth capex does. Same companies as
@@ -292,8 +304,7 @@ def _growth_working_capital(df: pd.DataFrame, cfg: Settings) -> None:
     operating_liabilities = _frame(df, "Current Liabilities", years) - current_debt
     non_cash = _frame(df, "Current Assets", years) - pd.DataFrame({p: _liquidity(df, p) for p in years})
     intensity = ((non_cash - operating_liabilities) / revenue.where(revenue > 0)).median(axis=1)
-    usd = revenue * _frame(df, "FX_Hist", years).fillna(1.0)
-    usd = usd.where(usd > 0)
+    usd = revenue.where(revenue > 0)  # constant currency; each step net of `_price_share`
 
     def capped(growth: pd.Series, period: str) -> pd.Series:
         moved = -_col(df, f"Change In Working Capital_{period}")  # + = cash tied up
@@ -302,7 +313,7 @@ def _growth_working_capital(df: pd.DataFrame, cfg: Settings) -> None:
 
     wc = pd.DataFrame(np.nan, index=df.index, columns=years)
     for new, old in zip(years[:-1], years[1:], strict=True):
-        real = usd[new] / usd[old] / (1 + _us_inflation(df, new, cfg)) - 1
+        real = usd[new] / usd[old] / (1 + _price_share(df, new, cfg)) - 1
         wc[new] = capped(intensity * real * revenue[new], new)
     measured = wc.notna() & revenue.notna()
     share = wc.where(measured).sum(axis=1) / revenue.where(measured).sum(axis=1).replace(0, np.nan)

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from fq.fx import FALLBACK_BORROW_RATE
+from fq.metrics.common import us_terms
 from fq.ranking import combined_order, rankable, top_n, trusted
 from fq.report.dividend_record import COLUMNS as RECORD_COLUMNS
 from fq.report.dividend_record import dividend_record
@@ -371,7 +372,7 @@ def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: i
 CARRY_COLUMNS = [
     ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
     ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
-    ("Dividend Growth / yr", "Regular_DPS_Growth_10Y", "+.1f", 1, "%"),
+    ("Dividend Growth / yr", "Regular_DPS_Growth_10Y_US", "+.1f", 1, "%"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
     ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
@@ -401,8 +402,10 @@ def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     `fx.FALLBACK_BORROW_RATE` without it), covered by the owner yield (what is left is retained and grows the value), the dividend
     record (`dividend_record`, user's choice, Nov 5, 2026: the list is bought partly on borrowed money, so a cut is the
     risk that matters): no cut in the last `CARRY_MIN_UNBROKEN_YEARS` complete years nor in the last 12 months, the
-    regular dividend not lower than 10 years ago, and no record means no evidence (left out); owner earnings per share
-    trending up over the annual reports (own currency), `in_best_fraction` of the combined ranking, not cyclical and
+    regular dividend not lower than 10 years ago in US terms (`dividend_growth_us`), and no record means no evidence
+    (left out); owner earnings per share trending up over the annual reports (in US terms, `_owner_per_share`; Nov 6,
+    2026: a high-inflation currency's nominal figures rose whatever the business did), `in_best_fraction` of the
+    combined ranking, not cyclical and
     not at peak margins, and the Shortlist's two debt tests (`_sound_balance_sheet`: the company's own debt must stay
     low under the buyer's loan); trusted as `ranking.top_n`, in combined rank order. Display only."""
     s = Settings()
@@ -410,8 +413,7 @@ def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     num = lambda col: (  # noqa: E731
         pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
     )
-    shares = {p: num(f"Ordinary Shares Number_{p}").where(lambda x: x > 0) for p in s.annual_years}
-    owner = pd.DataFrame({p: num(f"Owner_Earnings_{p}") / shares[p] for p in s.annual_years})
+    owner = _owner_per_share(df, s.annual_years)
     yield_ = num("Dividend_Yield")
     keep = (
         (num("Dividend_WHT") == 0)
@@ -419,7 +421,7 @@ def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & (num("Owner_Yield") > yield_)
         & (num("Dividend_Unbroken_Years") >= CARRY_MIN_UNBROKEN_YEARS)  # 0 when a cut was paid this year
         & ~_flag(df, "Dividend_Cut_Recent")
-        & (num("Regular_DPS_Growth_10Y") >= 0)
+        & (num("Regular_DPS_Growth_10Y_US") >= 0)
         & _trending_up(owner, s.carry_min_years, s.carry_max_dips)
         & in_best_fraction(df)
         & (df["Cyclical"] != True if "Cyclical" in df.columns else True)  # noqa: E712 - handles NaN / numpy bool
@@ -565,12 +567,21 @@ def _margin_held(df: pd.DataFrame) -> pd.Series:
     return ~(_num(df, "Gross_Margin_Held") < -MAX_MARGIN_LOSS)
 
 
+# Money figures the year-by-year tests read in US terms (`common.us_terms`; Nov 6, 2026: stored figures are the
+# statements' currency at today's rate, so a high-inflation currency's revenue rose every year whatever the volume).
+# Ratios, returns (ROIC is in US terms already) and share counts are read as stored.
+US_TERMS_CONCEPTS = frozenset({"Total Revenue"})
+
+
 def _annual(df: pd.DataFrame, concept: str, periods: list[str]) -> np.ndarray:
-    """`concept` over the annual `periods` (newest first), NaN where missing."""
-    return pd.DataFrame(
+    """`concept` over the annual `periods` (newest first), NaN where missing; `US_TERMS_CONCEPTS` in US terms."""
+    values = pd.DataFrame(
         {p: pd.to_numeric(df[f"{concept}_{p}"], errors="coerce") if f"{concept}_{p}" in df.columns else np.nan
          for p in periods}, index=df.index,
-    ).to_numpy(dtype=float)  # fmt: skip
+    )  # fmt: skip
+    if concept in US_TERMS_CONCEPTS:
+        values = us_terms(values, df, Settings())
+    return values.to_numpy(dtype=float)
 
 
 def _up_but_one_flat(df: pd.DataFrame, concept: str, periods: list[str], min_years: int) -> pd.Series:
@@ -613,9 +624,11 @@ def _owner_earnings_smooth(per_share: pd.DataFrame, min_years: int) -> pd.Series
 
 
 def _owner_per_share(df: pd.DataFrame, years: list[str]) -> pd.DataFrame:
-    """Owner earnings per share in the company's own currency, one column `OE_PS_<year>` per annual report."""
-    return pd.DataFrame({f"OE_PS_{p}": _num(df, f"Owner_Earnings_{p}") / _num(df, f"Ordinary Shares Number_{p}").where(
-        lambda x: x > 0) for p in years}, index=df.index)  # fmt: skip
+    """Owner earnings per share in US terms (`common.us_terms`: the company's own currency at today's rate, net of
+    its inflation beyond US; Nov 6, 2026), one column `OE_PS_<year>` per annual report."""
+    owner = us_terms(pd.DataFrame({p: _num(df, f"Owner_Earnings_{p}") for p in years}, index=df.index), df, Settings())
+    shares = pd.DataFrame({p: _num(df, f"Ordinary Shares Number_{p}").where(lambda x: x > 0) for p in years})
+    return (owner / shares).rename(columns=lambda p: f"OE_PS_{p}")
 
 
 # AI screen for every screened highlight list (the three pure rankings Cheap and good, Cheapest and Best businesses
@@ -742,14 +755,14 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # earnings, in a lasting business with little debt. Display only; constants here, as the Shortlist's.
 GROWER_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
 GROWER_MIN_YIELD = 2.5  # dividend yield, %
-GROWER_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years: about inflation
+GROWER_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years in US terms: about US inflation
 GROWER_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
 GROWER_MAX_PAYOUT = 0.8  # the dividend at most this share of owner earnings: the rest grows the next dividend
 DIVIDEND_GROWER_COLUMNS = [
     ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
     ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
-    ("Dividend Growth / yr", "Regular_DPS_Growth_10Y", "+.1f", 1, "%"),
+    ("Dividend Growth / yr", "Regular_DPS_Growth_10Y_US", "+.1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
     RECESSION_COLUMN,
     *TOP_LIST_COLUMNS,
@@ -758,17 +771,30 @@ DIVIDEND_GROWER_COLUMNS = [
 
 def with_dividend_record(df: pd.DataFrame) -> pd.DataFrame:
     """`df` with the `RECORD_COLUMNS` of `dividend_record.dividend_record` it lacks (`highlights.prepare` adds them
-    once per report); a column already there is kept."""
+    once per report) and `Regular_DPS_Growth_10Y_US` (`dividend_growth_us`); a column already there is kept."""
     missing = [c for c in RECORD_COLUMNS if c not in df.columns]
-    if not missing:
-        return df
-    return df.assign(**dividend_record(df)[missing])
+    if missing:
+        df = df.assign(**dividend_record(df)[missing])
+    if "Regular_DPS_Growth_10Y_US" not in df.columns:
+        df = df.assign(Regular_DPS_Growth_10Y_US=dividend_growth_us(df))
+    return df
+
+
+def dividend_growth_us(df: pd.DataFrame) -> pd.Series:
+    """`Regular_DPS_Growth_10Y` (declared currency, nominal) in US terms: (1 + g) / (1 + `Excess_Inflation_10Y`) - 1,
+    the declared currency's inflation beyond US over the same ten years (`metrics.inflation`), so the lists' bars
+    mean the same in rupees as in dollars (Nov 6, 2026: 3% a year is a real fall where prices rise 6%). An unknown
+    excess counts as 0: a US company, or a frame without it, keeps its figure."""
+    g = _num(df, "Regular_DPS_Growth_10Y") / 100
+    excess = _num(df, "Excess_Inflation_10Y").fillna(0.0).clip(lower=-0.99)
+    return ((1 + g) / (1 + excess) - 1) * 100
 
 
 def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """No dividend cut in the last `GROWER_MIN_YEARS` complete years nor in the last 12 months (`dividend_record`:
     specials and payment timing judged payment by payment, in the declared currency), dividend yield >=
-    `GROWER_MIN_YIELD`, the regular dividend growing >= `GROWER_MIN_GROWTH` %/yr over 10 years, normalised ROIC (ROE
+    `GROWER_MIN_YIELD`, the regular dividend growing >= `GROWER_MIN_GROWTH` %/yr over 10 years in US terms
+    (`dividend_growth_us`, Nov 6, 2026), normalised ROIC (ROE
     for financials) >= `GROWER_MIN_ROIC`, the dividend at most `GROWER_MAX_PAYOUT` of owner earnings, a lasting business
     (`_lasting_business`: its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession) and a sound
     balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer (ranked apart, no `Rank`) the
@@ -788,7 +814,7 @@ def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         (_num(df, "Dividend_Unbroken_Years") >= GROWER_MIN_YEARS)  # 0 when a cut was paid this year
         & ~_flag(df, "Dividend_Cut_Recent")
         & (yield_ >= GROWER_MIN_YIELD)
-        & (_num(df, "Regular_DPS_Growth_10Y") >= GROWER_MIN_GROWTH)
+        & (_num(df, "Regular_DPS_Growth_10Y_US") >= GROWER_MIN_GROWTH)
         & (_num(df, "ROIC_Norm") >= GROWER_MIN_ROIC)
         & ~(yield_ > GROWER_MAX_PAYOUT * _num(df, "Owner_Yield"))
         & _lasting_business(df)

@@ -98,7 +98,7 @@ def merge_share_classes(
     drop, removed = [], []
     for _, period in candidates.groupby("PeriodEnd_Y0"):
         for group in _close(revenue[period.index].sort_values()):
-            for same in _same_company(group, name, shares, income):
+            for same in _same_company(group, name, shares, revenue, income):
                 held = out.loc[same, "Ticker"].isin(protected)
                 order = pd.DataFrame({"held": held, "home": home[same], "shares": shares[same]})
                 best = order.sort_values(["held", "home", "shares"], ascending=False).index[0]
@@ -121,15 +121,17 @@ def _near(a: float, b: float) -> bool:
 
 
 def _close(revenue: pd.Series) -> list[list]:
-    """Runs of rows (sorted by revenue) whose revenue is within `SAME_STATEMENTS` of the run's first."""
+    """Runs of rows (sorted by revenue) where each is within `SAME_STATEMENTS` of the one before (Nov 6, 2026: against
+    the run's first, a pair could fall on both sides of the window an unrelated company opened just below it);
+    `_same_company` then checks revenue and income against each group's first."""
     runs: list[list] = []
-    first = None
+    prev = None
     for i, value in revenue.items():
-        if runs and _near(value, first):
+        if runs and _near(value, prev):
             runs[-1].append(i)
         else:
             runs.append([i])
-            first = value
+        prev = value
     return [r for r in runs if len(r) > 1]
 
 
@@ -142,13 +144,14 @@ def _base_name(n) -> str:
     return re.sub(r"[^a-z0-9]", "", " ".join(words).lower())
 
 
-def _same_company(index, name: pd.Series, shares: pd.Series, income: pd.Series) -> list[list]:
-    """Groups of 2+ rows (the same statements) confirmed as one company: same name or same share count."""
+def _same_company(index, name: pd.Series, shares: pd.Series, revenue: pd.Series, income: pd.Series) -> list[list]:
+    """Groups of 2+ rows (the same statements: revenue and income within `SAME_STATEMENTS`) confirmed as one company:
+    same name or same share count."""
     groups: list[list] = []
     for i in index:
         for g in groups:
             j = g[0]
-            if not _near(income[i], income[j]):
+            if not (_near(revenue[i], revenue[j]) and _near(income[i], income[j])):
                 continue
             if name[i] == name[j] or (shares[i] > 0 and shares[j] > 0 and abs(shares[i] / shares[j] - 1) < 0.001):
                 g.append(i)
