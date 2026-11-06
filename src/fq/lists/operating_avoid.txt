@@ -1,5 +1,5 @@
-# Yahoo industries left out of the "Operating companies" and "Unbroken dividends" highlight lists
-# (`report.screens.operating_list`, `unbroken_dividend_list`: boring businesses built to last; user's list for
+# Yahoo industries left out of the steady route of the "Compounders" highlight list
+# (`report.screens.operating_list`, the steady route of Compounders: boring businesses built to last; user's list for
 # the retired Nectar list, Nov 2, 2026, kept when Operating companies replaced it on Nov 4), on top
 # of `ai_fragile.txt`. Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
 # Editable: one Yahoo industry per line, as Yahoo spells it. Yahoo has no fashion-only or casual-dining

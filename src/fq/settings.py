@@ -597,7 +597,7 @@ class Settings:
     asset_play_min_share_reduction: float = -0.5
     asset_play_min_fin_share_reduction: float = 0.5
     # "Cannibals" list (`ranking.cannibal`, `format.cannibal_list`): companies aggressively retiring shares:
-    cannibal_min_share_reduction: float = 7.0  # more than 7.0%/yr net share count reduction
+    cannibal_min_share_reduction: float = 5.0  # more than 5%/yr net share count reduction (Nov 6, 2026; was 7)
     cannibal_max_share_reduction: float = 50.0  # sanity cap against split / unit shifts
     cannibal_min_value: float = 45.0  # repurchases make sense when shares are cheap or fair
     cannibal_min_roic: float = 0.0  # operating businesses generating positive capital returns

@@ -1,4 +1,5 @@
-"""The dividend record of the "Unbroken dividends" list (user's design, Nov 4, 2026): dividends per share raised or held
+"""The dividend record (user's design, Nov 4, 2026, for the retired Unbroken dividends; read by Dividend growers,
+Untaxed dividends, the lists by kind and the 20-year tests): dividends per share raised or held
 every year over the whole record Yahoo keeps, judged payment by payment (`DPS_Payments`, from `fetch.dividend_payments`;
 `DPS_Payments_FX` in the declared currency when the quote differs, so an exchange rate reads as neither a raise nor a cut).
 

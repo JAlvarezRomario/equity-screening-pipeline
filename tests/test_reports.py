@@ -276,19 +276,19 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book,
-    # Net cash, Off the radar, Dividend carry, Unbroken dividends; by kind: Banks and lenders, Insurers, Real estate,
-    # Energy (Nov 5, 2026).
-    assert len(panels) == 18
+    # Three top lists, Shortlist, Repeaters, Compounders, Cannibals, Net cash, Off the radar, Dividend carry, Dividend
+    # growers; by kind: Banks and lenders, Insurers, Below book, Real estate, Utilities, Energy (Nov 6, 2026).
+    assert len(panels) == 17
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
-    # Four rows of tabs; two shown by their plain label, stored under their frozen name.
-    groups = ("Start here", "By style", "By kind", "Raw scores")
+    # Six rows of tabs by idea (Nov 6, 2026); some shown by their plain label, stored under their frozen name.
+    groups = ("Start here", "Growth", "Income", "Balance sheet", "By kind", "Raw scores")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert "Untaxed dividends" in html and ">Dividend carry<" not in html
-    assert "Operating companies" in html and "Fast growers" in html and "Steady growers, net cash" not in html
+    assert "Boring companies" in html
+    assert "Compounders" in html and "Dividend growers" in html and "Steady growers, net cash" not in html
 
 
 def test_revenue_and_shares_axes_start_at_zero(cfg):
@@ -636,7 +636,7 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
              "FCF_Positive_Share": 100.0, "Beneish_M": -2.5, "Accruals": -3.0, "Incremental_ROIC": 20.0,
              "NetDebt_to_EBIT": 1.0, "Interest_Coverage": 10.0, "Equity_to_Assets": 10.0, "EPS_Rev_90d": 0.0,
              "Revenue_Change_Recent": 2.0, "EBIT_Change_Recent": 2.0, "ROIC_Norm": 20.0, "Value_Score": 80.0,
-             "Quality_Score": 80.0, "Financial_Mode": False, "industry": "Drug Manufacturers - General",
+             "Quality_Score": 80.0, "Financial_Mode": False, "industry": "Packaged Foods",
              "Business_Model": "operating", "Cyclical": False, "Industry_Leader": False, "Net_Debt": -100.0,
              "Common Stock Equity_TTM": 1000.0, "Common Stock Equity_Y0": 1000.0, "Owner_Yield": 8.0}  # fmt: skip
     for col, value in clean.items():
@@ -661,7 +661,7 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     df.loc[rows[11], ["Beneish_M", "Incremental_ROIC", "Accruals"]] = np.nan  # missing figures pass
     df.loc[rows[12], "In_Best_Fraction"] = False  # outside the best fifth
     df.loc[rows[13], "industry"] = "Information Technology Services"  # fragile to AI
-    df.loc[rows[14:17], "industry"] = "Restaurants"  # a global recession hits it hard
+    df.loc[rows[14:17], "industry"] = "Industrial Distribution"  # boring, but a global recession hits it hard
     df.loc[rows[15:17], "Industry_Leader"] = True
     df.loc[rows[15], "Net_Debt"] = 100.0  # a leader, but in debt: out (net cash needed)
     df.loc[rows[17], "Net_Debt"] = 600.0  # net debt 60% of equity
@@ -672,6 +672,8 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     picked = shortlist_list(df, len(df))
     assert set(picked["Ticker"]) == set(df.loc[[rows[0], rows[11], rows[16], rows[20]], "Ticker"])
     assert shortlist_list(df, len(df), hurdle=9.0).empty  # a Treasury above 6% raises the bar
+    exciting = df.assign(industry=np.where(df.index == rows[0], "Telecom Services", df["industry"]))
+    assert df.at[rows[0], "Ticker"] not in set(shortlist_list(exciting, len(df))["Ticker"])  # not a boring industry
     assert list(picked["Rank"]) == sorted(picked["Rank"])  # combined rank order
     assert len(shortlist_list(df, 1)) == 1
     funnel = [count for _, count in shortlist_funnel(df)]
@@ -679,7 +681,7 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     assert funnel[0] == len(df) and funnel[-1] == len(picked)
     assert all(a >= b for a, b in zip(funnel, funnel[1:], strict=False))
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-shortlist">Shortlist</button>' in html and 'class="list-funnel muted"' in html
+    assert 'data-panel="hl-shortlist">Boring companies</button>' in html and 'class="list-funnel muted"' in html
 
 
 def test_industry_leader_is_the_top_tenth_and_always_the_top_three():
@@ -788,18 +790,18 @@ def test_repeaters_count_lists_order_by_count_then_rank_and_need_a_pass():
     picks = {
         "Cheap and good": (head("BCDE"), 1),  # a pure ranking (`RANKED_TABS`): ignored by Repeaters
         "Shortlist": (shortlist_pick, 20),  # B fails Shortlist's stricter grade bar, so Shortlist does not count for B
-        "Operating companies": (head("AF"), 20),  # compounder family
-        "Fast growers": (head("ABCDEF"), 1),  # compounder family: F is on both compounder lists only (1 family)
+        "Dividend carry": (head("AF"), 20),  # income family
+        "Dividend growers": (head("ABCDEF"), 1),  # income family: F is on both income lists only (1 family)
         "Below book": (head("G"), 20),  # balance-sheet family
         "Net cash": (head("ABDG"), 20),  # balance-sheet family: G is on both balance-sheet lists only (1 family)
         "Cannibals": (head("AE"), 20),
     }
     every = hl.repeater_candidates(df, picks)
     # A qualifies on 4 lists across 3 families; B and D on 2 across 2 families; C on 1 list; E fails Grade_Pass;
-    # F (Operating + Fast growers) and G (Below book + Net cash) only qualify within a single thesis family.
+    # F (Dividend carry + Dividend growers) and G (Below book + Net cash) only qualify within a single thesis family.
     assert list(every["Ticker"]) == ["A", "B", "D"]
     assert every.set_index("Ticker").at["A", "Repeat_Lists"] == (
-        "Operating companies, Fast growers, Cannibals, Net cash"
+        "Cannibals, Dividend growers, Untaxed dividends, Net cash"
     )
     assert every.set_index("Ticker").at["A", "Repeat_Count"] == 4.0
     shown = hl.repeater_list(df, 20, picks)

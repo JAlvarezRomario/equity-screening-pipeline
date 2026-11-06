@@ -171,7 +171,9 @@ def insurer_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # cash-earnings yield, AFFO) and returns, with book beside it but never a test (cost under US GAAP, fair value under
 # IFRS). A REIT at half its book with interest barely covered is a debt trap, so the debt is bounded. Display only.
 REIT_MIN_INTEREST_COVER = 2.5  # times: as the asset plays' cover
-REIT_MAX_NET_DEBT_EBIT = 8.0  # x: property is financed long; a REIT above this is a bet on its lenders
+# x: property is financed long; a REIT above this is a bet on its lenders. 10 (user's choice, Nov 6, 2026; was 8): a
+# REIT's depreciation is large, so its EBIT understates what services the debt.
+REIT_MAX_NET_DEBT_EBIT = 10.0
 REAL_ESTATE_COLUMNS = [
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
@@ -201,7 +203,7 @@ def real_estate_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # "Utilities" (user's choice, Nov 6, 2026): regulated or contracted returns on long-lived assets bought with debt,
 # judged against other utilities only, with the debt bounded as the REITs' and the dividend that is their point held.
 UTILITY_MIN_INTEREST_COVER = REIT_MIN_INTEREST_COVER
-UTILITY_MAX_NET_DEBT_EBIT = REIT_MAX_NET_DEBT_EBIT
+UTILITY_MAX_NET_DEBT_EBIT = 8.0
 UTILITY_COLUMNS = REAL_ESTATE_COLUMNS
 
 
@@ -223,7 +225,7 @@ def utility_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # cyclical, valued at mid-cycle, and Yahoo's few annual reports hold the 2022 spike, so the list asks for mid-cycle
 # returns and a balance sheet that survives a price fall rather than the cheapest. Display only.
 ENERGY_SECTOR = "Energy"
-ENERGY_MIN_VALUE = 60.0
+ENERGY_MIN_VALUE = 50.0  # (Nov 6, 2026; was 60 on the scale whose ranked median was 62)
 ENERGY_MIN_QUALITY = 50.0
 ENERGY_MIN_ROIC = 10.0  # normalised ROIC, %
 ENERGY_COLUMNS = [
@@ -461,6 +463,8 @@ def net_cash_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # fingerprint (`evaluate.METHOD_MODULES`) and every snapshot's method group stay as they are. The top 20 by combined
 # rank since Nov 5, 2026 (user's choice: about 20 picks before the grade, more cannot be followed; it was 100).
 SHORTLIST_N = 20
+# Boring companies (the Shortlist's reader name since Nov 6, 2026): only industries that do not attract new capital.
+BORING_INDUSTRIES = "boring_industries.txt"
 SHORTLIST_MIN_FCF_POS = 75.0  # % of years with positive reported free cash flow: the profit turns into cash
 SHORTLIST_MAX_BENEISH = -1.78  # Beneish M-score above it is the usual earnings-manipulation warning
 SHORTLIST_MAX_ACCRUALS = 5.0  # (net income - operating cash flow) / assets, %: earnings well ahead of cash
@@ -501,8 +505,9 @@ def _in_industries(df: pd.DataFrame, name: str) -> pd.Series:
 # Better every year, which overlapped them): businesses a holder could keep for 20 years, since a long holding returns
 # roughly its owner yield now plus the per-share growth high returns on capital sustain. Display only; constants here,
 # as the Shortlist's, so the method fingerprint stays as it is.
-OPERATING_MIN_ROIC = 15.0  # normalised ROIC, %
-OPERATING_MIN_YIELD = 6.0  # owner earnings yield, %
+# Compounders' steady route (user's choice, Nov 6, 2026, with the merge: were 15% and 6%, 11 of the benchmark passed)
+OPERATING_MIN_ROIC = 12.0  # normalised ROIC, %
+OPERATING_MIN_YIELD = 5.0  # owner earnings yield, %
 FAST_MIN_OE_GROWTH = 15.0  # `Owner_Earnings_Compounding`, %/yr: the USD per-share trend x its adjusted R²
 FAST_MIN_YIELD = 4.0  # owner earnings yield, %: already profitable, not a promise
 # `Per_Share_Compounding`, %/yr: sales per share compound as fast as owner earnings (user's choice, Nov 4, 2026: at 8%
@@ -527,6 +532,15 @@ OPERATING_COLUMNS = [
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
     ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
+    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
+COMPOUNDER_COLUMNS = [
+    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
+    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
+    ("Incremental ROIC", "Incremental_ROIC", ".0f", 1, "%"),
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
@@ -627,7 +641,7 @@ RECESSION_MAX_FALL = 25.0
 def _lasting_business(df: pd.DataFrame) -> pd.Series:
     """Not cyclical, not earning well above its usual margin (`Peak_Margin_Ratio`), past the AI screen
     (`ai_resilient`), its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession: what the 20-year
-    lists (Operating companies, Fast growers, Unbroken dividends) ask before they look at growth. Where a recession
+    lists (Compounders, Dividend growers) ask before they look at growth. Where a recession
     hits hard (`lists/shortlist_recession_industries.txt`, `cyclical_industries.txt`) and no dividend record reaches
     one (a young company, or one that pays none), industry evidence decides instead, as on the Shortlist: only an
     industry leader (`industry_leader`) holding net cash (user's choice, Nov 5, 2026)."""
@@ -680,6 +694,15 @@ def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
+def compounder_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """The "Compounders" list (user's choice, Nov 6, 2026: Operating companies and Fast growers merged, 11 and 4 of the
+    benchmark): the companies of either route, `operating_list` (steady, paying well) or `fast_grower_list` (very
+    fast, already paying), once each, in combined rank order. Display only."""
+    both = pd.concat([operating_list(df, len(df)), fast_grower_list(df, len(df))])
+    both = both[~both.index.duplicated()]
+    return both.sort_values("Rank", kind="stable").head(n)
+
+
 def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """Very fast, smooth growth that already pays: revenue per share compounding at >= `FAST_MIN_REVENUE_GROWTH` and
     owner earnings per share at >= `FAST_MIN_OE_GROWTH` (USD trends x their R²), owner yield >= `FAST_MIN_YIELD`;
@@ -714,23 +737,21 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
-# The "Unbroken dividends" list (user's design, Nov 4, 2026): boring businesses whose dividend per share was raised or
-# held every year of the whole record Yahoo keeps (`report.dividend_record`, payment by payment), paying well and
-# covered, with stable returns, little debt and pricing power. Display only; constants here, as the Shortlist's.
-UNBROKEN_MIN_YEARS = 12  # the whole record, at least this long
-UNBROKEN_MIN_YIELD = 3.0  # dividend yield, %
-UNBROKEN_MIN_OWNER_YIELD = 6.0  # owner earnings yield, %
-UNBROKEN_MAX_PAYOUT = 0.8  # the dividend at most this share of owner earnings: the rest grows the next dividend
-UNBROKEN_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years: held for a decade is not enough
-UNBROKEN_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
-UNBROKEN_MAX_SHARE_GROWTH = 0.5  # `Shares_Change_10Y`, %/yr: dividends not paid for with new shares
-UNBROKEN_COLUMNS = [
+# The "Dividend growers" list (user's choice, Nov 6, 2026; it replaced Unbroken dividends, whose whole-record test left
+# 0 to 4 of the benchmark however its other bars were set): a dividend held for a decade and growing, covered by owner
+# earnings, in a lasting business with little debt. Display only; constants here, as the Shortlist's.
+GROWER_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
+GROWER_MIN_YIELD = 2.5  # dividend yield, %
+GROWER_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years: about inflation
+GROWER_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
+GROWER_MAX_PAYOUT = 0.8  # the dividend at most this share of owner earnings: the rest grows the next dividend
+DIVIDEND_GROWER_COLUMNS = [
     ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
     ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     ("Dividend Growth / yr", "Regular_DPS_Growth_10Y", "+.1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
+    RECESSION_COLUMN,
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
 
@@ -744,20 +765,15 @@ def with_dividend_record(df: pd.DataFrame) -> pd.DataFrame:
     return df.assign(**dividend_record(df)[missing])
 
 
-def unbroken_dividend_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Dividends per share raised or held every year of the whole record Yahoo keeps, at least `UNBROKEN_MIN_YEARS`
-    (`dividend_record`: specials and payment timing judged payment by payment, in the declared currency, a cut this
-    year counting at once), reaching back through every recession in `lists/recessions.txt`; dividend yield
-    >= `UNBROKEN_MIN_YIELD`, owner yield >= `UNBROKEN_MIN_OWNER_YIELD`, the dividend at most `UNBROKEN_MAX_PAYOUT` of
-    owner earnings, the regular dividend growing >= `UNBROKEN_MIN_GROWTH` %/yr over 10 years; normalised ROIC (ROE for
-    financials) >= `UNBROKEN_MIN_ROIC` and never down more than `OPERATING_MAX_DIP` in a year nor below where it
-    started (`_never_fell`); shares not issued (`Shares_Change_10Y` <= `UNBROKEN_MAX_SHARE_GROWTH`, nor since the last
-    report); a boring business (`_lasting_business`, outside `operating_avoid.txt`) with pricing power
-    (`_margin_held`); a sound balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer
-    (ranked apart, so it has no `Rank`) the best fraction of its own kind (`kind_order`). Ordered by position as a
-    share of the ranking (`Rank` among the ranked, `Kind_Rank` within the kind), trusted as `ranking.top_n`. Display
-    only."""
-    s = Settings()
+def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """No dividend cut in the last `GROWER_MIN_YEARS` complete years nor in the last 12 months (`dividend_record`:
+    specials and payment timing judged payment by payment, in the declared currency), dividend yield >=
+    `GROWER_MIN_YIELD`, the regular dividend growing >= `GROWER_MIN_GROWTH` %/yr over 10 years, normalised ROIC (ROE
+    for financials) >= `GROWER_MIN_ROIC`, the dividend at most `GROWER_MAX_PAYOUT` of owner earnings, a lasting business
+    (`_lasting_business`: its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession) and a sound
+    balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer (ranked apart, no `Rank`) the
+    best fraction of its own kind (`kind_order`). Ordered by position as a share of the ranking (`Rank` among the
+    ranked, `Kind_Rank` within the kind), trusted as `ranking.top_n`. Display only."""
     df = with_dividend_record(df)
     kind_rank, kind_best = kind_order(df)
     kinds = kind(df)
@@ -769,20 +785,13 @@ def unbroken_dividend_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         order = order.where(~members, kind_rank / max(int(kind_rank[members].notna().sum()), 1))
     yield_ = _num(df, "Dividend_Yield")
     keep = (
-        _flag(df, "Dividend_Record_Whole")
-        & (_num(df, "Recessions_Covered") >= _num(df, "Recessions_Due"))  # held through every recession on file
-        & (_num(df, "Dividend_Unbroken_Years") >= UNBROKEN_MIN_YEARS)
-        & (yield_ >= UNBROKEN_MIN_YIELD)
-        & (_num(df, "Owner_Yield") >= UNBROKEN_MIN_OWNER_YIELD)
-        & ~(yield_ > UNBROKEN_MAX_PAYOUT * _num(df, "Owner_Yield"))
-        & (_num(df, "Regular_DPS_Growth_10Y") >= UNBROKEN_MIN_GROWTH)
-        & (_num(df, "ROIC_Norm") >= UNBROKEN_MIN_ROIC)
-        & _never_fell(df, "ROIC", s.annual_years, s.improver_min_years, OPERATING_MAX_DIP)
-        & ~(_num(df, "Shares_Change_10Y") > UNBROKEN_MAX_SHARE_GROWTH)
-        & ~(_num(df, "Ordinary Shares Number_TTM") > _num(df, f"Ordinary Shares Number_{s.latest}") * MAX_NEW_SHARES)
+        (_num(df, "Dividend_Unbroken_Years") >= GROWER_MIN_YEARS)  # 0 when a cut was paid this year
+        & ~_flag(df, "Dividend_Cut_Recent")
+        & (yield_ >= GROWER_MIN_YIELD)
+        & (_num(df, "Regular_DPS_Growth_10Y") >= GROWER_MIN_GROWTH)
+        & (_num(df, "ROIC_Norm") >= GROWER_MIN_ROIC)
+        & ~(yield_ > GROWER_MAX_PAYOUT * _num(df, "Owner_Yield"))
         & _lasting_business(df)
-        & ~_in_industries(df, "operating_avoid.txt")
-        & _margin_held(df)
         & _sound_balance_sheet(df)
         & (in_best_fraction(df) | (financial & kind_best))
     )
@@ -895,6 +904,7 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
          & ~(num("Revenue_Change_Recent") < s.dislocation_revenue_change_min)
          & ~(num("EBIT_Change_Recent") < s.dislocation_ebit_change_min)),
         ("AI: no fragile or exposed industry", ai_resilient(df)),
+        ("a boring industry", _in_industries(df, BORING_INDUSTRIES)),
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),
         ("net debt within half of equity", net_debt_ok | financial),
         ("kept its margin through inflation", _margin_held(df)),

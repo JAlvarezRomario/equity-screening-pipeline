@@ -34,12 +34,11 @@ _REPEAT_STEP = 1e6  # Repeaters' order: more lists first, then the combined rank
 # Two screens of the same thesis family count once when deciding whether a company is a repeater across styles,
 # though `Repeat_Lists` and `Repeat_Count` still show every list it qualifies for.
 _REPEAT_FAMILIES = {
-    "Operating companies": "compounder",
-    "Fast growers": "compounder",
+    "Compounders": "compounder",
     "Below book": "balance_sheet",
     "Net cash": "balance_sheet",
     "Dividend carry": "income",
-    "Unbroken dividends": "income",
+    "Dividend growers": "income",
     "Banks and lenders": "financial",
     "Insurers": "financial",
 }
@@ -60,7 +59,7 @@ class Tab:
     panel: str
     columns: list
     screen: Callable[..., pd.DataFrame] | None
-    group: str = "style"
+    group: str = "growth"
     label: str | None = None
     n: int = TOP_N
     sort: str = "Rank"  # the order the page shows (below the grade bar last)
@@ -93,13 +92,16 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 
 # The front page's rows of tabs (user's choice, Nov 3, 2026: 14 tabs side by side did not say where to start): key ->
 # (heading, the one line that says what such a list is for).
+# The rows by idea (user's choice, Nov 6, 2026; were Start here, By style, By kind, Raw scores).
 GROUPS = {
-    "start": ("Start here", "The answer: cheap and good at once, then the candidates for research in depth."),
-    "style": ("By style", "Lenses on the best {top} of the combined ranking, each asking one question of its own."),
+    "start": ("Start here", "The answer: cheap and good at once, then boring companies worth research in depth."),
+    "growth": ("Growth", "Businesses compounding per share, from the best {top} of the combined ranking."),
+    "income": ("Income", "Dividends to count on: held for a decade and growing, or untaxed for a non-resident."),
+    "balance": ("Balance sheet", "Value held on the balance sheet: a pile of net cash, or a price at or below book."),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
         "By kind",
-        "Banks, insurers, holdings and REITs judged against their own kind, outside the rankings; "
+        "Banks, insurers, REITs and utilities judged against their own kind, outside the rankings; "
         "and energy, ranked, seen apart.",
     ),
     "raw": ("Raw scores", "One score alone, whatever the other: the top of Value, the top of Quality."),
@@ -111,24 +113,24 @@ TABS: tuple[Tab, ...] = (
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.TOP_LIST_COLUMNS, _top("Rank"), group="start",
         ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
-        funnel=sc.shortlist_funnel),
+        funnel=sc.shortlist_funnel, label="Boring companies"),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
-    Tab("Operating companies", "operating", "hl-operating", sc.OPERATING_COLUMNS, _plain(sc.operating_list)),
-    Tab("Fast growers", "fast_growers", "hl-fast", sc.FAST_COLUMNS, _plain(sc.fast_grower_list)),
-    Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list),
+    Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list),
+        group="growth"),
+    Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list), group="growth",
         heading="The Cannibals"),
-    Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list)),
-    Tab("Off the radar", "off_radar", "hl-radar", sc.OFF_RADAR_COLUMNS, _plain(sc.off_radar_list)),
-    Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list),
+    Tab("Off the radar", "off_radar", "hl-radar", sc.OFF_RADAR_COLUMNS, _plain(sc.off_radar_list), group="growth"),
+    Tab("Dividend growers", "dividend_growers", "hl-dividend-growers", sc.DIVIDEND_GROWER_COLUMNS,
+        _plain(sc.dividend_grower_list), group="income"),
+    Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list), group="income",
         label="Untaxed dividends"),
-    Tab("Unbroken dividends", "unbroken_dividends", "hl-unbroken", sc.UNBROKEN_COLUMNS,
-        _plain(sc.unbroken_dividend_list)),
+    Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list), group="balance"),
+    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
+        group="balance", sort="Book_Order"),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
         sort="Kind_Rank"),
     Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
         sort="Kind_Rank"),
-    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
-        group="kind", sort="Book_Order"),
     Tab("Real estate", "real_estate", "hl-real-estate", sc.REAL_ESTATE_COLUMNS, _plain(sc.real_estate_list),
         group="kind", sort="Kind_Rank"),
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",

@@ -1,0 +1,41 @@
+# Yahoo industries of "Boring companies" (`screens._shortlist_gates`, user's choice, Nov 6, 2026): dull, essential
+# businesses in industries that do not attract new capital (mature, unglamorous, local or niche), so the incumbents
+# face few new competitors (Peter Lynch's boring companies). On top of the AI screen every list applies; commodity
+# producers and the hard-hit cyclicals stay out (the recession test guards the rest). Display only: no score or
+# rank reads it, and it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per line, as Yahoo spells it.
+Building Materials
+Specialty Chemicals
+Packaging & Containers
+Personal Services
+Beverages - Brewers
+Beverages - Non-Alcoholic
+Beverages - Wineries & Distilleries
+Confectioners
+Discount Stores
+Food Distribution
+Grocery Stores
+Household & Personal Products
+Packaged Foods
+Tobacco
+Diagnostics & Research
+Medical Distribution
+Medical Instruments & Supplies
+Pharmaceutical Retailers
+Airports & Air Services
+Building Products & Equipment
+Business Equipment & Supplies
+Electrical Equipment & Parts
+Industrial Distribution
+Infrastructure Operations
+Metal Fabrication
+Pollution & Treatment Controls
+Railroads
+Rental & Leasing Services
+Security & Protection Services
+Specialty Industrial Machinery
+Tools & Accessories
+Waste Management
+Insurance Brokers
+Financial Data & Stock Exchanges
+Electronics & Computer Distribution
+Scientific & Technical Instruments

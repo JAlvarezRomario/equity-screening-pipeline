@@ -22,30 +22,16 @@
   <li>Profitable operating companies only (banks, insurers, holdings and REITs are in the By kind lists). Price is not considered.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro operating(r) %}{% call rules("Operating businesses with high returns that grow smoothly every year without issuing shares, at a price that already pays well: companies to hold for twenty years.") %}<ul>
-  <li>No banks, insurers or holdings; not cyclical, not at peak margins, in industries built to last and not exposed to AI.</li>
-  <li>Normal return on capital (ROIC) of {{ r.operating_min_roic }}% or more; owner earnings of at least {{ r.operating_min_yield }}% of the price.</li>
-  <li>Over at least {{ r.min_years }} annual reports, in the company's own currency: owner earnings per share positive and close to their rising trend; revenue up every year (one flat year within 2% allowed); return on capital and operating margin never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started.</li>
-  <li>The share count never up, nor since the last annual report.</li>
+{% macro compounders(r) %}{% call rules("Businesses with high returns that grow smoothly without issuing shares, at a price that already pays: companies to hold for twenty years. Two routes in, one list.") %}<ul>
+  <li><strong>Steady route:</strong> normal return on capital (ROIC) of {{ r.operating_min_roic }}% or more and owner earnings of at least {{ r.operating_min_yield }}% of the price; over at least {{ r.min_years }} annual reports, in the company's own currency, revenue up every year (one flat year within 2% allowed), return on capital and operating margin never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started; the share count never up; outside the industries left out below.</li>
+  <li><strong>Fast route:</strong> revenue per share compounding at {{ r.fast_min_revenue }}% a year or more and owner earnings per share at {{ r.fast_min_growth }}% a year or more, in US dollars, both discounted for any bumps; owner earnings of at least {{ r.fast_min_yield }}% of the price; revenue and operating margin up every year, one flat year allowed; the share count stable or falling every year; no biotechnology.</li>
+  <li>Both routes: owner earnings per share positive and close to their rising trend; no new shares since the last annual report; no banks, insurers or holdings.</li>
   <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added since the oldest annual report.</li>
   <li>Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so the costs were passed on.</li>
-  <li>Through recessions: its dividend per share not cut by more than {{ r.recession_fall }}% in a past global recession ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}, whose supervisors suspended dividends): a business the recession reached. A company whose dividend record reaches no recession passes, except where a recession hits hard (the industries the Shortlist names): there only an industry leader holding net cash.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
+  <li>Not cyclical, not at peak margins, past the AI screen. Through recessions: its dividend per share not cut by more than {{ r.recession_fall }}% in a past global recession ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}, whose supervisors suspended dividends). A company whose dividend record reaches no recession passes, except where a recession hits hard (the industries Boring companies names): there only an industry leader holding net cash.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
 </ul>
-<details><summary>Industries left out</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
-
-{% macro fast_growers(r) %}{% call rules("Sales and owner earnings per share growing very fast and smoothly, without new shares, in businesses already paying a fair yield: growth that is earned, not promised.") %}<ul>
-  <li>Revenue per share compounding at {{ r.fast_min_revenue }}% a year or more and owner earnings per share at {{ r.fast_min_growth }}% a year or more, in US dollars, both discounted for any bumps.</li>
-  <li>The share count stable or falling every year, and not up since the last annual report.</li>
-  <li>Owner earnings of at least {{ r.fast_min_yield }}% of the price today.</li>
-  <li>Over at least {{ r.min_years }} annual reports: owner earnings per share positive and close to their rising trend; revenue and operating margin up every year, one flat year allowed.</li>
-  <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added, so the growth was not bought with capital earning little.</li>
-  <li>Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so the costs were passed on.</li>
-  <li>Operating companies only: no banks, insurers or holdings, whose earnings rose with interest rates, and no biotechnology.</li>
-  <li>Not cyclical, not at peak margins, past the AI screen every list applies (see above).</li>
-  <li>Through recessions: its dividend per share not cut by more than {{ r.recession_fall }}% in a past global recession ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}, whose supervisors suspended dividends): a business the recession reached. A company whose dividend record reaches no recession passes, except where a recession hits hard (the industries the Shortlist names): there only an industry leader holding net cash.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
-</ul>{% endcall %}{% endmacro %}
+<details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
 
 {% macro cannibals(r) %}{% call rules("Companies buying back a large part of their own shares each year, paid from the cash they make.") %}<ul>
   <li>Retiring more than {{ r.cannibal_min_reduction }}% of their shares a year, actually bought back (not a share consolidation).</li>
@@ -124,25 +110,24 @@
   <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro unbroken_dividends(r) %}{% call rules("Boring businesses whose dividend per share was raised or held every single year Yahoo has on record, paying well, covered, and growing faster than inflation.") %}<ul>
-  <li>The regular dividend per share raised or held every calendar year from the first payment Yahoo has to the last complete year, at least {{ r.unbroken_years }} years and reaching back through every global recession on file ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}): one cut, or a year without a dividend, and the company is out; a cut more than {{ r.unbroken_judged }} years ago no longer counts (old records hold lone wrong payments). A cut paid this year counts at once: the last twelve months below the twelve before, with as many payments in each.</li>
+{% macro dividend_growers(r) %}{% call rules("A dividend held for at least a decade and growing faster than inflation, covered by owner earnings, in a lasting business with little debt.") %}<ul>
+  <li>No cut in the regular dividend per share for at least {{ r.grower_years }} complete years, nor in the last twelve months (the twelve months below the twelve before, with as many payments in each).</li>
   <li>Judged payment by payment, in the currency the dividend is declared in. A special dividend (a payment at least {{ r.special_ratio }}&times; its season's usual size, higher than the same payment a year before and a year after) is left out, so the year after it is not a cut. A payment that slipped across New Year, or moved earlier when an interim dividend was added, is no cut either. Any other fall of more than {{ r.dividend_held }}% is.</li>
-  <li>Dividend yield of {{ r.unbroken_yield }}% or more and owner earnings of at least {{ r.unbroken_owner_yield }}% of the price, with the dividend at most {{ r.unbroken_payout }}% of owner earnings.</li>
-  <li>The regular dividend per share growing {{ r.unbroken_growth }}% a year or more over 10 years.</li>
-  <li>Normal return on capital (on equity for banks, insurers and holdings) of {{ r.unbroken_roic }}% or more, never down more than {{ r.operating_max_dip }}% in a year over the annual reports and no lower than where it started.</li>
-  <li>No new shares: the share count over 10 years not rising more than {{ r.unbroken_shares }}% a year, and not up since the last annual report.</li>
-  <li>Boring and lasting: not cyclical, not at peak margins, past the AI screen, outside the industries Operating companies leaves out, the dividend not cut more than {{ r.recession_fall }}% in a past recession. Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation.</li>
-  <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks, insurers and holdings: equity at least {{ r.equity }}% of assets).</li>
+  <li>Dividend yield of {{ r.grower_yield }}% or more; the regular dividend per share growing {{ r.grower_growth }}% a year or more over 10 years; the dividend at most {{ r.grower_payout }}% of owner earnings.</li>
+  <li>Normal return on capital (on equity for banks and insurers) of {{ r.grower_roic }}% or more.</li>
+  <li>Lasting: not cyclical, not at peak margins, past the AI screen, the dividend not cut more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}, and {{ r.downturns }}).</li>
+  <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks and insurers: equity at least {{ r.equity }}% of assets).</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking; a bank or an insurer, ranked apart, the best {{ r.top }} of its own kind.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro shortlist(r) %}{% call rules("Candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
+{% macro shortlist(r) %}{% call rules("Boring companies worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
   <li><strong>Growth without dilution</strong>: revenue (book for banks, insurers and holdings) per share growing, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
   <li><strong>Cash</strong>: free cash flow positive in at least {{ r.fcf }}% of the years.</li>
   <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
   <li><strong>Debt</strong>: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times; (banks, insurers and holdings: equity at least {{ r.equity }}% of assets); net debt at most {{ r.net_debt_equity }}% of equity, so higher rates and inflation can be carried; the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so costs can be passed on.</li>
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months.</li>
   <li><strong>Stress tests</strong>: no industry naturally fragile or exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash; among banks only the leaders by assets.</li>
+  <li><strong>A boring industry</strong>: one that does not attract new capital, so the incumbents face few new competitors: {{ r.boring_industries }}.</li>
   <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (a business should pay more than a bond); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital (on equity) of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>
@@ -152,5 +137,5 @@
   <li>On two or more of the screened lists across at least two distinct styles (so the two 20-year compounder lists or the two balance-sheet lists alone do not make a repeater), ordered by how many lists (most first), then by the combined rank. Hover the Lists number to see which.</li>
   <li>Each screened list counts every company that qualifies and meets that list's own moat and management grade bar; the pure score rankings ({{ r.repeater_ranked }}) are left out.</li>
   <li>Only companies whose moat and management grade passes the bar (both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}); ungraded ones are graded before they can enter.</li>
-  <li>Most of them are on the Shortlist too: the same answer, reached from several directions. Banks, insurers and REITs are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
+  <li>Many of them are among the Boring companies too: the same answer, reached from several directions. Banks, insurers and REITs are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
 </ul>{% endcall %}{% endmacro %}

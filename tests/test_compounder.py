@@ -192,8 +192,8 @@ def test_operating_companies_need_high_returns_a_yield_and_smooth_growth_on_ever
         # A recession hits packaging hard: with no record through one, only a leader with net cash (Nov 5, 2026).
         r("PACKAGING_YOUNG", 5.6, industry="Packaging & Containers"),
         r("BANK", 6.0, Financial_Mode=True),
-        r("LOW_ROIC", 6.0, ROIC_Norm=14.0),
-        r("DEAR", 6.0, Owner_Yield=5.9),
+        r("LOW_ROIC", 6.0, ROIC_Norm=11.0),
+        r("DEAR", 6.0, Owner_Yield=4.9),
         r("CYCLICAL", 6.0, Cyclical=True),
         r("PEAK", 6.0, Peak_Margin_Ratio=2.0),
         r("AVOIDED", 6.0, industry="Biotechnology"),
@@ -222,50 +222,43 @@ def test_operating_companies_need_high_returns_a_yield_and_smooth_growth_on_ever
     ]
 
 
-def test_unbroken_dividends_need_a_whole_record_a_covered_yield_stable_returns_and_a_boring_business():
-    from fq.report.screens import unbroken_dividend_list
+def test_dividend_growers_need_a_decade_without_a_cut_growth_cover_and_a_lasting_business():
+    from fq.report.screens import dividend_grower_list
 
-    def r(ticker, rank, roic=(15, 15, 14, 14), **over):
-        row = _twenty_year_row(ticker, rank, roic=roic)
-        return row | {"Dividend_Unbroken_Years": 15.0, "Dividend_Record_Whole": True, "Regular_DPS_Growth_10Y": 5.0,
-                      "Recessions_Covered": 2.0, "Recessions_Due": 2.0, "Recession_Dividend_Fall": -3.0,
-                      "Dividend_Yield": 4.0, "Owner_Yield": 8.0, "ROIC_Norm": 15.0, "Shares_Change_10Y": -1.0,
+    def r(ticker, rank, **over):
+        row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
+        return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
+                      "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "ROIC_Norm": 15.0,
                       "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0, "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
 
     df = pd.DataFrame([
         r("B", 2.0),
         r("A", 1.0),
         r("BANK", 3.0, Financial_Mode=True, Equity_to_Assets=9.0),  # ROE stands for ROIC
-        r("SHORT", 4.0, Dividend_Unbroken_Years=11.0),
-        r("CUT_ONCE", 4.0, Dividend_Record_Whole=False),
-        r("AFTER_2009", 4.0, Recessions_Covered=1.0),  # the record does not reach back through every recession
+        r("YOUNG", 4.0, Dividend_Unbroken_Years=9.0),
+        r("CUT_NOW", 4.0, Dividend_Cut_Recent=True),
         r("RECESSION_CUT", 4.0, Recession_Dividend_Fall=-30.0),
-        r("LOW_YIELD", 4.0, Dividend_Yield=2.9),
-        r("DEAR", 4.0, Owner_Yield=5.9, Dividend_Yield=3.5),
+        r("LOW_YIELD", 4.0, Dividend_Yield=2.4),
         r("PAYS_IT_ALL", 4.0, Dividend_Yield=7.0),  # above 80% of owner earnings
-        r("FLAT_DIVIDEND", 4.0, Regular_DPS_Growth_10Y=2.0),
+        r("FLAT_DIVIDEND", 4.0, Regular_DPS_Growth_10Y=2.9),
         r("LOW_ROIC", 4.0, ROIC_Norm=9.0),
-        r("ROIC_SLIDES", 4.0, roic=(12, 14, 16, 18)),
-        r("DILUTES", 4.0, Shares_Change_10Y=1.0),
         r("CYCLICAL", 4.0, Cyclical=True),
-        r("AIRLINE", 4.0, industry="Airlines"),  # not a boring business
         r("AI_RISK", 4.0, industry="Consulting Services"),
-        r("MARGIN_LOST", 4.0, Gross_Margin_Held=-5.0),  # no pricing power
         r("INDEBTED", 4.0, NetDebt_to_EBIT=4.0, Interest_Coverage=3.0),
         r("THIN_BANK", 4.0, Financial_Mode=True, Equity_to_Assets=4.0),
         r("LOW_RANK", 4.0, In_Best_Fraction=False),
+        r("NO_RECORD", 4.0, Dividend_Unbroken_Years=np.nan),
     ])  # fmt: skip
-    assert unbroken_dividend_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
+    assert dividend_grower_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
 
 
-def test_unbroken_dividends_take_a_bank_ranked_apart_on_its_own_kinds_best():
-    from fq.report.screens import unbroken_dividend_list
+def test_dividend_growers_take_a_bank_ranked_apart_on_its_own_kinds_best():
+    from fq.report.screens import dividend_grower_list
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
-        return row | {"Dividend_Unbroken_Years": 15.0, "Dividend_Record_Whole": True, "Regular_DPS_Growth_10Y": 5.0,
-                      "Recessions_Covered": 2.0, "Recessions_Due": 2.0, "Dividend_Yield": 4.0, "Owner_Yield": 8.0,
-                      "ROIC_Norm": 15.0, "Shares_Change_10Y": -1.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
+        return row | {"Dividend_Unbroken_Years": 12.0, "Regular_DPS_Growth_10Y": 5.0, "Dividend_Yield": 3.0,
+                      "Owner_Yield": 8.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
                       "Common Stock Equity_Y0": 100.0, "Rank_Group": "ranked", "In_Best_Fraction": True,
                       "Kind_Rank": np.nan, "In_Kind_Best": False} | over  # fmt: skip
 
@@ -278,7 +271,20 @@ def test_unbroken_dividends_take_a_bank_ranked_apart_on_its_own_kinds_best():
         r("BANK_LOW", 4.0, Kind_Rank=2.0, In_Kind_Best=False, **apart),  # not in its kind's best fraction
     ])  # fmt: skip
     df = pd.concat([df, pd.DataFrame({"Ticker": [f"X{i}" for i in range(8)], "Rank": np.arange(2.0, 10.0)})])
-    assert unbroken_dividend_list(df.reset_index(drop=True))["Ticker"].tolist() == ["A", "BANK", "B"]
+    assert dividend_grower_list(df.reset_index(drop=True))["Ticker"].tolist() == ["A", "BANK", "B"]
+
+
+def test_compounders_take_either_route_once_in_rank_order():
+    from fq.report import screens as sc
+
+    df = pd.DataFrame({"Ticker": ["S", "F", "BOTH", "NONE"], "Rank": [3.0, 2.0, 1.0, 4.0]})
+    steady, fast = sc.operating_list, sc.fast_grower_list
+    try:
+        sc.operating_list = lambda d, n=20: d[d["Ticker"].isin(["S", "BOTH"])].head(n)
+        sc.fast_grower_list = lambda d, n=20: d[d["Ticker"].isin(["F", "BOTH"])].head(n)
+        assert sc.compounder_list(df)["Ticker"].tolist() == ["BOTH", "F", "S"]
+    finally:
+        sc.operating_list, sc.fast_grower_list = steady, fast
 
 
 def test_fast_growers_need_fast_smooth_owner_earnings_rising_margins_and_a_yield():

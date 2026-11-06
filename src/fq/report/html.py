@@ -21,6 +21,7 @@ from fq.report.format import benchmark_note, fmt, headers, period_range, report_
 from fq.report.highlights import GROUPS, RANKED_TABS, REPEATERS, SHORTLIST, TABS, Highlights, Tab, fails
 from fq.report.links import slug
 from fq.settings import Settings
+from fq.universe import _read_lines
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "combined-rank order. Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
-                 "{one} (the Shortlist asks more), are the list; the others stay on it, folded away under the table, and "
+                 "{one} (Boring companies asks more), are the list; the others stay on it, folded away under the table, and "
                  "none is replaced. A grade changes no score and no rank.")  # fmt: skip
 
 
@@ -106,12 +107,11 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "list_min_incremental": g(sc.LIST_MIN_INCREMENTAL_ROIC), "max_margin_loss": g(sc.MAX_MARGIN_LOSS),
         "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": f"{borrow_rate:.2f}",
         "carry_min_years": cfg.carry_min_years,
-        "unbroken_years": sc.UNBROKEN_MIN_YEARS, "unbroken_yield": g(sc.UNBROKEN_MIN_YIELD),
-        "unbroken_owner_yield": g(sc.UNBROKEN_MIN_OWNER_YIELD), "unbroken_payout": g(sc.UNBROKEN_MAX_PAYOUT * 100),
-        "unbroken_growth": g(sc.UNBROKEN_MIN_GROWTH), "unbroken_roic": g(sc.UNBROKEN_MIN_ROIC),
-        "unbroken_shares": g(sc.UNBROKEN_MAX_SHARE_GROWTH), "special_ratio": g(dividend_record.SPECIAL_RATIO),
+        "boring_industries": ", ".join(_read_lines(sc.BORING_INDUSTRIES)).lower(),
+        "grower_years": sc.GROWER_MIN_YEARS, "grower_yield": g(sc.GROWER_MIN_YIELD),
+        "grower_growth": g(sc.GROWER_MIN_GROWTH), "grower_roic": g(sc.GROWER_MIN_ROIC),
+        "grower_payout": g(sc.GROWER_MAX_PAYOUT * 100), "special_ratio": g(dividend_record.SPECIAL_RATIO),
         "dividend_held": g(round((1 - dividend_record.HELD) * 100)),
-        "unbroken_judged": dividend_record.JUDGED_YEARS,
         "recession_fall": g(sc.RECESSION_MAX_FALL),
         "recessions": " and ".join(str(y) for y, _, only in dividend_record.recessions() if not only),
         "recession_exempt": "; ".join(
