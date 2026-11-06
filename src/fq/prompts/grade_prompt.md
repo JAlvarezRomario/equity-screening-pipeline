@@ -8,11 +8,16 @@ Your goal is NOT just to describe the company. Your **MAIN** goal is to **accura
 ---
 
 ### **WHAT YOU KNOW, AND WHERE IT STOPS:**
-Today's date is **{execution_date}**. You have no search tool and no documents: this grading rests on your own knowledge of the company and its industry, and on the company's page from our screening system, given below (figures from Yahoo Finance statements, normalised by the system; where they disagree with your memory, the figures win for the periods they cover). Your knowledge ends at your training cutoff, and the gap between that cutoff and {execution_date} is real. Weigh, from what you know:
+Today's date is **{execution_date}**. You have no search tool and no documents: this grading rests on your own knowledge of the company and its industry, and on the company's page from our screening system, given below. Your knowledge ends at your training cutoff, and the gap between that cutoff and {execution_date} is real.
+
+**The page is context, not the verdict.** Its figures come from Yahoo Finance statements, normalised by the system: they are reliable for what the numbers were in the periods they cover, and where they disagree with your memory on those numbers, the figures win. But figures cannot show the structure of the business: who pays, for what, under what bargaining power, and what could take the revenue away. Much of what decides a moat and a management grade is not in the figures, and your grade must rest on it as much as on the numbers. A high return on capital earned on a fragile revenue base is not a wide moat. Use the page to check and anchor the numbers, then grade the business.
+
+Weigh, from what you know:
 1.  Regulation and antitrust exposure.
 2.  Disruptive technology threats (specifically GenAI).
-3.  Management tenure, departures and insider behaviour.
+3.  Management tenure, departures, succession, and insider ownership and dealings (our page does not show holders: use what you know).
 4.  Capital allocation: dividends, acquisitions, issuance, repurchases.
+5.  Revenue dependency: on a customer, a platform, a product, a supplier, a licence or a government (Section II.B).
 
 We are not concerned with the short term; the grade is about the long-term MOAT and MANAGEMENT.
 
@@ -21,7 +26,7 @@ We are not concerned with the short term; the grade is about the long-term MOAT 
 ---
 
 ### **THE COMPANY'S PAGE IN OUR SCREENING SYSTEM**
-Everything our system shows about the company, as markdown: scores and ranks, key figures with their definitions in brackets, and each chart's data as a table (columns are the periods; yields are % of today's price).
+Everything our system shows about the company, as markdown: the business description, key figures with their definitions in brackets, data notes, and each chart's data as a table (columns are the periods; yields are % of today's price). It carries no scores, ranks or verdicts of ours.
 
 {company_page}
 
@@ -53,6 +58,19 @@ Your output will be displayed directly on a website investor dashboard. You must
 4.  **Cost Advantage:** Do they have a structural lower cost basis (scale, location, unique assets) that competitors cannot replicate?
 5.  **Engineering Leadership:** (If applicable) Is there evidence of "constant leadership in engineering" rather than just static patent protection?
 6.  **Durability vs. Disruption:** specifically address threats from **AI disruption**. Does AI commoditize their product?
+7.  **What the figures cannot show:** brand and customer habit, licences and concessions, distribution access, culture. Name what holds the moat up that no statement records.
+
+## II.B Revenue Dependency & Concentration (MANDATORY checklist)
+*A moat is only as strong as the weakest party that can take the revenue away. Answer each item explicitly, marking it **known** (with the share or evidence), **believed** (from memory, possibly out of date) or **unknown**. "Unknown" is an honest answer; a guess presented as fact is not.*
+
+1.  **Customer concentration:** the largest customer and the top customers as a % of revenue; contract length; can they leave, and how easily?
+2.  **Platform or distribution dependency:** does revenue reach the end customer through a party the company does not control (a search engine, an app store, a marketplace, a single OEM or retailer, an ad network)? Who owns the customer relationship?
+3.  **Product and segment mix:** one product or franchise, or several independent earners? Patent cliffs, single-drug or single-model exposure.
+4.  **Supplier, licence or input dependency:** a single-source supplier, a revocable licence or concession, a key technology partner.
+5.  **Government, regulatory or geographic concentration:** a single regulator, tender, programme or country.
+6.  **Bargaining power:** for each concentration found, who needs whom more? Does the counterparty have an in-house or ready alternative, or a history of cutting or renegotiating terms?
+
+State plainly whether the **dependency cap** in the rubric applies, and why.
 
 ## III. Management & Capital Allocation (The Offense)
 *Management is graded on per-share value creation, not size.*
@@ -62,6 +80,7 @@ Your output will be displayed directly on a website investor dashboard. You must
 2.  **Forecasting Philosophy:** Does management avoid short-term guidance to focus on long-term value, or do they play the "earnings beat" game? Judge from what you know of their past targets against what the statements below show; where you cannot compare a target, say so rather than guess.
 3.  **Skin in the Game:** Do insiders own significant stock bought with their own cash?
 4.  **Integrity & Candor:** Read their shareholder letters. Do they admit mistakes and failures openly? Do they use "Adjusted EBITDA" to mask real costs?
+5.  **What the figures cannot show:** key-person and founder dependence, succession, related-party dealings, controlling shareholders and how minority holders have been treated, governance history.
 
 ## IV. The Bear Case (Pre-Mortem)
 *What breaks the thesis?*
@@ -71,7 +90,7 @@ Your output will be displayed directly on a website investor dashboard. You must
 ## IV.B Value Trap Pre-Mortem (MANDATORY checklist)
 *A cheap-looking business is most dangerous when its cheapness is rational. The mission is to avoid permanent capital loss; this checklist forces an explicit answer to each value-trap dimension. Every prompt must be answered — "no concern" is a valid answer when supported by evidence; an unanswered prompt is a failure of the analysis.*
 
-1.  **Moat trajectory (5y look-back):** Is the moat measurably **narrower** than 5 years ago? Look for: market-share trend in core segments, gross-margin trend, customer concentration trend, switching-cost erosion (e.g., new substitute available), pricing-power evidence (price increases stuck or rolled back). State **widening / stable / narrowing** with one piece of concrete evidence.
+1.  **Moat trajectory (5y look-back):** Is the moat measurably **narrower** than 5 years ago? Look for: market-share trend in core segments, gross-margin trend, whether the dependencies of Section II.B are growing or shrinking, switching-cost erosion (e.g., new substitute available), pricing-power evidence (price increases stuck or rolled back). State **widening / stable / narrowing** with one piece of concrete evidence.
 2.  **Capital allocation drift:** Is management deploying retained earnings into the legacy core, into adjacent businesses with proven economics, or into **new low-ROIC adjacencies, vanity M&A, or "diworsification"**? List the last 3 material capital deployments and your judgment of each. A clean record is a positive signal; one suspect deployment is a yellow flag; two or more is a red flag.
 3.  **Gross-margin compression from new competition:** Are gross margins compressing (vs. 5y median) due to new competitive entrants, channel shifts, or input-cost pass-through failure? Distinguish cyclical from structural compression — a structural reset is a moat-narrowing event, a cyclical reset is not. State the specific competitive threat by name where one exists.
 4.  **Growth quality decomposition:** Of the last 5 years' revenue growth, what fraction came from (a) **price** (durable when supported by moat), (b) **volume** (cyclical / TAM-dependent), (c) **buybacks reducing the per-share denominator** (price-dependent and reverses when stock is no longer cheap)? A growth story dependent on (c) is a circularity flag — it works only while the stock stays undervalued.
@@ -82,6 +101,7 @@ Your output will be displayed directly on a website investor dashboard. You must
 ## V. Skeptical Scoring Re-evaluation
 *This is the most important section for the user. Show your work.*
 * "I initially considered a [X] for the Moat, but downgraded/upgraded to [Y] because..."
+* Say whether the dependency cap applied, to which counterparty, and why (or why the mutual lock-in exception holds).
 * Explicitly weigh the pros and cons to finalize the number.
 
 ---
@@ -122,6 +142,12 @@ You must adhere to a **Normal Distribution (Bell Curve)**. If you were to grade 
 * **3.0 (Average — competitive, no durable moat):** A good business that fights for every dollar. Average returns.
 * **2.0 (Weak):** Commodity product, price-taker, low margins.
 * **1.0 (Disadvantaged):** Obsolete business model or structural decline.
+
+**Dependency cap (binding, for every company):**
+* One counterparty (a customer, platform, distributor or licensor) behind roughly **30% or more of revenue**, or controlling access to most of it, that can switch or terminate: the **Moat Score is at most 3.0**, whatever the returns and margins show.
+* The **Moat Score is at most 2.5** when that counterparty has an in-house or ready alternative, or has already cut or renegotiated terms.
+* The only exception is a **mutual lock-in** argued with evidence: the counterparty would itself bear a large, specific cost to switch (a sole qualified supplier of a critical part, say).
+* When the concentration is unknown to you, no cap applies, but Section II.B must say it is unknown.
 
 **Management Quality Scoring:**
 * **5.0 (Outsiders):** Exceptional capital allocators, high integrity, owner-operators (e.g., Buffett, Constellation Software).

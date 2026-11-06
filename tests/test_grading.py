@@ -46,11 +46,12 @@ def test_due_when_new_on_a_newer_annual_report_or_a_year_old():
 
 def test_a_new_synthesis_prompt_rewrites_the_text_not_the_grades(tmp_path, monkeypatch):
     now = pd.Timestamp("2026-10-31")
+    monkeypatch.setattr(grading, "PASS_HASH_ALIASES", frozenset({"alias"}))
     ranked = pd.DataFrame({"Ticker": ["A"], "shortName": ["Acme"], "PeriodEnd_Y0": pd.to_datetime(["2025-12-31"])})
     path = tmp_path / "grades.parquet"
     old = {"Ticker": "A", "Moat": 3.5, "Management": 4.25, "Synthesis": "Both reports converged.",
            "Report_1": "note one", "Report_2": "note two", "Graded_At": pd.Timestamp("2026-10-30"),
-           "Y0_End": pd.Timestamp("2025-12-31"), "Prompt_Hash": next(iter(grading.PASS_HASH_ALIASES)),
+           "Y0_End": pd.Timestamp("2025-12-31"), "Prompt_Hash": "alias",
            "Tokens_In": 100, "Tokens_Out": 50, "Cost_USD": 0.1}  # fmt: skip
     grading.save(pd.DataFrame([old]), path)
     assert grading.due(["A"], ranked, grading.load(path), now) == []  # the passes stand: no costly re-grade
@@ -72,6 +73,63 @@ def test_a_new_synthesis_prompt_rewrites_the_text_not_the_grades(tmp_path, monke
     assert model == grading.SYNTHESIS_MODEL and "note one" in prompt and "3.50/5" in prompt
     # The reader is told about the company only: the prompt no longer asks to cite how the grades were reached.
     assert "converged, say so" not in prompt and "Never mention" in prompt
+
+
+def test_a_new_synthesis_never_makes_passes_from_another_prompt_look_current(tmp_path, monkeypatch):
+    # A capped run grades 60; the rest must stay due, not be stamped current by the synthesis rewrite.
+    path = tmp_path / "grades.parquet"
+    row = {"Ticker": "A", "Moat": 3.0, "Management": 3.0, "Report_1": "n1", "Report_2": "", "Synthesis": "old",
+           "Graded_At": pd.Timestamp("2026-10-30"), "Prompt_Hash": "older", "Synthesis_Hash": "older",
+           "Tokens_In": 1, "Tokens_Out": 1, "Cost_USD": 0.1}  # fmt: skip
+    grading.save(pd.DataFrame([row]), path)
+    assert grading.synthesis_due(grading.load(path)) == []  # its passes are due: re-graded, not rewritten
+    monkeypatch.setattr(
+        grading, "_call", lambda *a: ("## Overview\n\nNew.", {"in": 1, "cached": 0, "out": 1, "usd": 0})
+    )
+    grading.resynthesize(["A"], pd.DataFrame({"Ticker": ["A"]}), path, client=object())  # forced (`--resynthesize`)
+    assert grading.load(path).iloc[0]["Prompt_Hash"] == "older"
+    assert grading.due(["A"], pd.DataFrame({"Ticker": ["A"]}), grading.load(path), pd.Timestamp("2026-11-06")) == ["A"]
+
+
+class _FakeClient:
+    """Answers each grading pass with the next canned report, and the synthesis with a fixed text."""
+
+    def __init__(self, reports):
+        self.reports, self.prompts = list(reports), []
+
+    def call(self, client, model, prompt, max_out, label):
+        self.prompts.append((model, prompt))
+        text = self.reports.pop(0) if model == grading.GRADE_MODEL else "## Overview\n\nSynthesis."
+        return text, {"in": 10, "cached": 0, "out": 5, "usd": 0.01}
+
+
+def _report(moat, mgmt):
+    return f"Evidence.\n**{grading.MOAT_LABEL}:** {moat}/5\n**{grading.MGMT_LABEL}:** {mgmt}/5"
+
+
+def test_the_second_pass_runs_only_when_the_first_clears_the_gate(monkeypatch):
+    today = pd.Timestamp("2026-11-06")
+    fake = _FakeClient([_report(2.5, 2.5)])  # fails the gate: one pass only
+    monkeypatch.setattr(grading, "_call", fake.call)
+    one = grading.grade_company(object(), "PERI", "Perion", "page", today)
+    assert [m for m, _ in fake.prompts] == [grading.GRADE_MODEL, grading.SYNTHESIS_MODEL]
+    assert (one["Moat"], one["Management"], one["Moat_1"]) == (2.5, 2.5, 2.5)
+    assert pd.isna(one["Moat_2"]) and pd.isna(one["Mgmt_2"]) and one["Report_2"] == ""
+    assert grading.NO_SECOND_NOTE in fake.prompts[-1][1]  # the synthesis is told there is one note only
+
+    fake = _FakeClient([_report(4.0, 3.5), _report(3.0, 3.5)])  # clears it: two passes, averaged
+    monkeypatch.setattr(grading, "_call", fake.call)
+    two = grading.grade_company(object(), "MA", "Mastercard", "page", today)
+    assert [m for m, _ in fake.prompts].count(grading.GRADE_MODEL) == 2
+    assert (two["Moat"], two["Management"], two["Moat_2"]) == (3.5, 3.5, 3.0)
+
+
+def test_the_grading_prompt_asks_for_dependency_and_caps_the_moat():
+    prompt = grading.grade_prompt("Acme", "ACM", "- ROIC: 20%", pd.Timestamp("2026-11-06"))  # no stray braces
+    assert "- ROIC: 20%" in prompt and "{" not in prompt.replace("{{", "")
+    assert "II.B Revenue Dependency & Concentration" in prompt and "Dependency cap" in prompt
+    assert "at most 3.0" in prompt and "at most 2.5" in prompt and "mutual lock-in" in prompt
+    assert "The page is context, not the verdict" in prompt and "scores and ranks," not in prompt
 
 
 def test_cost_follows_the_rates_in_force():

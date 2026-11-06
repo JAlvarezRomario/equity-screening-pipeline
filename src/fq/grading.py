@@ -1,9 +1,12 @@
 """Moat and management grades (1 to 5) by Gemini: the gate on the highlight lists.
 
 The only module that calls an LLM (user's choice, Oct 31, 2026). A grade never enters a score, a rank or a flag; it
-only decides where a company sits inside a highlight list it already made (`passes`). The procedure: two independent
-passes averaged, then a synthesis that justifies the average, with the company's page in this system passed in as
-markdown (`page_markdown`). No search tool: the model's own knowledge and our figures. Grades are kept in `data/grades.parquet` (`load`, `save`) and redone only when due
+only decides where a company sits inside a highlight list it already made (`passes`). The procedure: a first pass; a
+second, independent one only when the first clears the gate, the two then averaged (user's rule, Nov 6, 2026: a
+company failing on the first pass could make no list); then a synthesis that justifies the grade. The company's page in
+this system is passed in as markdown (`page_markdown`) as context, not the verdict: the prompt also asks what the
+figures cannot show (revenue dependency on one customer, platform, product or licence, with a cap on the moat; user's
+rule, Nov 6, 2026). No search tool: the model's own knowledge and our figures. Grades are kept in `data/grades.parquet` (`load`, `save`) and redone only when due
 (`due`: a new annual report or a year old). The google-genai client is imported only when a grading runs.
 """
 
@@ -32,6 +35,8 @@ THINKING = "medium"
 GRADE_OUTPUT_TOKENS = 32768
 SYNTHESIS_OUTPUT_TOKENS = 16384
 PASSES = 2
+SECOND_PASS_ONLY_IF_GATE = True  # the second pass runs only when the first clears `passes` (user, Nov 6, 2026)
+NO_SECOND_NOTE = "(none: one note only)"  # Note B of the synthesis when only the first pass ran
 WORKERS = 6  # companies graded at once
 MAX_AGE_DAYS = 365  # re-grade after a year, or when a new annual report lands (`due`)
 MAX_PER_RUN = 60  # companies graded by one `fq run -u benchmark` (~$6 now); `fq grade` has no cap
@@ -51,14 +56,15 @@ RATES = {
     GRADE_MODEL: ((pd.Timestamp("2000-01-01"), 2.00, 10.00, 0.10), (pd.Timestamp("2026-12-01"), 4.00, 20.00, 0.20)),
     SYNTHESIS_MODEL: ((pd.Timestamp("2000-01-01"), 0.75, 3.75, 0.075), (pd.Timestamp("2027-01-01"), 1.50, 7.50, 0.15)),
 }
-EST_COST_USD = 0.10  # one company at the introductory rates, measured on MA and AMR (Oct 30, 2026)
+EST_COST_USD = 0.10  # one company, both passes, at the introductory rates, measured on MA and AMR (Oct 30, 2026)
 
 COLUMNS = ["Ticker", "Moat", "Management", "Moat_1", "Mgmt_1", "Moat_2", "Mgmt_2", "Synthesis", "Report_1",
            "Report_2", "Graded_At", "Y0_End", "Model", "Prompt_Hash", "Synthesis_Hash", "Tokens_In", "Tokens_Out",
            "Cost_USD"]  # fmt: skip
-# Grading-pass hashes written before the synthesis prompt had a hash of its own (Oct 31, 2026), with today's grading
-# prompt, models and page: their passes are current, only their synthesis is redone (`resynthesize`).
-PASS_HASH_ALIASES = frozenset({"1ab400c79f69"})
+# Older grading-pass hashes whose passes count as current (only their synthesis is redone, `resynthesize`). Emptied
+# Nov 6, 2026: "1ab400c79f69" (before the synthesis had a hash of its own, Oct 31) was made with the grading prompt
+# replaced that day, and no stored grade carried it any more.
+PASS_HASH_ALIASES: frozenset[str] = frozenset()
 
 
 def passes(moat, mgmt) -> bool | None:
@@ -210,7 +216,7 @@ def prompt_hash() -> str:
     """What the grades were produced with: the grading prompt, model, passes and page (stored; another hash makes a
     grade due). The synthesis has its own (`synthesis_hash`), so rewording it never redoes the costly passes."""
     digest = hashlib.sha1(_prompt("grade_prompt.md").encode())
-    digest.update(repr((GRADE_MODEL, THINKING, PASSES, PAGE_VERSION)).encode())
+    digest.update(repr((GRADE_MODEL, THINKING, PASSES, SECOND_PASS_ONLY_IF_GATE, PAGE_VERSION)).encode())
     return digest.hexdigest()[:12]
 
 
@@ -222,6 +228,8 @@ def synthesis_hash() -> str:
 
 
 def _synthesis_prompt(company: str, ticker: str, moat: float, mgmt: float, report_1: str, report_2: str) -> str:
+    """The synthesis prompt; Note B reads `NO_SECOND_NOTE` when only the first pass ran (an empty `report_2`)."""
+    report_2 = report_2 if isinstance(report_2, str) and report_2.strip() else NO_SECOND_NOTE
     return (_prompt("grade_synthesis.md").replace("{{COMPANY_NAME}}", company).replace("{{TICKER}}", ticker)
             .replace("{{MOAT_GRADE}}", f"{moat:.2f}").replace("{{MGMT_GRADE}}", f"{mgmt:.2f}")
             .replace("{{FIRST_REPORT}}", report_1).replace("{{BIS_REPORT}}", report_2))  # fmt: skip
@@ -239,7 +247,8 @@ def cost_usd(model: str, tokens_in: int, cached: int, tokens_out: int, when: pd.
 
 
 def estimate_usd(n: int, when: pd.Timestamp) -> float:
-    """What grading `n` companies costs, from the measured `EST_COST_USD` scaled to the rates on `when`."""
+    """What grading `n` companies costs at most, from the measured `EST_COST_USD` (both passes) scaled to the rates on
+    `when`; a company failing the gate on its first pass costs about half."""
     now = [r for r in RATES[GRADE_MODEL] if when >= r[0]][-1][1] / RATES[GRADE_MODEL][0][1]
     return n * EST_COST_USD * now
 
@@ -273,11 +282,15 @@ def _call(client, model: str, prompt: str, max_out: int, label: str) -> tuple[st
 
 
 def grade_company(client, ticker: str, company: str, page: str, today: pd.Timestamp) -> dict:
-    """Two independent grading passes averaged, then the synthesis that justifies the average. A pass whose report
-    lacks either score is asked again once; without both scores the company stays ungraded (an error)."""
+    """A first grading pass; when it clears the gate (`passes`), a second independent one and the two averaged; when it
+    does not (`SECOND_PASS_ONLY_IF_GATE`), the first alone, with pass 2 left empty. Then the synthesis that justifies
+    the grade. A pass whose report lacks either score is asked again once; without both scores the company stays
+    ungraded (an error)."""
     prompt = grade_prompt(company, ticker, page, today)
     reports, grades, usage = [], [], []
     for n in range(1, PASSES + 1):
+        if n > 1 and SECOND_PASS_ONLY_IF_GATE and not passes(*grades[0]):
+            break
         for _ in range(2):
             text, use = _call(client, GRADE_MODEL, prompt, GRADE_OUTPUT_TOKENS, f"{ticker} pass {n}")
             usage.append(use)
@@ -290,12 +303,14 @@ def grade_company(client, ticker: str, company: str, page: str, today: pd.Timest
         grades.append((moat, mgmt))
     moat = sum(g[0] for g in grades) / len(grades)
     mgmt = sum(g[1] for g in grades) / len(grades)
-    synthesis = _synthesis_prompt(company, ticker, moat, mgmt, reports[0], reports[1])
+    second = grades[1] if len(grades) > 1 else (float("nan"), float("nan"))
+    report_2 = reports[1] if len(reports) > 1 else ""
+    synthesis = _synthesis_prompt(company, ticker, moat, mgmt, reports[0], report_2)
     text, use = _call(client, SYNTHESIS_MODEL, synthesis, SYNTHESIS_OUTPUT_TOKENS, f"{ticker} synthesis")
     usage.append(use)
     return {"Ticker": ticker, "Moat": moat, "Management": mgmt, "Moat_1": grades[0][0], "Mgmt_1": grades[0][1],
-            "Moat_2": grades[1][0], "Mgmt_2": grades[1][1], "Synthesis": text, "Report_1": reports[0],
-            "Report_2": reports[1], "Graded_At": today, "Model": GRADE_MODEL, "Prompt_Hash": prompt_hash(),
+            "Moat_2": second[0], "Mgmt_2": second[1], "Synthesis": text, "Report_1": reports[0],
+            "Report_2": report_2, "Graded_At": today, "Model": GRADE_MODEL, "Prompt_Hash": prompt_hash(),
             "Synthesis_Hash": synthesis_hash(),
             "Tokens_In": sum(u["in"] for u in usage), "Tokens_Out": sum(u["out"] for u in usage),
             "Cost_USD": round(sum(u["usd"] for u in usage), 4)}  # fmt: skip
@@ -359,11 +374,14 @@ def attach(df: pd.DataFrame, path: Path) -> pd.DataFrame:
 
 
 def synthesis_due(grades: pd.DataFrame, tickers=None) -> list[str]:
-    """Graded companies (of `tickers`, else all) whose published text was written with another synthesis prompt."""
+    """Graded companies (of `tickers`, else all) whose published text was written with another synthesis prompt, and
+    whose passes are current (`prompt_hash` or an alias): one whose passes are due is re-graded instead, synthesis
+    and all, so rewriting its text now would be spent for nothing."""
     if grades.empty:
         return []
     current = synthesis_hash()
-    stale = grades[grades.get("Synthesis_Hash", pd.Series(None, index=grades.index)) != current]
+    passes_ok = grades.get("Prompt_Hash", pd.Series(None, index=grades.index)).isin({prompt_hash(), *PASS_HASH_ALIASES})
+    stale = grades[(grades.get("Synthesis_Hash", pd.Series(None, index=grades.index)) != current) & passes_ok]
     out = stale["Ticker"].tolist()
     return out if tickers is None else [t for t in out if t in set(tickers)]
 
@@ -379,8 +397,10 @@ def _client():
 
 def resynthesize(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WORKERS, client=None) -> int:
     """Rewrite the published synthesis of `tickers` from their stored reports and fixed grades (the synthesis model
-    only: about a cent a company). Grades, reports and `Graded_At` stay; the hashes are brought up to date. Saved
-    after each company. Returns how many were rewritten."""
+    only: about a cent a company). Grades, reports and `Graded_At` stay; `Synthesis_Hash` is brought up to date, and
+    `Prompt_Hash` only from an alias (`PASS_HASH_ALIASES`): a new synthesis never makes passes from another grading
+    prompt look current, which would cancel their re-grade. Saved after each company. Returns how many were
+    rewritten."""
     client = client or _client()
     names = ranked.set_index("Ticker")["shortName"] if "shortName" in ranked.columns else pd.Series(dtype=object)
     lock, done, spent = threading.Lock(), [0], [0.0]
@@ -395,7 +415,9 @@ def resynthesize(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: 
             if "Synthesis_Hash" not in grades.columns:  # grades stored before the synthesis had its own hash
                 grades["Synthesis_Hash"] = None
             i = grades.index[grades["Ticker"] == ticker][0]
-            grades.loc[i, ["Synthesis", "Prompt_Hash", "Synthesis_Hash"]] = [text, prompt_hash(), synthesis_hash()]
+            before_hash = grades.loc[i, "Prompt_Hash"]
+            kept = prompt_hash() if before_hash in PASS_HASH_ALIASES else before_hash
+            grades.loc[i, ["Synthesis", "Prompt_Hash", "Synthesis_Hash"]] = [text, kept, synthesis_hash()]
             for col, add in (("Tokens_In", use["in"]), ("Tokens_Out", use["out"]), ("Cost_USD", use["usd"])):
                 before = pd.to_numeric(grades.loc[i, col], errors="coerce")
                 grades.loc[i, col] = (0 if pd.isna(before) else before) + add
