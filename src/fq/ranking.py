@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from fq.settings import BUSINESS_MODELS, Criterion, Settings, display_name
+from fq.universe import is_real_estate_owner
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,65 @@ def comparable(df: pd.DataFrame) -> pd.Series:
     else:
         ok = ~_flag(df, "Financial_Mode")
     return ok if ok.any() else pd.Series(True, index=df.index)
+
+
+# `Rank_Group` values (`rank_group`): only "ranked" takes a position; the others are scored and listed apart.
+RANKED = "ranked"
+RANK_GROUP_LABELS = {  # why a company has no rank, as the full table's pill and the company page's note say it
+    "financial": "bank or insurer",
+    "holding": "holding",
+    "real_estate": "REIT",
+    "apart": "model not ranked",
+    "insufficient": "too little data",
+    "unprofitable": "loss in a normal year",
+}
+
+
+def rank_group(df: pd.DataFrame, cfg: Settings) -> pd.Series:
+    """Which companies take a position in the rankings (user's choice, Nov 5, 2026: profitable operating companies
+    only). "financial" (bank, insurer) and "holding" (`Settings.rank_apart_models`), "real_estate" (an equity REIT,
+    `lists/real_estate_owners.txt`), "apart" (a model outside `Settings.ranked_models`), "insufficient" (no Value or
+    no Quality score), "unprofitable" (normal-year owner earnings or normalised ROIC at or below zero: `Owner_Yield`,
+    `ROIC_Norm`, both normalised, so one bad year or a cyclical trough keeps the rank; a blank is not a loss), else
+    `RANKED`. Scores are not
+    touched: the percentiles keep `comparable`'s market."""
+    models = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    bank_or_insurer = models.isin({"bank", "insurer"}) & models.isin(cfg.rank_apart_models)
+    insufficient = _num(df, "Value_Score").isna() | _num(df, "Quality_Score").isna()
+    # A figure that is missing is not a loss (missing is not bad; without earnings power there is no Value score).
+    profitable = ~(_num(df, "Owner_Yield") <= 0) & ~(_num(df, "ROIC_Norm") <= 0)
+    return pd.Series(
+        np.select(
+            [bank_or_insurer, models.isin(cfg.rank_apart_models), industry.map(is_real_estate_owner).astype(bool),
+             ~comparable(df), insufficient, ~profitable],
+            ["financial", "holding", "real_estate", "apart", "insufficient", "unprofitable"],
+            RANKED,
+        ),
+        index=df.index,
+    )  # fmt: skip
+
+
+def rankable(df: pd.DataFrame) -> pd.Series:
+    """Rows that take a position (`Rank_Group` == "ranked"). A frame scored before the column existed (a benchmark
+    file ranked before Nov 5, 2026) gets its group computed (`rank_group`), so a run never takes old positions from
+    it; an old snapshot (scores without their inputs) keeps its own `Rank`, as it was ranked then; a frame without
+    either falls back to `comparable`."""
+    if "Rank_Group" in df.columns:
+        return df["Rank_Group"] == RANKED
+    if {"Value_Score", "Quality_Score", "Owner_Yield"} <= set(df.columns):
+        return rank_group(df, Settings()) == RANKED
+    if "Rank" in df.columns:
+        return pd.to_numeric(df["Rank"], errors="coerce").notna()
+    return comparable(df)
+
+
+def combined_order(value_pos: pd.Series, quality_pos: pd.Series, penalty: float) -> pd.Series:
+    """The combined ranking's sort key: the worse of the Value and Quality positions (user's choice, Oct 28, 2026:
+    cheap AND good, so Value 99 / Quality 1 no longer ties 50 / 50), ties to the lower sum. A missing position counts
+    as `penalty` (larger than any position)."""
+    value_pos, quality_pos = value_pos.fillna(penalty), quality_pos.fillna(penalty)
+    return np.fmax(value_pos, quality_pos) + (value_pos + quality_pos) / (2 * penalty + 1)
 
 
 def model_groups(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
@@ -244,14 +304,14 @@ def apply_dual_ranking(
     The combined order (`Combined_Rank_Score`, `Rank`) is the worse of the Value and Quality positions, ties by
     their sum, among the reference companies when benchmarked; rows that are not `trusted` follow every trusted one.
     Companies without enough data in either dimension get `Insufficient_Data`, take no `Rank` and
-    sort after every scored company. Models outside `Settings.ranked_models` (none today) are scored but take
-    no rank (see `comparable`) and sort after everyone.
+    sort after every scored company. Only `rank_group` "ranked" rows (profitable operating companies, Nov 5, 2026)
+    take `Rank`, `Value_Rank` and `Quality_Rank`; the others (`Rank_Group` says why) are scored as before, against
+    `comparable`'s market, and sort after everyone in their own combined order.
     """
     out = df.copy()
     benchmarked = reference is not None
     if "Business_Model" in out.columns:
         out["Ranked_Model"] = out["Business_Model"].isin(cfg.ranked_models)
-    apart = ~comparable(out)
     penalty = len(out) + 1
 
     for name, blend in (
@@ -269,9 +329,12 @@ def apply_dual_ranking(
             out[f"Pct_{column}"] = pct * 100
         out[f"{name}_Score"] = score
         out[f"{name}_Coverage"] = coverage
+    out["Rank_Group"] = rank_group(out, cfg)
+    apart = ~rankable(out)
+    for name in ("Value", "Quality"):
         out[f"{name}_Rank"] = out[f"{name}_Score"].where(~apart).rank(method="min", ascending=False)
         if benchmarked and f"{name}_Score" in reference.columns:
-            ref_scores = reference.loc[comparable(reference), f"{name}_Score"].dropna().to_numpy()
+            ref_scores = reference.loc[rankable(reference), f"{name}_Score"].dropna().to_numpy()
             out[f"{name}_Rank_Bench"] = out[f"{name}_Score"].map(
                 lambda s, r=ref_scores: np.nan if pd.isna(s) else 1 + int((r > s + 1e-9).sum())
             )
@@ -302,7 +365,7 @@ def apply_dual_ranking(
             out[f"Pct_{column}"] = pct * 100
     if benchmarked:
         out["Benchmark"] = benchmark or "reference"
-        ranked_ref = reference[comparable(reference)]
+        ranked_ref = reference[rankable(reference)]
         out["Benchmark_N"] = (
             int(ranked_ref["Value_Score"].notna().sum()) if "Value_Score" in ranked_ref else len(ranked_ref)
         )
@@ -310,35 +373,36 @@ def apply_dual_ranking(
     if out["Insufficient_Data"].any():
         log.info("%d companies lack enough data to rank", int(out["Insufficient_Data"].sum()))
     if apart.any():
-        log.info("%d companies of models under observation scored but not ranked: %s", int(apart.sum()),
-                 ", ".join(out.loc[apart, "Ticker"].head(30)))  # fmt: skip
+        log.info("Scored but ranked apart: %s", out.loc[apart, "Rank_Group"].value_counts().to_dict())
 
     log.info("Value-Quality correlation (Spearman): %.2f", value_quality_correlation(out))
     # With a benchmark the positions among its companies decide, so a group is ordered as it would be
-    # in the benchmark's own report. The worse of the two positions orders (user's choice, Oct 28, 2026: cheap AND
-    # good, so Value 99 / Quality 1 no longer ties 50 / 50); ties go to the lower sum, then the higher score sum.
+    # in the benchmark's own report. The worse of the two positions orders (`combined_order`); ties go to the lower
+    # sum, then the higher score sum.
     dim = "_Rank_Bench" if benchmarked and "Value_Rank_Bench" in out else "_Rank"
     if dim == "_Rank_Bench":
         penalty = max(penalty, int(out["Benchmark_N"].max()) + 1)
-    value_pos, quality_pos = out[f"Value{dim}"].fillna(penalty), out[f"Quality{dim}"].fillna(penalty)
-    combined = np.fmax(value_pos, quality_pos) + (value_pos + quality_pos) / (2 * penalty + 1)
+    combined = combined_order(out[f"Value{dim}"], out[f"Quality{dim}"], penalty)
     # Untrusted rows (`trusted`: suspect data, distress, peak margins...) after every trusted scored row (Oct 30, 2026:
     # ranking on measured numbers puts the measurement errors at the top; 31 of the top 100 were untrusted).
     combined = combined.where(trusted(out) | out["Insufficient_Data"], penalty + combined)
     combined = combined.where(~out["Insufficient_Data"], 2 * penalty + combined)  # after every scored row
-    out["Combined_Rank_Score"] = combined.where(~apart, 4 * penalty)  # unranked models after everyone
+    # Rows ranked apart after everyone, in the order of their own scores (they have no positions).
+    own = combined_order(out["Value_Score"].rank(ascending=False), out["Quality_Score"].rank(ascending=False), penalty)
+    out["Combined_Rank_Score"] = combined.where(~apart, 4 * penalty + own)
     out["_tie"] = -(out["Value_Score"].fillna(0) + out["Quality_Score"].fillna(0))
     out = out.sort_values(["Combined_Rank_Score", "_tie"], kind="stable").drop(columns="_tie").reset_index(drop=True)
-    ranked = comparable(out) & ~out["Insufficient_Data"]
+    ranked = rankable(out) & ~out["Insufficient_Data"]
     out["Rank"] = pd.Series(np.arange(1, len(out) + 1), index=out.index).where(ranked)
-    themes = reference[comparable(reference)] if benchmarked else out[comparable(out)]  # industry-wide discounts
+    themes = reference[rankable(reference)] if benchmarked else out[rankable(out)]  # industry-wide discounts
+    scored = reference[comparable(reference)] if benchmarked else out[comparable(out)]  # the asset plays' yardstick
     out["Dislocation"], out["Mood_Check"] = dislocation(out, cfg, themes, benchmark if benchmarked else None)
     if out["Dislocation"].any():
         log.info("Possible mood mispricings: %s", ", ".join(out.loc[out["Dislocation"], "Ticker"]))
     out["Compounder"] = compounder(out, cfg)
     if out["Compounder"].any():
         log.info("Compounders: %s", ", ".join(out.loc[out["Compounder"], "Ticker"]))
-    out["Asset_Play"], out["Asset_Play_Score"] = asset_play(out, cfg, themes)
+    out["Asset_Play"], out["Asset_Play_Score"] = asset_play(out, cfg, scored)
     if out["Asset_Play"].any():
         log.info("Asset plays: %s", ", ".join(out.loc[out["Asset_Play"], "Ticker"]))
     out["Cannibal"] = cannibal(out, cfg)
@@ -374,7 +438,7 @@ def dislocation(
     held = (revenue >= cfg.dislocation_revenue_change_min) & (ebit >= cfg.dislocation_ebit_change_min)
     cut = estimates < cfg.estimate_cut_pct
     cyclical = _flag(df, "Cyclical")
-    ranked = comparable(df)
+    ranked = rankable(df)
     trusted = ranked & ~_flag(df, "Data_Suspect") & ~_flag(df, "Insufficient_Data") & ~_flag(df, "Distress")
     flag = cheap & held & ~cut & (quality >= cfg.dislocation_min_quality) & trusted & ~cyclical
 
@@ -412,7 +476,7 @@ def dislocation(
             if flag[i]:
                 text += ": nothing in the numbers explains the low price."
             elif not ranked[i]:
-                text += ", but its business model is not ranked (scored against its peers only)."
+                text += ", but it is not in the rankings (judged against its own kind)."
             else:
                 text += f", but Quality is below {cfg.dislocation_min_quality:.0f} or the data is not trusted."
         n = int(cheap_in.get(industry[i], 0)) if pd.notna(industry[i]) else 0
@@ -436,7 +500,7 @@ def compounder(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     floor: the report lists the flagged companies in combined rank order, and `fq evaluate` follows them as their own list.
     """
     _, family = model_groups(df)
-    fit = comparable(df) & trusted(df) & ~_flag(df, "Cyclical") & ~_flag(df, "Financial_Mode") & (family == "operating")
+    fit = rankable(df) & trusted(df) & ~_flag(df, "Cyclical") & ~_flag(df, "Financial_Mode") & (family == "operating")
     steady_or_rising = (
         (_num(df, "Pct_ROIC_Variability") >= cfg.compounder_min_steady_pct)
         & (_num(df, "ROIC_Trend") >= cfg.compounder_min_roic_trend)
@@ -482,7 +546,7 @@ def cannibal(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     roic = _num(df, "ROIC_Norm")
 
     qualifies = (
-        comparable(df)
+        rankable(df)
         & trusted(df)
         & ~_flag(df, "Cyclical")
         & (_num(df, "Quality_Score") >= cfg.cannibal_min_quality)
@@ -521,8 +585,11 @@ def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None =
     """`Asset_Play` flag and `Asset_Play_Score` (0-100) for tangible-NAV bargains with balance-sheet and capital
     discipline.
 
-    Qualifies ranked, trusted companies where enterprise-de-levered tangible book per share (`Effective_NAV_to_Price`,
-    minority-adjusted tangible book `NAV_to_Price` with fallback to common book only when intangibles are unreported)
+    Qualifies trusted companies ranked or ranked apart as holdings (Nov 5, 2026: banks and insurers have lists of their
+    own, and an equity REIT's book is depreciated cost under US GAAP but fair value under IFRS, so it is never asked)
+    where enterprise-de-levered tangible book per share (`Effective_NAV_to_Price`, minority-adjusted tangible book
+    `NAV_to_Price` with fallback to common book only when intangibles are unreported; a holding's book with its
+    goodwill, `BV_to_Price`: stripping it values the subsidiaries it bought at zero)
     either already exceeds the share price (`>= asset_play_min_nav_price` with non-negative `Book_Per_Share_Compounding`)
     or is at least `asset_play_min_nav_compounding` and compounding smoothly enough (`>= asset_play_min_book_growth`,
     capped at `asset_play_max_book_growth_cap`) to reach the share price within `asset_play_horizon_years`. Requires
@@ -530,13 +597,17 @@ def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None =
     debt and recurring positive FCF for non-financials, and capital adequacy plus active buybacks for banks/insurers.
     """
     fin = _flag(df, "Financial_Mode")
-    fit = comparable(df) & trusted(df)
+    group = df["Rank_Group"] if "Rank_Group" in df.columns else rank_group(df, cfg)
+    holding = group == "holding"
+    # Its own earnings tests below decide profitability; the kinds judged elsewhere stay out.
+    fit = comparable(df) & trusted(df) & ~group.isin({"financial", "real_estate", "apart"})
 
-    raw_nav = _num(df, "NAV_to_Price").fillna(_num(df, "BV_to_Price"))
+    raw_nav = _num(df, "NAV_to_Price").fillna(_num(df, "BV_to_Price")).where(~holding, _num(df, "BV_to_Price"))
     net_cash = _num(df, "Net_Cash_to_Cap")
     net_debt_pct = (-net_cash).clip(lower=0.0).fillna(0.0)
     delevered = (raw_nav + net_debt_pct) / (100.0 + net_debt_pct) * 100.0
     eff_nav = _num(df, "Effective_NAV_to_Price").fillna(np.minimum(raw_nav, delevered).where(net_debt_pct > 0, raw_nav))
+    eff_nav = eff_nav.where(~holding, raw_nav)
     bv_comp = _num(df, "Book_Per_Share_Compounding").fillna(_num(df, "Book_Compounding"))
     share_red = _num(df, "Share_Reduction_Rate")
 

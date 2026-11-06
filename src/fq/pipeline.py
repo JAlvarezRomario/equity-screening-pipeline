@@ -236,18 +236,23 @@ def grade_companies(
     max_grades: int = 0,
     dry_run: bool = False,
     resynthesize_only: bool = False,
+    new_only: bool = False,
 ) -> int:
     """Grade the companies the highlight lists show and every Repeaters candidate (`Highlights.grade_pool`), and
     the holdings whose grade is missing or due
     (`grading.due`), at most `max_grades` (0 = no cap), from their pages as the last report wrote them; then rewrite
     every synthesis written with an older synthesis prompt (`grading.resynthesize`, the cheap model only).
-    `resynthesize_only` skips the grading. Returns how many grades or syntheses changed; never fails the report (an
-    error is logged)."""
+    `resynthesize_only` skips the grading; `new_only` grades only companies never graded and rewrites no synthesis
+    (no re-grade is spent). Returns how many grades or syntheses changed; never fails the report (an error is logged)."""
     path = cfg.data_dir / "grades.parquet"
     now = pd.Timestamp.now()
     held = [t for t in sorted(portfolio()) if t in set(ranked["Ticker"])]  # every holding is graded too
     candidates = list(dict.fromkeys([*h.grade_pool(), *held]))
-    todo = [] if resynthesize_only else grading.due(candidates, ranked, grading.load(path), now)
+    stored = grading.load(path)
+    todo = [] if resynthesize_only else grading.due(candidates, ranked, stored, now)
+    if new_only:
+        known = set(stored["Ticker"]) if not stored.empty else set()
+        todo = [t for t in todo if t not in known]
     if max_grades:
         todo = todo[:max_grades]
     log.info("Moat and management grades: %d listed or held, %d due, est. $%.2f", len(candidates), len(todo),
@@ -260,7 +265,7 @@ def grade_companies(
             changed += len(new)
         except Exception as exc:  # never lose the report to the grading
             log.warning("Grading skipped: %s", exc)
-    stale = grading.synthesis_due(grading.load(path))
+    stale = [] if new_only else grading.synthesis_due(grading.load(path))
     log.info("Syntheses written with an older prompt: %d (synthesis model only, about $0.01-0.02 each)", len(stale))
     if stale and not dry_run:
         try:
@@ -321,7 +326,7 @@ HOLDERS_FRESH_DAYS = 30  # `fq holders` skips companies whose holders are younge
 def holder_targets(sel: Selection, cfg: Settings, raw: pd.DataFrame, every: bool) -> list[str]:
     """The companies `fq holders` fetches: every cached ticker of the run; for the benchmark (unless `every`) only those
     the site's lists can show, the best fifth of the combined ranking (`screens.in_best_fraction`), the latest
-    published tabs (Cheapest, Best businesses and Temporary trouble are not cut to it) and the holdings."""
+    published tabs (Cheapest and Best businesses are not cut to it) and the holdings."""
     cached = set(raw["Ticker"])
     tickers = [t for t in sel.tickers if t in cached]
     if every or sel.label != DEFAULT_BENCHMARK or not cfg.ranked_path.exists():
@@ -455,12 +460,12 @@ def load_benchmark_run(cfg: Settings) -> tuple[pd.DataFrame, pd.DataFrame | None
 
 
 def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynthesize_only: bool = False,
-               report: bool = True) -> None:  # fmt: skip
+               report: bool = True, new_only: bool = False) -> None:  # fmt: skip
     """`fq grade`: grades (or syntheses) alone, then the site again from the cache when something changed."""
     ranked, bench = load_benchmark_run(cfg)
     h = Highlights.compute(ranked, cfg, bench)
-    if grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run, resynthesize_only=resynthesize_only) \
-            and report:  # fmt: skip
+    if grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run, resynthesize_only=resynthesize_only,
+                       new_only=new_only) and report:  # fmt: skip
         write_report(cfg, offline=True)
 
 

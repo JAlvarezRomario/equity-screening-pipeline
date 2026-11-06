@@ -1,0 +1,9 @@
+# Global recessions the dividend record is tested through (`report.dividend_record`, user's design, Nov 4, 2026):
+# how far a company's regular dividend fell from the two years before the recession to its lowest pair of years over
+# the recession and the two after. Shown on the company page and tested by the 20-year lists, Unbroken dividends,
+# Real estate and Energy; never scored. Display only: not in `evaluate.METHOD_LISTS`.
+# One downturn per line: `<year>`, then either `not: <model>, ...` (the business models it does not judge) or
+# `only: sector <Yahoo sector>, ...` (a downturn of one sector, judged for its companies only; Nov 5, 2026).
+2009  # global financial crisis
+2015 only: sector Energy  # oil price collapse (mid-2014 to 2016)
+2020 not: bank, insurer  # pandemic; supervisors in Europe and the UK suspended bank and insurer dividends

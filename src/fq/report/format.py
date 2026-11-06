@@ -111,9 +111,19 @@ COLUMN_HELP = {
     "Net_Cash_to_Cap": "Shareholder-basis net cash (spare cash less debt and preferred stock) / market cap, % "
                        "(negative = net debt; N/A for banks, insurers and holdings).",
     "Book_Per_Share_Compounding": "USD book value per share trend x its R², % a year.",
-    "Normal_Earnings_Yield": "Earnings power yield on normal earnings: as the earnings power yield, but without the "
-                             "cap that a lasting fall in profit puts on it (Value scores the capped one), %.",
-    "heldPercentInsiders": "Shares held by insiders (managers, directors, founding families, a parent company), % "
+    "Dividend_Unbroken_Years": "Calendar years back from the last complete one with the regular dividend per share "
+                               "raised or held (specials left out, payment timing allowed for, in the declared "
+                               "currency). Shown, never scored.",
+    "Recession_Dividend_Note": "How the regular dividend per share (specials left out, declared currency) went through "
+                               "each global recession on file (lists/recessions.txt): its lowest two-year mean over "
+                               "the recession and the two years after, against the two years before. 2020 is not "
+                               "judged for banks and insurers, whose supervisors suspended dividends. Shown, and "
+                               "tested by the 20-year lists; never scored.",
+    "Recession_Dividend_Fall": "The worst fall of the regular dividend through a global recession on file, %. Shown, "
+                               "never scored.",
+    "Regular_DPS_Growth_10Y": "Regular dividend per share (specials left out, declared currency), % a year over 10 "
+                              "years. Shown, never scored.",
+    "heldPercentInsiders":"Shares held by insiders (managers, directors, founding families, a parent company), % "
                            "(Yahoo). Shown, never scored.",
 }  # fmt: skip
 

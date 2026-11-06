@@ -181,6 +181,55 @@ def get_treasury_yield(cache_path: Path | None = None) -> float:
     return FALLBACK_TREASURY_YIELD
 
 
+ESTR_URL = "https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?lastNObservations=1&format=jsondata"
+BROKER_SPREAD = 1.5  # %: a typical broker's margin over €STR on a euro margin loan
+BORROW_BUFFER = 0.5  # %: the user's safety margin on top (user's choice, Nov 5, 2026)
+FALLBACK_BORROW_RATE = 3.75  # %: when neither the ECB nor a stored rate is at hand
+_borrow_cache: dict[str, float] = {}
+
+
+def _estr() -> float | None:
+    """The latest euro short-term rate (€STR, %) from the ECB's data API, or None."""
+    import urllib.request
+
+    with urllib.request.urlopen(ESTR_URL, timeout=20) as resp:  # noqa: S310 - a fixed https URL
+        data = json.loads(resp.read().decode("utf-8"))
+    for series in data["dataSets"][0]["series"].values():
+        values = [obs[0] for obs in series["observations"].values() if obs and obs[0] is not None]
+        if values:
+            return float(values[-1])
+    return None
+
+
+def get_borrow_rate(cache_path: Path | None = None) -> float:
+    """What a euro margin loan costs (%), the Untaxed dividends list's hurdle (user's choice, Nov 5, 2026: obtained,
+    not hardcoded): €STR from the ECB (`ESTR_URL`) + `BROKER_SPREAD` + `BORROW_BUFFER`. The rate is stored in
+    `cache_path` with its date; when the ECB cannot be reached, the stored rate is used, else `FALLBACK_BORROW_RATE`."""
+    key = str(cache_path or "default")
+    if key in _borrow_cache:
+        return _borrow_cache[key]
+    saved = None
+    if cache_path and cache_path.is_file():
+        try:
+            saved = float(json.loads(cache_path.read_text(encoding="utf-8")).get("rate"))
+        except (OSError, ValueError, TypeError):
+            saved = None
+    try:
+        estr = _estr()
+        if estr is not None and 0 <= estr < 20:
+            rate = round(estr + BROKER_SPREAD + BORROW_BUFFER, 2)
+            if cache_path:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                record = {"asof": date.today().isoformat(), "estr": estr, "rate": rate}
+                cache_path.write_text(json.dumps(record, indent=1), encoding="utf-8")
+            _borrow_cache[key] = rate
+            return rate
+    except Exception as exc:
+        log.warning("Could not fetch the euro short-term rate (%s)", exc)
+    _borrow_cache[key] = saved if saved is not None and saved > 0 else FALLBACK_BORROW_RATE
+    return _borrow_cache[key]
+
+
 def rate_on(currency: str, when) -> float | None:
     """Value of one unit of `currency` in USD on `when` (last quote on or before it); None if unknown."""
     base, units = MINOR_UNITS.get(currency, (currency, 1))

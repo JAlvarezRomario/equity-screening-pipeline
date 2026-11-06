@@ -467,6 +467,10 @@ class Settings:
     ranked_models: tuple[str, ...] = (
         "operating", "client_cash", "float", "asset_heavy", "bank", "insurer", "holding",
     )  # fmt: skip
+    # Scored with the market as above, but no position in the ranks (`ranking.rank_group`; user's choice, Nov 5, 2026:
+    # a lender's or a holding's yardstick is not an operating company's, so the rankings hold profitable operating
+    # companies only; these have lists of their own). Equity REITs leave by industry (`lists/real_estate_owners.txt`).
+    rank_apart_models: tuple[str, ...] = ("bank", "insurer", "holding")
     # Asset-heavy companies: capex up to depreciation keeps the assets (maintenance, deducted from FCF);
     # the rest buys growth and is left out of earnings power.
     maintenance_capex_to_da: float = 1.0
@@ -555,13 +559,12 @@ class Settings:
     # "Better every year" (Oct 28, 2026), which they replaced.
     improver_min_years: int = 3
     # "Dividend carry" list (`format.dividend_carry_list`, user's choice Oct 29, 2026), display only: no dividend
-    # withholding for a non-resident, `Dividend_Yield` at least `carry_min_yield` (%) and above `carry_borrow_rate` (%,
-    # what money can be borrowed at, so the dividend pays the loan's interest), covered by the owner yield (the
-    # remainder is retained and still grows the value), dividends and owner earnings per share trending up over at
-    # least `carry_min_years` annual reports (newest above oldest, at most `carry_max_dips` year-on-year falls), not
-    # cyclical, not at peak margins; trusted as `ranking.top_n`.
+    # withholding for a non-resident, `Dividend_Yield` at least `carry_min_yield` (%) and above the cost of a euro
+    # margin loan (`fx.get_borrow_rate`: €STR from the ECB + broker spread + buffer, obtained each report, not set
+    # here; Nov 5, 2026), covered by the owner yield (the remainder is retained and still grows the value), owner
+    # earnings per share trending up over at least `carry_min_years` annual reports (newest above oldest, at most
+    # `carry_max_dips` year-on-year falls), not cyclical, not at peak margins; trusted as `ranking.top_n`.
     carry_min_yield: float = 5.0
-    carry_borrow_rate: float = 3.5
     carry_min_years: int = 3
     carry_max_dips: int = 1
     # "Net cash" list (`format.net_cash_list`, user's choice Oct 29, 2026), display only: net cash at least

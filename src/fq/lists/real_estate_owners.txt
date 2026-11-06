@@ -1,0 +1,13 @@
+# Yahoo industries of the equity REITs: property owners whose book is depreciated cost under US GAAP and usually fair
+# value under IFRS (IAS 40), so they are not compared with operating companies. Scored as today (`asset_heavy`), but
+# ranked apart (`ranking.rank_group`, "real_estate"; user's choice, Nov 5, 2026) and listed in "Real estate"
+# (`screens.real_estate_list`). Mortgage REITs are banks already; developers and real estate services stay operating.
+# In `evaluate.METHOD_LISTS`. One Yahoo industry per line, as Yahoo spells it.
+REIT - Diversified
+REIT - Industrial
+REIT - Office
+REIT - Residential
+REIT - Retail
+REIT - Healthcare Facilities
+REIT - Hotel & Motel
+REIT - Specialty

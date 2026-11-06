@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from fq.ranking import comparable, top_n
+from fq.ranking import rankable, top_n
 from fq.settings import Settings
 
 log = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ SNAPSHOT_FLAGS = (
 )  # fmt: skip
 SNAPSHOT_COLUMNS = (
     "Ticker", "sector", "currentPrice", "Rank", "Value_Rank", "Quality_Rank", "Value_Score", "Quality_Score",
-    "Momentum_6M", "EPV_Yield", "currency", "Business_Model", "Ranked_Model", "Benchmark",
+    "Momentum_6M", "EPV_Yield", "currency", "Business_Model", "Ranked_Model", "Rank_Group", "Benchmark",
     *SNAPSHOT_FLAGS,
 )  # fmt: skip
 # What decides a score: the scoring code and the lists that set models, cyclicals and exclusions. Index member
@@ -48,6 +48,7 @@ METHOD_MODULES = ("ranking.py", "settings.py", "filters.py", "universe.py", "inf
 METHOD_LISTS = (
     "business_models.txt", "model_overrides.txt", "cyclical_industries.txt", "excluded_industries.txt",
     "excluded_tickers.txt", "share_classes.txt", "accounting_standards.txt", "inflation_basis.txt",
+    "real_estate_owners.txt",
 )  # fmt: skip
 UNKNOWN_METHOD = "unknown"  # snapshots saved before methods were recorded
 
@@ -232,7 +233,7 @@ def _lists(snap: pd.DataFrame, top: int, published: pd.DataFrame | None = None) 
     if "Dislocation" in snap.columns:
         lists["Dislocation"] = snap.loc[snap["Dislocation"] == True, "Ticker"]  # noqa: E712
         # Controls: does the mood filter beat cheapness alone? Trusted, comparable cheap companies.
-        trusted = comparable(snap)
+        trusted = rankable(snap)
         for flag in ("Data_Suspect", "Insufficient_Data"):
             if flag in snap.columns:
                 trusted &= snap[flag] != True  # noqa: E712
@@ -248,7 +249,7 @@ def _lists(snap: pd.DataFrame, top: int, published: pd.DataFrame | None = None) 
             lists["Cheap, revenue declining"] = snap.loc[cheap & (snap["Revenue_Decline"] == True), "Ticker"]  # noqa: E712
         if "Accounting_Flag" in snap.columns:  # does leaving earnings ahead of cash out of the lists help?
             lists["Cheap, accruals"] = snap.loc[cheap & (snap["Accounting_Flag"] == True), "Ticker"]  # noqa: E712
-    scored = snap[comparable(snap)].dropna(subset=["Value_Score"])
+    scored = snap[rankable(snap)].dropna(subset=["Value_Score"])
     if len(scored) >= 25:
         quintile = pd.qcut(scored["Value_Score"].rank(method="first"), 5, labels=False)
         for q in range(5):
@@ -273,8 +274,8 @@ def evaluate_snapshot(
             mean = float(r.mean())
             rows.append({"List": name, "N": len(r), "Return": mean, "Excess": mean - median,
                          "Excess_Market": mean - market})  # fmt: skip
-    # Headline ICs over the ranked models only: the others are percentiles within their own peer group.
-    ranked, ranked_fwd = snap[comparable(snap)], fwd[comparable(snap)]
+    # Headline ICs over the ranked companies only (`rankable`): the others are judged against their own kind.
+    ranked, ranked_fwd = snap[rankable(snap)], fwd[rankable(snap)]
     ic = {col: _spearman(ranked[col], ranked_fwd) for col in ("Value_Score", "Quality_Score") if col in snap.columns}
     # Per business model (`model:<name>:<score>`): the evidence needed before a model joins the ranking.
     if "Business_Model" in snap.columns:

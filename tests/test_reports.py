@@ -276,15 +276,17 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book, Net-nets,
-    # Net cash, Off the radar, Dividend carry, Temporary trouble.
-    assert len(panels) == 14
+    # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book,
+    # Net cash, Off the radar, Dividend carry, Unbroken dividends; by kind: Banks and lenders, Insurers, Real estate,
+    # Energy (Nov 5, 2026).
+    assert len(panels) == 17
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
-    # Three rows of tabs; two shown by their plain label, stored under their frozen name.
-    assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in ("Start here", "By style", "Raw scores"))
+    # Four rows of tabs; two shown by their plain label, stored under their frozen name.
+    groups = ("Start here", "By style", "By kind", "Raw scores")
+    assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert "Untaxed dividends" in html and ">Dividend carry<" not in html
     assert "Operating companies" in html and "Fast growers" in html and "Steady growers, net cash" not in html
 
@@ -596,26 +598,18 @@ def test_net_cash_list(cfg):
     assert 'data-panel="hl-net-cash">Net cash</button>' in build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
 
 
-def test_net_net_list_needs_net_current_assets_above_the_price_without_the_best_fraction(cfg):
-    from fq.ranking import trusted
+def test_net_net_pill_marks_net_current_assets_above_the_price_excluding_banks_and_homebuilders(cfg):
     from fq.report.pills import tags
-    from fq.report.screens import net_net_list
 
-    df = _ranked(cfg).copy()
-    df = df[df["Rank"].notna() & trusted(df)].head(5).copy()
-    df.loc[:, ["NCAV_to_Price", "Owner_Yield", "Share_Reduction_Rate"]] = [120.0, 5.0, 0.0]
-    df["Financial_Mode"] = False
-    df["In_Best_Fraction"] = False  # no best-fraction cut: net-nets rarely score high on Quality
-    rows = df.index
-    df.loc[rows[1], "NCAV_to_Price"] = 80.0  # the fixed assets are not free
-    df.loc[rows[2], "Owner_Yield"] = -1.0  # burning the net current assets
-    df.loc[rows[3], "Share_Reduction_Rate"] = -3.0  # diluting them
-    df.loc[rows[4], "Financial_Mode"] = True  # a lender's current assets mean nothing
-    assert list(net_net_list(df, len(df))["Ticker"]) == [df.loc[rows[0], "Ticker"]]
-    assert "net-net" in [t["word"] for t in tags(df.loc[rows[0]])]
-    assert "net-net" not in [t["word"] for t in tags(df.loc[rows[1]])]
+    base = {"NCAV_to_Price": 120.0, "Financial_Mode": False, "industry": "Auto Parts"}
+    row = lambda **over: pd.Series(base | over)  # noqa: E731
+    assert "net-net" in [t["word"] for t in tags(row())]
+    assert "net-net" not in [t["word"] for t in tags(row(NCAV_to_Price=80.0))]
+    assert "net-net" not in [t["word"] for t in tags(row(Financial_Mode=True))]
+    assert "net-net" not in [t["word"] for t in tags(row(industry="Residential Construction"))]
+    assert "net-net" not in [t["word"] for t in tags(row(industry="Real Estate - Development"))]
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-net-nets">Net-nets</button>' in html and "the plant and the business come at no cost" in html
+    assert 'data-panel="hl-asset-plays">Below book</button>' in html and "net-net" in html
 
 
 def test_list_filters_for_reinvestment_and_pricing_power(cfg):
@@ -768,63 +762,6 @@ def test_bond_hurdle_and_owner_led_pill_and_zero_withholding_badge():
     assert company_flags(pd.Series({"Dividend_WHT": 15.0})) == []
 
 
-def test_temporary_trouble_finds_good_businesses_that_fell_and_stopped_falling(cfg):
-    from fq.report.screens import normal_earnings_yield, trouble_funnel, trouble_list
-
-    df = _ranked(cfg).copy()
-    one = df[df["Rank"].notna()].head(1)
-    df = pd.concat([one] * 14, ignore_index=True)
-    df["Ticker"] = [f"T{i}" for i in range(len(df))]
-    df["Rank"] = np.arange(1.0, len(df) + 1)
-    good = {"EBIT_Change_Recent": -30.0, "Earnings_Collapse": False, "ROIC_Norm": 20.0, "Quality_Score": 70.0,
-            "FCF_Positive_Share": 100.0, "Financial_Mode": False, "Business_Model": "operating",
-            "industry": "Apparel Retail", "Net_Debt": -100.0, "Common Stock Equity_TTM": 1000.0,
-            "EPV_Yield": 9.0, "Pretax Income_Q0": 90.0, "Total Unusual Items_Q0": 0.0, "Pretax Income_Q1": 120.0,
-            "Total Unusual Items_Q1": 0.0, "Pretax Income_Q4": 100.0, "Total Unusual Items_Q4": 0.0}  # fmt: skip
-    for flag in ("Data_Suspect", "Insufficient_Data", "Industry_Excluded_Kept", "Peak_Margin", "Distress",
-                 "Revenue_Decline"):  # fmt: skip
-        df[flag] = False
-    df["Model_Review"] = None
-    for col, value in good.items():
-        df[col] = value
-    rows = df.index
-    df.loc[rows[1], "EBIT_Change_Recent"] = 5.0  # nothing fell
-    df.loc[rows[2], "ROIC_Norm"] = 8.0  # not a good business
-    df.loc[rows[3], "Revenue_Decline"] = True  # dying
-    df.loc[rows[4], "Distress"] = True  # bad balance sheet
-    df.loc[rows[5], "industry"] = "Information Technology Services"  # fragile to AI
-    df.loc[rows[6], "Pretax Income_Q0"] = 40.0  # still falling: -60% on the year, worse than the -30% drop
-    df.loc[rows[7], "EPV_Yield"] = 4.0  # not cheap on normal earnings
-    # A bank's EBIT and revenue say little.
-    df.loc[rows[8], ["Financial_Mode", "Business_Model"]] = [True, "bank"]
-    df.loc[rows[8], "Total Revenue_TTM"] = 0.5 * df.loc[rows[8], "Total Revenue_TTM"]
-    df.loc[rows[9], ["EBIT_Change_Recent", "Earnings_Collapse"]] = [np.nan, True]  # a lasting fall in profit
-    df.loc[rows[10], ["Pretax Income_Q0", "Pretax Income_Q1", "Pretax Income_Q4"]] = np.nan  # no quarters: passes
-    df.loc[rows[11], "Data_Suspect"] = True  # figures to check
-    before = df.loc[rows[12], ["Total Revenue_Y0", "Total Revenue_Y1", "Total Revenue_Y2"]].mean()
-    df.loc[rows[12], "Total Revenue_TTM"] = 0.8 * before  # customers leaving: 80% of the three years before
-    df.loc[rows[13], "Total Revenue_Y0"] = np.nan  # one of the years missing: the other two are enough
-    df.loc[rows[13], "Total Revenue_TTM"] = 0.9 * df.loc[rows[13], ["Total Revenue_Y1", "Total Revenue_Y2"]].mean()
-    # A lasting fall's yield is rebuilt from its flows without the cap (the synthetic company's is 5.5%), so the
-    # EPV_Yield set above is not what it is judged on; a 5% hurdle keeps it.
-    assert normal_earnings_yield(df).loc[rows[9]] != 9.0
-    picked = trouble_list(df, len(df), hurdle=5.0)
-    assert set(picked["Ticker"]) == set(df.loc[[rows[0], rows[9], rows[10], rows[13]], "Ticker"])
-    assert list(picked["Rank"]) == sorted(picked["Rank"]) and "Normal_Earnings_Yield" in picked.columns
-    assert trouble_list(df, len(df), hurdle=10.0).empty
-    steps = trouble_funnel(df, 5.0)
-    funnel = [count for _, count in steps]
-    assert funnel[0] == len(df) and funnel[-1] == len(picked)
-    labels = [label for label, _ in steps]
-    held = labels.index("customers still there")
-    assert funnel[held - 1] - funnel[held] == 1  # only the company whose revenue fell to 80%
-    assert all(a >= b for a, b in zip(funnel, funnel[1:], strict=False))
-    # Without a lasting fall the normal yield is the earnings power yield Value already uses.
-    assert normal_earnings_yield(df.drop(rows[9])).equals(pd.to_numeric(df.drop(rows[9])["EPV_Yield"]))
-    html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-trouble">Temporary trouble</button>' in html
-
-
 def test_published_lists_follow_the_tabs_and_the_liquidity_floor(cfg):
     from fq.report.highlights import highlight_picks, listable, published_lists
 
@@ -839,24 +776,37 @@ def test_published_lists_follow_the_tabs_and_the_liquidity_floor(cfg):
 
 
 def test_repeaters_count_lists_order_by_count_then_rank_and_need_a_pass():
-    """Repeaters (Oct 31, 2026): on two or more lists, a screen counting every company it admits and a ranked list
-    only the rows it shows; most lists first, then the combined rank; only a passing grade enters."""
+    """Repeaters: on two or more screened lists across distinct styles (`_REPEAT_FAMILIES`), each list requiring its
+    own grade gate (`~fails`); pure score rankings (`RANKED_TABS`) left out; most lists first, then the combined rank."""
     from fq.report import highlights as hl
 
-    df = pd.DataFrame({"Ticker": list("ABCDE"), "Rank": [5.0, 1.0, 2.0, 3.0, 4.0],
-                       "Grade_Pass": [True, True, True, None, False]})  # fmt: skip
+    df = pd.DataFrame({"Ticker": list("ABCDEFG"), "Rank": [5.0, 1.0, 2.0, 3.0, 4.0, 6.0, 7.0],
+                       "Grade_Pass": [True, True, True, None, False, True, True]})  # fmt: skip
     head = lambda tickers: lambda d, n: d[d["Ticker"].isin(list(tickers))].head(n)  # noqa: E731
+    # Shortlist has its own stricter grade bar: B passes the regular bar (4/4) but fails Shortlist's bar.
+    shortlist_pick = lambda d, n: d[d["Ticker"].isin(["B"])].assign(Grade_Pass=False).head(n)  # noqa: E731
     picks = {
-        "Cheap and good": (head("BCDE"), 1),  # a ranked list: only B, the row it shows, counts
-        "Fast growers": (head("ABCDE"), 1),  # a screen: everyone it admits counts, beyond the row shown
-        "Net cash": (head("AD"), 20),
+        "Cheap and good": (head("BCDE"), 1),  # a pure ranking (`RANKED_TABS`): ignored by Repeaters
+        "Shortlist": (shortlist_pick, 20),  # B fails Shortlist's stricter grade bar, so Shortlist does not count for B
+        "Operating companies": (head("AF"), 20),  # compounder family
+        "Fast growers": (head("ABCDEF"), 1),  # compounder family: F is on both compounder lists only (1 family)
+        "Below book": (head("G"), 20),  # balance-sheet family
+        "Net cash": (head("ABDG"), 20),  # balance-sheet family: G is on both balance-sheet lists only (1 family)
         "Cannibals": (head("AE"), 20),
     }
     every = hl.repeater_candidates(df, picks)
-    assert list(every["Ticker"]) == ["A", "B", "D", "E"]  # A on 3; then B, D, E on 2 by rank; C on 1 only
-    assert every.set_index("Ticker").at["A", "Repeat_Lists"] == "Fast growers, Cannibals, Net cash"
+    # A qualifies on 4 lists across 3 families; B and D on 2 across 2 families; C on 1 list; E fails Grade_Pass;
+    # F (Operating + Fast growers) and G (Below book + Net cash) only qualify within a single thesis family.
+    assert list(every["Ticker"]) == ["A", "B", "D"]
+    assert every.set_index("Ticker").at["A", "Repeat_Lists"] == (
+        "Operating companies, Fast growers, Cannibals, Net cash"
+    )
+    assert every.set_index("Ticker").at["A", "Repeat_Count"] == 4.0
     shown = hl.repeater_list(df, 20, picks)
-    assert list(shown["Ticker"]) == ["A", "B"]  # D ungraded and E below the bar stay out
+    assert list(shown["Ticker"]) == [
+        "A",
+        "B",
+    ]  # D is ungraded, so it is in `repeater_candidates` (for grading) but not shown
     assert tuple(hl.highlight_picks(6.0)) == hl.TAB_ORDER and hl.REPEATERS in hl.TAB_ORDER
 
 
@@ -939,76 +889,37 @@ def test_unreliable_companies_are_left_off_the_map(cfg):
     assert slug(df.loc[0, "Ticker"]) not in slugs
 
 
-def test_ai_screen_leaves_out_fragile_industries_and_exposed_ones_but_their_growing_leaders():
+def test_ai_screen_leaves_out_all_fragile_and_exposed_industries():
     from fq.report.screens import ai_resilient
 
     df = pd.DataFrame({
-        "industry": ["Consulting Services", "Software - Application", "Software - Application",
-                     "Software - Application", "Software - Application", "Packaged Foods", None],
-        "Industry_Leader": [True, False, True, True, True, False, False],
-        "Per_Share_Compounding": [9.0, 9.0, 8.0, np.nan, 8.0, -4.0, np.nan],
-        "Revenue_Change_Recent": [1.0, 1.0, 2.0, 2.0, -3.0, -9.0, np.nan],
+        "industry": ["Consulting Services", "Software - Application", "Software - Infrastructure",
+                     "Entertainment", "Broadcasting", "Packaged Foods", None],
     })  # fmt: skip
-    # fragile; exposed non-leader; exposed leader growing (kept); growth not shown; recent revenue down; other; blank
-    assert list(ai_resilient(df)) == [False, False, True, False, False, True, True]
+    assert list(ai_resilient(df)) == [False, False, False, False, False, True, True]
 
 
-def test_ai_screen_applies_to_every_list_but_the_pure_scores(cfg):
+def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_rankings(cfg):
     from fq.ranking import trusted
-    from fq.report.highlights import Highlights
-    from fq.report.pills import tags
+    from fq.report.highlights import RANKED_TABS, TABS, Highlights
+    from fq.report.screens import shortlist_funnel
 
     df = _ranked(cfg).copy()
     df["industry"] = "Packaged Foods"
+    df["Cannibal"] = True
     good = df.index[df["Rank"].notna() & trusted(df)]
-    fragile, exposed = good[0], good[1]
+    fragile, software = good[0], good[1]
     df.loc[fragile, "industry"] = "Consulting Services"
-    df.loc[exposed, ["industry", "Per_Share_Compounding", "Revenue_Change_Recent"]] = [
-        "Software - Application",
-        10.0,
-        1.0,
-    ]
+    df.loc[software, "industry"] = "Software - Application"
     h = Highlights.compute(df, cfg)
-    assert df.loc[fragile, "Ticker"] not in set(h.shown("Cheap and good")["Ticker"])
-    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheapest")["Ticker"])  # a pure score: not screened
-    assert df.loc[exposed, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])  # its industry's only company leads it
-    row = h.frame[h.frame["Ticker"] == df.loc[exposed, "Ticker"]].iloc[0]
-    assert "AI-exposed" in [t["word"] for t in tags(row)]
-    assert "AI-exposed" not in [
-        t["word"] for t in tags(h.frame[h.frame["Ticker"] == df.loc[fragile, "Ticker"]].iloc[0])
-    ]
-    from fq.report.screens import shortlist_funnel
-
+    # All three pure-score rankings (`Cheap and good`, `Cheapest`, `Best businesses`) are unscreened for AI.
+    assert set(RANKED_TABS) == {"Cheap and good", "Cheapest", "Best businesses"}
+    assert all(not t.ai_screen for t in TABS if t.ranked)
+    assert all(t.ai_screen for t in TABS if not t.ranked)
+    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])
+    assert df.loc[software, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])
+    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheapest")["Ticker"])
+    # Every screened list excludes both Consulting Services and Software - Application.
+    assert df.loc[fragile, "Ticker"] not in set(h.shown("Cannibals")["Ticker"])
+    assert df.loc[software, "Ticker"] not in set(h.shown("Cannibals")["Ticker"])
     assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted
-
-
-def test_financial_mix_notes_a_list_where_financials_are_over_represented():
-    from fq.report.screens import financial_mix
-
-    universe = pd.DataFrame({"Financial_Mode": [True] * 10 + [False] * 90})  # 10% of the companies ranked
-    models = ["insurer"] * 3 + ["bank"] * 2 + ["holding"]
-
-    def members(financial: int, total: int) -> pd.DataFrame:
-        return pd.DataFrame({"Financial_Mode": [True] * financial + [False] * (total - financial),
-                             "Business_Model": models[:financial] + ["operating"] * (total - financial)})  # fmt: skip
-
-    mix = financial_mix(members(6, 20), universe)  # 30%, three times their share
-    assert (
-        mix["financial"] == 6
-        and mix["total"] == 20
-        and mix["models"] == [("insurers", 3), ("banks", 2), ("holdings", 1)]
-    )
-    assert round(mix["universe_share"]) == 10
-    assert financial_mix(members(3, 20), universe) is None  # 15%: under twice their share
-    assert financial_mix(members(0, 20), universe) is None  # none at all
-    assert financial_mix(members(3, 4), universe) is None  # too few members to say anything
-    assert financial_mix(members(6, 20), universe.iloc[0:0]) is None  # nothing to compare with
-
-
-def test_the_index_says_when_financials_fill_a_list(cfg):
-    from fq.report.highlights import TAB_ORDER, Highlights
-
-    ranked = _ranked(cfg)
-    h = Highlights.compute(ranked, cfg)
-    html = build_site(ranked, cfg).read_text(encoding="utf-8")
-    assert ("list-mix" in html) == any(h.mix(name) for name in TAB_ORDER)  # the note appears exactly where it is due

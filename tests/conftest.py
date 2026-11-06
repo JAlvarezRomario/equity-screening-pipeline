@@ -59,3 +59,12 @@ def make_raw(cfg: Settings, n: int = 6, seed: int = 0, latest_end: str = "2025-1
             }
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+@pytest.fixture(autouse=True)
+def _no_ecb(monkeypatch):
+    """No network in tests: the euro short-term rate is never downloaded (`fx.get_borrow_rate` falls back)."""
+    from fq import fx
+
+    monkeypatch.setattr(fx, "_estr", lambda: None)
+    monkeypatch.setattr(fx, "_borrow_cache", {})

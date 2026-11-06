@@ -13,7 +13,7 @@ import pandas as pd
 
 from fq import grading
 from fq.ranking import value_quality_correlation
-from fq.report import index_charts
+from fq.report import dividend_record, index_charts
 from fq.report import screens as sc
 from fq.report.cards import grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
@@ -60,22 +60,22 @@ TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking. T
                  "management grade (see above) are folded away under each list, not deleted.")  # fmt: skip
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
-                 "distressed balance sheets, collapsing earnings (but Temporary trouble, which looks for them), "
-                 "declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
-                 "models still to confirm. Every list but Cheapest and Best businesses also leaves out the industries AI "
-                 "substitutes most directly (IT services, consulting, staffing, advertising, publishing, education, "
-                 "business services) and, in software, internet content, gaming and health information, every company "
-                 "but the industry's leaders by revenue (top {leader_share}%, the top {leader_min} always) whose sales "
-                 "per share still grow at least {ai_growth}% a year. Cheapest and Best businesses are pure Value and "
-                 "pure Quality; every other "
-                 "list keeps only the best {top} of the combined ranking, in combined-rank order. Each company a "
+                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
+                 "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
+                 "holdings and REITs are judged against their own kind in the By kind lists. Every list but Cheap "
+                 "and good, Cheapest and Best businesses also leaves out "
+                 "the industries AI substitutes or disrupts (software, IT services, consulting, staffing, advertising, "
+                 "publishing, education, business services, internet content, gaming, health information, entertainment "
+                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings; every other "
+                 "list keeps only the best {top} of the combined ranking (of its own kind, for the By kind lists), in "
+                 "combined-rank order. Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
                  "{one} (the Shortlist asks more), are the list; the others stay on it, folded away under the table, and "
                  "none is replaced. A grade changes no score and no rank.")  # fmt: skip
 
 
-def _rule_values(cfg: Settings, hurdle: float, has_bench: bool) -> dict:
+def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: float) -> dict:
     """The thresholds the tabs' sentences quote (`templates/list_rules.html.j2`), formatted once."""
     g = lambda v: f"{v:g}"  # noqa: E731
     return {
@@ -90,8 +90,6 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool) -> dict:
         "ebit_fall": g(-cfg.dislocation_ebit_change_min),
         "net_debt_equity": g(sc.SHORTLIST_MAX_NET_DEBT_EQUITY), "leader_share": g(sc.SHORTLIST_LEADER_SHARE * 100),
         "leader_min": g(sc.SHORTLIST_LEADER_MIN), "hurdle": g(round(hurdle, 1)),
-        "trouble_drop": g(-sc.TROUBLE_EBIT_DROP), "trouble_quality": g(sc.TROUBLE_MIN_QUALITY),
-        "trouble_revenue": g(sc.TROUBLE_MIN_REVENUE_HELD * 100),
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
         "cannibal_min_reduction": g(cfg.cannibal_min_share_reduction), "cannibal_min_value": g(cfg.cannibal_min_value),
         "cannibal_min_quality": g(cfg.cannibal_min_quality),
@@ -104,12 +102,29 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool) -> dict:
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),
         "operating_max_dip": g(sc.OPERATING_MAX_DIP * 100),
         "fast_min_growth": g(sc.FAST_MIN_OE_GROWTH), "fast_min_yield": g(sc.FAST_MIN_YIELD),
-        "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH), "ai_growth": g(sc.AI_MIN_GROWTH),
+        "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH),
         "list_min_incremental": g(sc.LIST_MIN_INCREMENTAL_ROIC), "max_margin_loss": g(sc.MAX_MARGIN_LOSS),
-        "net_net_min": g(sc.NET_NET_MIN_NCAV),
-        "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": g(cfg.carry_borrow_rate),
+        "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": f"{borrow_rate:.2f}",
         "carry_min_years": cfg.carry_min_years,
+        "unbroken_years": sc.UNBROKEN_MIN_YEARS, "unbroken_yield": g(sc.UNBROKEN_MIN_YIELD),
+        "unbroken_owner_yield": g(sc.UNBROKEN_MIN_OWNER_YIELD), "unbroken_payout": g(sc.UNBROKEN_MAX_PAYOUT * 100),
+        "unbroken_growth": g(sc.UNBROKEN_MIN_GROWTH), "unbroken_roic": g(sc.UNBROKEN_MIN_ROIC),
+        "unbroken_shares": g(sc.UNBROKEN_MAX_SHARE_GROWTH), "special_ratio": g(dividend_record.SPECIAL_RATIO),
+        "dividend_held": g(round((1 - dividend_record.HELD) * 100)),
+        "unbroken_judged": dividend_record.JUDGED_YEARS,
+        "recession_fall": g(sc.RECESSION_MAX_FALL),
+        "recessions": " and ".join(str(y) for y, _, only in dividend_record.recessions() if not only),
+        "recession_exempt": "; ".join(
+            f"{y} not for {', '.join(sorted(m + 's' for m in exempt))}" for y, exempt, _ in dividend_record.recessions()
+            if exempt
+        ),
+        "downturns": "; ".join(
+            f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
+        ),
         "repeater_ranked": ", ".join(RANKED_TABS),
+        "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
+        "energy_value": g(sc.ENERGY_MIN_VALUE), "energy_quality": g(sc.ENERGY_MIN_QUALITY),
+        "energy_roic": g(sc.ENERGY_MIN_ROIC), "carry_unbroken": sc.CARRY_MIN_UNBROKEN_YEARS,
     }  # fmt: skip
 
 
@@ -139,7 +154,7 @@ def tab_views(h: Highlights) -> list[dict]:
     total (the stored `name` stays out of sight, `Tab.label`)."""
     return [{"name": t.label or t.name, "panel": t.panel, "heading": t.label or t.heading or t.name, "key": t.key,
              "group": t.group, "ranked": t.ranked, "rows": _list_rows(h, t), "total": h.total(t.name),
-             "headers": headers(t.columns), "funnel": h.funnel(t.name), "mix": h.mix(t.name)} for t in TABS]  # fmt: skip
+             "headers": headers(t.columns), "funnel": h.funnel(t.name)} for t in TABS]  # fmt: skip
 
 
 def tab_groups(top: str) -> dict[str, dict[str, str]]:
@@ -227,16 +242,13 @@ def build_site(
         histograms=index_charts.histogram_divs(df, bench, held=held),
         tabs=tab_views(h),
         groups=tab_groups(top),
-        rule=_rule_values(cfg, h.hurdle, has_bench),
+        rule=_rule_values(cfg, h.hurdle, has_bench, h.borrow_rate),
         top_list_lead=TOP_LIST_LEAD,
         top_list_note=TOP_LIST_NOTE.format(
             top=top,
             liquid=f"${cfg.list_min_traded_usd / 1e3:,.0f}k",
             both=f"{grading.MIN_BOTH:g}",
             one=f"{grading.MIN_ONE:g}",
-            leader_share=f"{sc.SHORTLIST_LEADER_SHARE * 100:g}",
-            leader_min=sc.SHORTLIST_LEADER_MIN,
-            ai_growth=f"{sc.AI_MIN_GROWTH:g}",
         ),
         industries=sc.industry_averages(df, bench),
         headers=headers(columns, groups=True),

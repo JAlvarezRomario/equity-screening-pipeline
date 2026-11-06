@@ -516,20 +516,33 @@ def test_unranked_models_are_scored_but_not_ranked(cfg):
 
     group = apply_dual_ranking(df.iloc[[1]].reset_index(drop=True), c, reference=ranked, benchmark="b")
     assert group["Benchmark_N"].iloc[0] == 3  # the bank is not counted among the ranked
-    ranked_on = apply_dual_ranking(df, replace(c, ranked_models=("operating", "bank")))
+    ranked_on = apply_dual_ranking(df, replace(c, ranked_models=("operating", "bank"), rank_apart_models=()))
     assert ranked_on["Rank"].notna().all()  # switching a model on ranks it
 
 
-def test_every_model_is_ranked_financial_value_against_peers(cfg):
-    df, c = _toy(cfg, a=[10, 5, 1, 7], b=[1, 5, 1, 2])
+def test_banks_insurers_holdings_reits_and_loss_makers_are_scored_but_ranked_apart(cfg):
+    # User's choice, Nov 5, 2026: the rankings hold profitable operating companies only; scores do not move.
+    df, c = _toy(cfg, a=[10, 5, 1, 7, 6, 4, 3], b=[1, 5, 1, 2, 3, 4, 2])
     c = replace(c, financial_value_criteria=c.value_criteria, financial_quality_criteria=c.quality_criteria)
-    df["Business_Model"] = ["bank", "operating", "holding", "operating"]
+    df["Business_Model"] = ["bank", "operating", "holding", "operating", "insurer", "asset_heavy", "operating"]
+    df["industry"] = [None, None, None, None, None, "REIT - Retail", None]
+    df["Owner_Yield"] = [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, -1.0]  # T6 loses money in a normal year
     ranked = apply_dual_ranking(df, c).set_index("Ticker")
-    assert ranked["Rank"].notna().all() and ranked["Ranked_Model"].all()  # user's choice: one ranking
-    assert {"T0", "T2"} <= set(top_n(ranked.reset_index(), "Value_Rank", 4)["Ticker"])
-    # Ranked with everyone, but cheap among its own kind: a lender's levered yield is not set against EV yields.
+    assert ranked["Rank_Group"].to_dict() == {"T0": "financial", "T1": "ranked", "T2": "holding", "T3": "ranked",
+                                              "T4": "financial", "T5": "real_estate", "T6": "unprofitable"}  # fmt: skip
+    apart = ranked["Rank_Group"] != "ranked"
+    assert ranked.loc[apart, ["Rank", "Value_Rank", "Quality_Rank"]].isna().all().all()
+    assert ranked.loc[~apart, "Rank"].tolist() and ranked["Ranked_Model"].all()  # still in the market's reference
+    # The scores are those of one ranking: taking the kinds apart moves positions only.
+    together = apply_dual_ranking(df, replace(c, rank_apart_models=())).set_index("Ticker")
+    for col in ("Value_Score", "Quality_Score"):
+        assert ranked[col].to_dict() == pytest.approx(together[col].to_dict())
+    # Cheap among its own kind: a lender's levered yield is not set against EV yields.
     market = apply_dual_ranking(df, replace(c, value_market_families=("operating", "asset_heavy", "financial")))
     assert ranked.at["T0", "Value_Score"] > market.set_index("Ticker").at["T0", "Value_Score"]
+    # The ranked rows first, then the others.
+    order = apply_dual_ranking(df, c)["Ticker"].tolist()
+    assert set(order[:2]) == {"T1", "T3"}
 
 
 def test_peer_groups_fall_back_to_the_family():

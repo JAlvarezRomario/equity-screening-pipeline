@@ -113,7 +113,7 @@ def test_unranked_models_are_told_why_they_are_not_flagged(cfg):
          "EBIT_Change_Recent": 2.0, "EPS_Rev_90d": 0.0, "Ranked_Model": [True, False]}
     )  # fmt: skip
     flag, text = dislocation(df, cfg)
-    assert flag.tolist() == [True, False] and "business model is not ranked" in text[1]
+    assert flag.tolist() == [True, False] and "not in the rankings" in text[1]
 
 
 def test_headline_ic_leaves_out_unranked_models():

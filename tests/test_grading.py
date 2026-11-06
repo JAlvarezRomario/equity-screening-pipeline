@@ -190,3 +190,23 @@ def test_the_shortlist_asks_both_at_three_and_one_at_four():
     assert not grading.passes_shortlist(3.5, 3.75)  # clears the other lists' bar, not the Shortlist's
     assert not grading.passes_shortlist(2.5, 5.0) and grading.passes(2.5, 5.0)  # one outstanding grade is not enough
     assert grading.passes_shortlist(None, 4.0) is None
+
+
+def test_new_only_grades_never_graded_companies_and_rewrites_no_synthesis(cfg, monkeypatch):
+    # User's rule, Nov 5, 2026: new lists may be graded, but no re-grade is spent.
+    from types import SimpleNamespace
+
+    from fq import grading, pipeline
+
+    path = cfg.data_dir / "grades.parquet"
+    grading.save(pd.DataFrame({"Ticker": ["OLD"], "Graded_At": [pd.Timestamp("2020-01-01")]}), path)
+    sent, rewritten = [], []
+    monkeypatch.setattr(pipeline, "portfolio", lambda: set())
+    monkeypatch.setattr(grading, "due", lambda candidates, *a: list(candidates))  # both due: OLD by age
+    monkeypatch.setattr(grading, "run", lambda todo, *a: sent.extend(todo) or pd.DataFrame({"Cost_USD": []}))
+    monkeypatch.setattr(grading, "synthesis_due", lambda grades: ["OLD"])
+    monkeypatch.setattr(grading, "resynthesize", lambda stale, *a: rewritten.extend(stale) or len(stale))
+    h = SimpleNamespace(grade_pool=lambda: ["NEW", "OLD"])
+    ranked = pd.DataFrame({"Ticker": ["NEW", "OLD"]})
+    pipeline.grade_companies(cfg, ranked, h, max_grades=150, new_only=True)
+    assert sent == ["NEW"] and rewritten == []

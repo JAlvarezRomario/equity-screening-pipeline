@@ -246,6 +246,9 @@ def grade_cmd(
         bool, typer.Option(help="Only rewrite syntheses made with an older synthesis prompt (no new grades).")
     ] = False,
     report: Annotated[bool, typer.Option(help="Rebuild the site afterwards (from the cache, no download).")] = True,
+    new_only: Annotated[
+        bool, typer.Option(help="Only companies never graded: no re-grade and no synthesis rewrite is spent.")
+    ] = False,
     data_dir: DataDirOpt = Path("data"),
     output_dir: OutDirOpt = Path("output"),
 ) -> None:
@@ -253,7 +256,7 @@ def grade_cmd(
     due (a new annual report, or a year old); `fq run -u benchmark` does this too, within `max_grades`."""
     _setup_logging()
     cfg = Settings(data_dir=data_dir, output_dir=output_dir, label=DEFAULT_BENCHMARK)
-    pipeline.grade_only(cfg, max_grades, dry_run, resynthesize, report)
+    pipeline.grade_only(cfg, max_grades, dry_run, resynthesize, report, new_only)
 
 
 @app.command("holders")

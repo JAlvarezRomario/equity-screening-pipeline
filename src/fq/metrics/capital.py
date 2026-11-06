@@ -5,9 +5,20 @@ import pandas as pd
 
 from fq.metrics.common import _col, _first_valid, _frame, _latest, _liquidity, _spare_cash
 from fq.settings import Settings
-from fq.universe import accounting_standard, model_overrides
+from fq.universe import accounting_standard, industry_key, model_overrides
 
 EV_FLOOR_SHARE = 0.1  # EV never below this share of market cap (net cash near or above the price)
+# Homebuilders and property developers book unsold land and houses under construction as Current Assets (inventory),
+# which is not liquid working capital for Graham's net-net test (`_book_ratios`).
+NCAV_EXCLUDED_INDUSTRIES = frozenset(
+    industry_key(i)
+    for i in (
+        "Real Estate - Development",
+        "Real Estate - Diversified",
+        "Real Estate Services",
+        "Residential Construction",
+    )
+)
 
 
 def _leases(df: pd.DataFrame, cfg: Settings) -> None:
@@ -212,14 +223,19 @@ def _to_value_base(df: pd.DataFrame, yields: pd.Series) -> pd.Series:
 
 def _book_ratios(df: pd.DataFrame, cfg: Settings) -> None:
     """Book value, tangible book and net current asset value (`NCAV_to_Price`, Graham's net-net test; not for banks,
-    insurers and holdings, whose current assets mean nothing) per share as % of today's price (newest period),
+    insurers, holdings, homebuilders or property developers, whose current assets are financial claims or land/housing
+    inventory) per share as % of today's price (newest period),
     shareholder net cash / debt as % of market cap (`Net_Cash_to_Cap`), enterprise-delevered tangible NAV
     (`Effective_NAV_to_Price`), and whether the NAV chart shows."""
     for name, prefix in (("NAV_to_Price", "NAVPS_Pct"), ("BV_to_Price", "BVPS_Pct")):
         df[name] = _latest(df, prefix, cfg)
     df["Show_NAV_Chart"] = df[["NAV_to_Price", "BV_to_Price"]].max(axis=1) >= cfg.nav_chart_threshold_pct
     fin = df["Financial_Mode"] == True  # noqa: E712
-    df["NCAV_to_Price"] = _latest(df, "NCAVPS_Pct", cfg).where(~fin)
+    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    land_inventory = industry.map(lambda i: isinstance(i, str) and industry_key(i) in NCAV_EXCLUDED_INDUSTRIES).astype(
+        bool
+    )
+    df["NCAV_to_Price"] = _latest(df, "NCAVPS_Pct", cfg).where(~(fin | land_inventory))
     # Shareholder-basis spare cash minus financial debt and preferred stock (`Minority Interest` is already out of
     # common equity, and `Excess_Cash` leaves out operating till-cash and client/float money).
     fin_net_debt = df["Value_Debt"].fillna(0) + df["Value_Preferred"].fillna(0) - df["Excess_Cash"].fillna(0)

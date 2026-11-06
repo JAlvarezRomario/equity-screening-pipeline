@@ -10,6 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from fq import forward
+from fq.ranking import rankable
 from fq.report.charts import _company_div, _div
 from fq.report.format import benchmark, fmt
 from fq.report.links import slug
@@ -95,7 +96,7 @@ def _bench_cloud(df: pd.DataFrame, bench: pd.DataFrame | None) -> pd.DataFrame:
     """Benchmark companies with both scores that are not in the run (drawn behind it)."""
     if bench is None or not {"Value_Score", "Quality_Score", "Ticker"} <= set(bench.columns):
         return pd.DataFrame()
-    cloud = bench[~bench["Ticker"].isin(df["Ticker"]) & ~unreliable(bench)]
+    cloud = bench[~bench["Ticker"].isin(df["Ticker"]) & ~unreliable(bench) & rankable(bench)]
     return cloud.dropna(subset=["Value_Score", "Quality_Score"])
 
 
@@ -113,12 +114,13 @@ def quadrant_figure(
     Axes are the 0-100 scores, so 50 is the median of the benchmark (or of the run without one);
     benchmark companies outside the run form a grey cloud behind it. Companies whose figures may be wrong
     (`tiles.unreliable`) are left out of the dots, the cloud and the correlation (user's choice, Nov 4, 2026: a
-    misfiled cash flow put them at Value 99, top of the map).
+    misfiled cash flow put them at Value 99, top of the map). Only ranked companies (`ranking.rankable`: profitable
+    operating companies, user's choice, Nov 5, 2026) are drawn, in the run and in the cloud.
     """
     needed = ["Value_Score", "Quality_Score", "Market Cap", "FCFy_Norm", "shortName", "Ticker", "country"]
     if not all(c in df.columns for c in needed):
         return None
-    d = df[~unreliable(df)].dropna(subset=needed).copy()
+    d = df[~unreliable(df) & rankable(df)].dropna(subset=needed).copy()  # profitable operating only (Nov 5, 2026)
     if d.empty:
         return None
 

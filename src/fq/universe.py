@@ -215,6 +215,16 @@ def cyclical_industry_keys() -> frozenset[str]:
     return frozenset(industry_key(i) for i in _read_lines("cyclical_industries.txt"))
 
 
+@cache
+def real_estate_industry_keys() -> frozenset[str]:
+    return frozenset(industry_key(i) for i in _read_lines("real_estate_owners.txt"))
+
+
+def is_real_estate_owner(industry) -> bool:
+    """Industry in `lists/real_estate_owners.txt` (the equity REITs): scored, ranked apart (`ranking.rank_group`)."""
+    return isinstance(industry, str) and industry_key(industry) in real_estate_industry_keys()
+
+
 def is_cyclical_industry(industry) -> bool:
     """Industry in `lists/cyclical_industries.txt`: Cyclical even when five years show no trough."""
     return isinstance(industry, str) and industry_key(industry) in cyclical_industry_keys()

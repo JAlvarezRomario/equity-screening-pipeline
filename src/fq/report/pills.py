@@ -11,7 +11,7 @@ def tags(row: pd.Series) -> list[dict]:
     `mark`), and capitalised the badge on its page; `why` the tooltip of both; `cls` the pill's highlight. Lists are
     named as their tabs (an asset play is "below book"). `pill=False` only for the ones the index says otherwise."""
     # Imported here: screens imports format, which imports this module.
-    from fq.report.screens import AI_EXPOSED, AI_MIN_GROWTH, _industry_keys, ai_exposed_kept
+    from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
     from fq.universe import industry_key
 
     s, out = Settings(), []
@@ -33,21 +33,22 @@ def tags(row: pd.Series) -> list[dict]:
         add("buyback", f"A compounder retiring {reduction:.1f}% of its shares a year (at least {BUYBACK_PILL_MIN:g}%).",
             "pill-cannibal")  # fmt: skip
     if flag("Asset_Play"):
-        add("below book", "Tangible book per share (net debt counted against it) at or above the share price, or "
-            "growing fast enough to pass it within 3 years, with positive owner earnings and ROIC, bounded debt and "
-            "no dilution: the Below book list's test.")  # fmt: skip
+        add("below book", "Tangible book per share (net debt counted against it; a holding's book with its "
+            "goodwill) at or above the share price, or growing fast enough to pass it within 3 years, with positive "
+            "owner earnings and ROIC, bounded debt and no dilution: the Below book list's test.")  # fmt: skip
     ncav = pd.to_numeric(row.get("NCAV_to_Price"), errors="coerce")
-    if ncav >= NET_NET_PILL_MIN:
+    industry = row.get("industry")
+    land_inventory = isinstance(industry, str) and industry_key(industry) in NCAV_EXCLUDED_INDUSTRIES
+    if ncav >= NET_NET_PILL_MIN and not flag("Financial_Mode") and not land_inventory:
         add("net-net", f"Net current assets (current assets less every liability, preferred and minorities) are "
             f"{ncav:.0f}% of the share price: the fixed assets come at no cost.")  # fmt: skip
-    industry = row.get("industry")
-    exposed = isinstance(industry, str) and industry_key(industry) in _industry_keys(AI_EXPOSED)
-    if exposed and "Industry_Leader" in row.index and bool(ai_exposed_kept(row.to_frame().T).iloc[0]):
-        add("AI-exposed", f"In an industry AI can disrupt ({industry}): kept on the lists as one of its leaders "
-            f"by revenue with sales per share still growing at least {AI_MIN_GROWTH:g}% a year; the rest of its "
-            "industry is left out of them.")  # fmt: skip
     if flag("Financial_Mode") and isinstance(row.get("Business_Model"), str):
         out.append({"word": row["Business_Model"], "why": FINANCIAL_PILL, "cls": "", "mark": "", "badge": False})
+    if row.get("Rank_Group") == "real_estate":
+        out.append({"word": "REIT", "why": REIT_PILL, "cls": "", "mark": "", "badge": False})
+    if row.get("Rank_Group") == "unprofitable":
+        add("loss-making", "Owner earnings or return on capital not positive in a normal year: scored, but not in the "
+            "rankings, which hold profitable operating companies only.")  # fmt: skip
     if flag("Cyclical"):
         add("cyclical", "Profits change sign or swing a lot, or a cyclical industry: Value uses mid-cycle earnings.")
     if flag("Peak_Margin"):
@@ -96,8 +97,10 @@ NET_NET_PILL_MIN = 100.0  # NCAV / price, %: the "net-net" pill (Graham)
 WHT0_PILL = ("No withholding tax on dividends paid to non-resident individuals in its country (statutory rate, "
              "lists/dividend_wht.txt).")  # fmt: skip
 OWNER_LED_MIN = 20.0  # % of shares held by insiders for the "owner-led" pill (the benchmark's median is about 13%)
-FINANCIAL_PILL = ("Measured as a financial: net income, return on equity and book value; Value against its own "
-                  "kind only.")  # fmt: skip
+FINANCIAL_PILL = ("Measured as a financial: net income, return on equity and book value; judged against its own "
+                  "kind only, not in the rankings.")  # fmt: skip
+REIT_PILL = ("An equity REIT: judged against other REITs in the Real estate list, not in the rankings (its book is "
+             "depreciated cost under US rules, fair value under IFRS).")  # fmt: skip
 
 
 def list_pills(row: pd.Series) -> list[dict]:

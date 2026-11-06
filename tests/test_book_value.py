@@ -183,16 +183,27 @@ def test_asset_play_favours_net_cash_and_buybacks_and_renders_in_html(cfg):
         9.0,
         0.0,
     ]
-    # Row 3: cannibal bank (3%/yr share reduction, Equity/Assets 10%) -> included
+    # Row 3: cannibal bank (3%/yr share reduction, Equity/Assets 10%) -> excluded since Nov 5, 2026: banks are judged
+    # in their own list, never on Below book
     df.loc[3, ["Financial_Mode", "Business_Model", "Equity_to_Assets", "Share_Reduction_Rate"]] = [
         True,
         "bank",
         10.0,
         3.0,
     ]
+    # Row 4: a holding at 80% tangible book but 110% book with goodwill -> included, judged on book
+    df.loc[4, ["Financial_Mode", "Business_Model", "NAV_to_Price", "BV_to_Price", "Equity_to_Assets"]] = [
+        True,
+        "holding",
+        80.0,
+        110.0,
+        40.0,
+    ]
+    df.loc[4, "Book_Per_Share_Compounding"] = 1.0
 
     flags, scores = asset_play(df, cfg)
-    assert bool(flags.loc[0]) and bool(flags.loc[1]) and not bool(flags.loc[2]) and bool(flags.loc[3])
+    assert bool(flags.loc[0]) and bool(flags.loc[1]) and not bool(flags.loc[2]) and not bool(flags.loc[3])
+    assert bool(flags.loc[4])
     assert scores.loc[1] > scores.loc[0]
     df["Asset_Play"], df["Asset_Play_Score"] = flags, scores
     ordered = asset_play_list(df)

@@ -9,10 +9,11 @@ from fq.metrics import calculate_metrics
 from fq.metrics.quality import _gross_margin_held
 
 
-def test_ncav_is_current_assets_less_every_liability_per_share_and_blank_for_a_bank(cfg):
-    raw = make_raw(cfg, n=2)
+def test_ncav_is_current_assets_less_every_liability_per_share_and_blank_for_a_bank_or_homebuilder(cfg):
+    raw = make_raw(cfg, n=3)
     raw.loc[1, "industry"] = "Banks - Regional"
-    for row in (0, 1):
+    raw.loc[2, "industry"] = "Residential Construction"
+    for row in (0, 1, 2):
         for y in cfg.fiscal_years:
             raw.loc[row, f"Current Assets_{y}"] = 6e9
             raw.loc[row, f"Total Liabilities Net Minority Interest_{y}"] = 2e9
@@ -22,6 +23,7 @@ def test_ncav_is_current_assets_less_every_liability_per_share_and_blank_for_a_b
     expected = (6e9 - 2e9 - 0.5e9) / shares / raw.loc[0, "currentPrice"] * 100
     assert np.isclose(df.loc[0, "NCAV_to_Price"], expected)
     assert df.loc[1, "Financial_Mode"] and pd.isna(df.loc[1, "NCAV_to_Price"])
+    assert pd.isna(df.loc[2, "NCAV_to_Price"])
 
 
 def test_ncav_is_blank_without_current_assets(cfg):

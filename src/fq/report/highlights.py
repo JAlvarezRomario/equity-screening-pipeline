@@ -13,14 +13,16 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
 
+import numpy as np
 import pandas as pd
 
 from fq import grading
-from fq.fx import get_treasury_yield
+from fq.fx import FALLBACK_BORROW_RATE, get_borrow_rate, get_treasury_yield
+from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
 from fq.ranking import top_n
 from fq.report import screens as sc
 from fq.settings import Settings
-from fq.universe import dividend_wht
+from fq.universe import dividend_wht, industry_key
 
 TOP_N = 20  # rows of each list on the index page (about 10 in view, the rest scroll in the card)
 SHORTLIST = "Shortlist"
@@ -29,6 +31,18 @@ REPEATERS = "Repeaters"
 SHORTLIST_BAR = (f"both at least {grading.MIN_BOTH:g} and either at least {grading.SHORTLIST_MIN_TOP:g}, stricter "
                  "than the other lists")  # fmt: skip
 _REPEAT_STEP = 1e6  # Repeaters' order: more lists first, then the combined rank (Rank stays far below this step)
+# Two screens of the same thesis family count once when deciding whether a company is a repeater across styles,
+# though `Repeat_Lists` and `Repeat_Count` still show every list it qualifies for.
+_REPEAT_FAMILIES = {
+    "Operating companies": "compounder",
+    "Fast growers": "compounder",
+    "Below book": "balance_sheet",
+    "Net cash": "balance_sheet",
+    "Dividend carry": "income",
+    "Unbroken dividends": "income",
+    "Banks and lenders": "financial",
+    "Insurers": "financial",
+}
 
 Pick = Callable[[pd.DataFrame, int], pd.DataFrame]  # (rows a list may show, rows wanted) -> the list, in its order
 
@@ -82,13 +96,20 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 GROUPS = {
     "start": ("Start here", "The answer: cheap and good at once, then the candidates for research in depth."),
     "style": ("By style", "Lenses on the best {top} of the combined ranking, each asking one question of its own."),
+    # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
+    "kind": (
+        "By kind",
+        "Banks, insurers, holdings and REITs judged against their own kind, outside the rankings; "
+        "and energy, ranked, seen apart.",
+    ),
     "raw": ("Raw scores", "One score alone, whatever the other: the top of Value, the top of Quality."),
 }
 
 # The tabs in the order the index page shows them, group by group; a company page lists its tabs in this order too.
 # fmt: off
 TABS: tuple[Tab, ...] = (
-    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.TOP_LIST_COLUMNS, _top("Rank"), group="start", ranked=True),
+    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.TOP_LIST_COLUMNS, _top("Rank"), group="start",
+        ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
@@ -96,14 +117,21 @@ TABS: tuple[Tab, ...] = (
     Tab("Fast growers", "fast_growers", "hl-fast", sc.FAST_COLUMNS, _plain(sc.fast_grower_list)),
     Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list),
         heading="The Cannibals"),
-    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list)),
-    Tab("Net-nets", "net_nets", "hl-net-nets", sc.NET_NET_COLUMNS, _plain(sc.net_net_list)),
     Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list)),
     Tab("Off the radar", "off_radar", "hl-radar", sc.OFF_RADAR_COLUMNS, _plain(sc.off_radar_list)),
     Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list),
         label="Untaxed dividends"),
-    Tab("Temporary trouble", "trouble", "hl-trouble", sc.TROUBLE_COLUMNS, _hurdled(sc.trouble_list),
-        funnel=sc.trouble_funnel),
+    Tab("Unbroken dividends", "unbroken_dividends", "hl-unbroken", sc.UNBROKEN_COLUMNS,
+        _plain(sc.unbroken_dividend_list)),
+    Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
+        sort="Kind_Rank"),
+    Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
+        sort="Kind_Rank"),
+    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
+        group="kind", sort="Book_Order"),
+    Tab("Real estate", "real_estate", "hl-real-estate", sc.REAL_ESTATE_COLUMNS, _plain(sc.real_estate_list),
+        group="kind", sort="Kind_Rank"),
+    Tab("Energy", "energy", "hl-energy", sc.ENERGY_COLUMNS, _plain(sc.energy_list), group="kind"),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, _top("Value_Rank"), group="raw",
         sort="Value_Rank", ranked=True, ai_screen=False),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, _top("Quality_Rank"), group="raw",
@@ -114,7 +142,8 @@ TAB = {t.name: t for t in TABS}
 TAB_ORDER = tuple(t.name for t in TABS)
 RANKED_TABS = tuple(t.name for t in TABS if t.ranked)
 # Retired tabs the forward test still follows under their stored names (Nov 4, 2026: Nectar, Compounders and Better
-# every year gave way to Operating companies and Fast growers), with the reader's name where it differed.
+# every year gave way to Operating companies and Fast growers; Net-nets merged into Below book; Temporary trouble
+# retired, user's choice), with the reader's name where it differed.
 RETIRED_LABELS = {"Nectar": "Steady growers, net cash"}
 
 
@@ -140,18 +169,19 @@ def _memo(pick: Pick) -> Pick:
 
 
 def repeater_candidates(df: pd.DataFrame, picks: dict[str, tuple[Pick, int]]) -> pd.DataFrame:
-    """Companies on two or more lists, whatever their grade, with `Repeat_Count`, `Repeat_Lists` (in `TAB_ORDER`) and
-    `Repeat_Key`, most lists first, then the combined rank; `Repeat_Lists` names them as the page does (`label`). A
-    screened list counts every company that qualifies, not only the rows it shows; the ranked lists (`RANKED_TABS`)
-    only the rows they show."""
+    """Companies on two or more screened lists across at least two distinct styles (`_REPEAT_FAMILIES`), with
+    `Repeat_Count`, `Repeat_Lists` (in `TAB_ORDER`) and `Repeat_Key`, most lists first, then the combined rank;
+    `Repeat_Lists` names them as the page does (`label`). A screened list counts every company that qualifies and does
+    not fail that list's own grade bar (`fails`); the pure rankings (`RANKED_TABS`) are left out."""
     member: dict[str, list[str]] = {}
     for name in TAB_ORDER:
-        if name == REPEATERS or name not in picks:
+        if name == REPEATERS or name in RANKED_TABS or name not in picks:
             continue
-        pick, n = picks[name]
-        for ticker in pick(df, n if name in RANKED_TABS else len(df))["Ticker"]:
+        pick, _ = picks[name]
+        qual = pick(df, len(df))
+        for ticker in qual[~fails(qual)]["Ticker"]:
             member.setdefault(ticker, []).append(name)
-    many = {t: names for t, names in member.items() if len(names) >= 2}
+    many = {t: names for t, names in member.items() if len({_REPEAT_FAMILIES.get(n, n) for n in names}) >= 2}
     out = df[df["Ticker"].isin(many)]
     count = out["Ticker"].map(lambda t: len(many[t])).astype(float)  # float even when empty (else text)
     out = out.assign(Repeat_Count=count, Repeat_Lists=out["Ticker"].map(lambda t: ", ".join(map(label, many[t]))),
@@ -171,7 +201,7 @@ def repeater_list(df: pd.DataFrame, n: int, picks: dict[str, tuple[Pick, int]]) 
 
 def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     """`tab.screen`, drawn only from companies past the AI screen (`screens.ai_resilient`) unless `tab.ai_screen` is
-    off (the pure scores, Cheapest and Best businesses; user's choice, Nov 4, 2026)."""
+    off (the pure score rankings: Cheap and good, Cheapest and Best businesses; user's choice, Nov 4, 2026)."""
     if not tab.ai_screen:
         return tab.screen
     return lambda df, n, hurdle: tab.screen(df[sc.ai_resilient(df)], n, hurdle)
@@ -179,7 +209,7 @@ def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
 
 def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
     """Every tab: name -> (pick(df, n), rows shown), in `TAB_ORDER`, each remembering its results (`_memo`).
-    `hurdle` is the owner yield the Shortlist and Temporary trouble ask for (`screens.bond_hurdle`)."""
+    `hurdle` is the owner yield the Shortlist asks for (`screens.bond_hurdle`)."""
     picks = {t.name: (_memo(partial(_screened(t), hurdle=hurdle)), t.n) for t in TABS if t.screen is not None}
     repeaters = (_memo(partial(repeater_list, picks=dict(picks))), TAB[REPEATERS].n)
     return {name: repeaters if name == REPEATERS else picks[name] for name in TAB_ORDER}
@@ -188,18 +218,25 @@ def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
 def fails(df: pd.DataFrame) -> pd.Series:
     """True where the moat and management grade is below the bar (`grading.passes`); an ungraded company is not."""
     if "Grade_Pass" not in df.columns:
-        return pd.Series(False, index=df.index)
-    return df["Grade_Pass"].map(lambda v: v is False or v == False)  # noqa: E712
+        return pd.Series(False, index=df.index, dtype=bool)
+    return df["Grade_Pass"].map(lambda v: v is False or v == False).astype(bool)  # noqa: E712
 
 
 def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None = None) -> pd.DataFrame:
-    """The columns the lists read beyond the ranking: withholding, the run's best-fraction cut, industry leaders and
-    (with `cfg`) the stored moat and management grades (`grading.attach`)."""
+    """The columns the lists read beyond the ranking: withholding, the run's best-fraction cut, the dividend record
+    (`screens.with_dividend_record`), industry leaders and (with `cfg`) the stored moat and management grades
+    (`grading.attach`)."""
     if cfg is not None:
         df = grading.attach(df, cfg.data_dir / "grades.parquet")
+    if "NCAV_to_Price" in df.columns and "industry" in df.columns:
+        land = df["industry"].map(lambda i: industry_key(i) in NCAV_EXCLUDED_INDUSTRIES)
+        df = df.assign(NCAV_to_Price=df["NCAV_to_Price"].where(~land, np.nan))
     countries = df["country"] if "country" in df.columns else [None] * len(df)
     df = df.assign(Dividend_WHT=[dividend_wht(t, c) for t, c in zip(df["Ticker"], countries, strict=True)])
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
+    kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
+    df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
+    df = sc.with_dividend_record(df)  # judged once per report, not once per list call
     # Leaders of their industry among the benchmark's companies (the Shortlist's recession test), the same in every run.
     leaders_among = df
     if bench is not None and not bench.empty:  # the benchmark, plus the run's companies outside it
@@ -226,6 +263,7 @@ class Highlights:
     treasury_yield: float | None
     hurdle: float
     picks: dict[str, tuple[Pick, int]]
+    borrow_rate: float = FALLBACK_BORROW_RATE  # what a euro margin loan costs, % (`fx.get_borrow_rate`)
     zero: pd.DataFrame = field(init=False)
 
     def __post_init__(self) -> None:
@@ -236,7 +274,9 @@ class Highlights:
         frame = prepare(df, bench, cfg)
         treasury = get_treasury_yield(cfg.data_dir / "treasury_yield.json")
         hurdle = sc.bond_hurdle(treasury)
-        return cls(frame, listable(frame, cfg), treasury, hurdle, highlight_picks(hurdle))
+        borrow = get_borrow_rate(cfg.data_dir / "borrow_rate.json")
+        frame = frame.assign(Borrow_Rate=borrow)  # the Untaxed dividends hurdle, kept by every subset
+        return cls(frame, listable(frame, cfg), treasury, hurdle, highlight_picks(hurdle), borrow)
 
     def shown(self, name: str, zero: bool = False) -> pd.DataFrame:
         """The rows tab `name` shows (`zero`: among zero-withholding companies only), in the list's own order."""
@@ -250,12 +290,6 @@ class Highlights:
     def funnel(self, name: str) -> list[tuple[str, int]] | None:
         tab = TAB[name]
         return None if tab.funnel is None else tab.funnel(self.lists, self.hurdle)
-
-    def mix(self, name: str) -> dict | None:
-        """The sector-mix note of tab `name` (`screens.financial_mix`): over every company that qualifies, over the
-        rows shown for a ranked tab (its qualifying set is the whole ranking)."""
-        members = self.shown(name) if TAB[name].ranked else self.picks[name][0](self.lists, len(self.lists))
-        return sc.financial_mix(members, self.lists)
 
     def candidates(self) -> pd.DataFrame:
         """Every company on two or more lists, graded or not (`repeater_candidates`)."""

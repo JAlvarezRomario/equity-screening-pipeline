@@ -112,6 +112,9 @@ KEY_TILES = [
     ("Net debt / EBIT", "NetDebt_to_EBIT", ".1f", 1, "x"),
     ("Dividend yield", "Dividend_Yield", ".1f", 1, "%"),
 ]  # fmt: skip
+# The recession tile's colour: red past the 20-year lists' bar (`screens.RECESSION_MAX_FALL`, kept equal here: the
+# page does not import the screens), green when held within the cut tolerance (`dividend_record.HELD`).
+RECESSION_TILE_CUT, RECESSION_TILE_HELD = 25.0, 5.0
 FINANCIAL_TILES = {"ROIC_Norm": ("ROE (norm.)", "ROIC_Norm", ".1f", 1, "%"),
                    "NetDebt_to_EBIT": ("Equity / assets", "Equity_to_Assets", ".1f", 1, "%")}  # fmt: skip
 
@@ -133,6 +136,12 @@ def key_tiles(row: pd.Series) -> list[dict]:
             cell = {"text": "None", "cls": "muted"}  # pays no dividend
         out.append({"label": label, "value": cell["text"], "help": column_help(col), "col": col,
                     "cls": cell["cls"].replace("num", "").strip()})  # fmt: skip
+    note = row.get("Recession_Dividend_Note")
+    if isinstance(note, str) and note:  # the dividend through past recessions (`dividend_record`, rule 7)
+        fall = pd.to_numeric(row.get("Recession_Dividend_Fall"), errors="coerce")
+        cls = "neg" if fall < -RECESSION_TILE_CUT else ("pos" if fall >= -RECESSION_TILE_HELD else "")
+        out.append({"label": "Dividend through recessions", "value": note, "col": "Recession_Dividend_Note",
+                    "help": column_help("Recession_Dividend_Note"), "cls": cls})  # fmt: skip
     return out
 
 

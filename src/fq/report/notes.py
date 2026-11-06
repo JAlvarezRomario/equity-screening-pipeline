@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+from fq.ranking import RANK_GROUP_LABELS, RANKED
 from fq.report.format import chart_years, period_label, ttm_duplicates_latest
 from fq.settings import Settings
 
@@ -166,10 +167,19 @@ def data_notes(row: pd.Series, cfg: Settings, periods: list[str]) -> list[str]:
             "reduction against its peer group, and book value per share compounding and the worst revenue year "
             "against every company. Read the NAV chart and book value too."
         )
-    if row.get("Ranked_Model") == False and model:  # noqa: E712
+    group = row.get("Rank_Group")
+    if isinstance(group, str) and group != RANKED:
+        why = {
+            "financial": "banks and insurers are judged against their own kind, in their own lists",
+            "holding": "a holding is judged on its book, in the Below book list",
+            "real_estate": "a REIT is judged against other REITs, in the Real estate list",
+            "apart": "its business model is not ranked yet",
+            "insufficient": "it lacks the data for a Value or a Quality score",
+            "unprofitable": "its owner earnings or its return on capital are not positive in a normal year",
+        }.get(group, RANK_GROUP_LABELS.get(group, group))
         notes.append(
-            "Scored but not ranked yet: this business model stays out of the ranks, top lists and mood "
-            "list until `fq evaluate` shows its scores work (Settings.ranked_models)."
+            f"Scored but not in the rankings: {why}. The rankings and the quadrant hold profitable operating "
+            "companies only, so a score here is read against its own kind."
         )
     if ttm_duplicates_latest(row):
         notes.append(f"TTM matches the latest annual report ({period_label(row, cfg.latest)}); TTM is hidden.")
