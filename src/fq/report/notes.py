@@ -173,6 +173,7 @@ def data_notes(row: pd.Series, cfg: Settings, periods: list[str]) -> list[str]:
             "financial": "banks and insurers are judged against their own kind, in their own lists",
             "holding": "a holding is judged on its book, in the Below book list",
             "real_estate": "a REIT is judged against other REITs, in the Real estate list",
+            "utility": "a utility is judged against other utilities, in the Utilities list",
             "apart": "its business model is not ranked yet",
             "insufficient": "it lacks the data for a Value or a Quality score",
             "unprofitable": "its owner earnings or its return on capital are not positive in a normal year",

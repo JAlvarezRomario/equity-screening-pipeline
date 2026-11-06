@@ -84,14 +84,14 @@ def in_best_fraction(df: pd.DataFrame) -> pd.Series:
 
 # The kinds ranked apart (`ranking.rank_group`, user's choice, Nov 5, 2026), each judged against its own kind in a
 # list of its own: banks and insurers (the "financial" group split by model), holdings and equity REITs.
-KINDS = ("bank", "insurer", "holding", "real_estate")
+KINDS = ("bank", "insurer", "holding", "real_estate", "utility")
 
 
 def kind(df: pd.DataFrame) -> pd.Series:
     """The kind a company ranked apart is judged among (`KINDS`), else None (ranked, loss-making, too little data)."""
     group = df["Rank_Group"] if "Rank_Group" in df.columns else pd.Series(None, index=df.index, dtype=object)
     model = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
-    out = group.where(group.isin({"holding", "real_estate"}), model.where(group == "financial"))
+    out = group.where(group.isin({"holding", "real_estate", "utility"}), model.where(group == "financial"))
     return out.where(out.isin(KINDS), None)
 
 
@@ -196,6 +196,27 @@ def real_estate_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & _dividend_held(df, through_downturns=True)
     )
     return _kind_list(df, "real_estate", n, keep)
+
+
+# "Utilities" (user's choice, Nov 6, 2026): regulated or contracted returns on long-lived assets bought with debt,
+# judged against other utilities only, with the debt bounded as the REITs' and the dividend that is their point held.
+UTILITY_MIN_INTEREST_COVER = REIT_MIN_INTEREST_COVER
+UTILITY_MAX_NET_DEBT_EBIT = REIT_MAX_NET_DEBT_EBIT
+UTILITY_COLUMNS = REAL_ESTATE_COLUMNS
+
+
+def utility_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """Utilities (`lists/utilities.txt`) in the best fraction of their kind, owner yield positive, interest covered
+    `UTILITY_MIN_INTEREST_COVER` times and net debt at most `UTILITY_MAX_NET_DEBT_EBIT` x EBIT (a blank passes), the
+    dividend held through the downturns and this year (`_dividend_held`), trusted, in their kind's combined order.
+    Display only."""
+    keep = (
+        (_num(df, "Owner_Yield") > 0)
+        & ~(_num(df, "Interest_Coverage") < UTILITY_MIN_INTEREST_COVER)
+        & ~(_num(df, "NetDebt_to_EBIT") > UTILITY_MAX_NET_DEBT_EBIT)
+        & _dividend_held(df, through_downturns=True)
+    )
+    return _kind_list(df, "utility", n, keep)
 
 
 # "Energy" (user's choice, Nov 5, 2026): energy stays in the rankings; this is a clean lens on it. Nearly all of it is

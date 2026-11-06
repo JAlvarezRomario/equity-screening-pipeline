@@ -84,6 +84,13 @@
   <li>Book / price is shown, not tested.</li>
 </ul>{% endcall %}{% endmacro %}
 
+{% macro utilities(r) %}{% call rules("Utilities judged against other utilities only: the cash one share earns, returns, and debt they can carry.") %}<ul>
+  <li>Electric, gas and water utilities, power producers and renewables. Not in the rankings: their returns are regulated or contracted and their long-lived assets are financed with debt, so neither compares with an operating company's.</li>
+  <li>The best {{ r.top }} of utilities by the worse of their Value and Quality positions among them, in that order. Value is the owner yield; Quality the return on capital, per-share growth and shares shrinking, each against utilities only.</li>
+  <li>Owner yield positive; interest covered at least {{ r.utility_cover }}&times; and net debt at most {{ r.utility_net_debt }}&times; operating profit.</li>
+  <li>The dividend not cut by more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}), nor in the last twelve months. A record too short to reach a recession passes.</li>
+</ul>{% endcall %}{% endmacro %}
+
 {% macro energy(r) %}{% call rules("Energy companies with mid-cycle returns and a balance sheet that survives a price fall. They stay in the rankings; this is a clean view of them.") %}<ul>
   <li>Yahoo's Energy sector: oil and gas producers, integrated companies, pipelines, refiners, services and drilling, coal and uranium.</li>
   <li>Value &ge; {{ r.energy_value }}, Quality &ge; {{ r.energy_quality }}, normal return on capital (ROIC) &ge; {{ r.energy_roic }}%.</li>

@@ -46,6 +46,8 @@ def tags(row: pd.Series) -> list[dict]:
         out.append({"word": row["Business_Model"], "why": FINANCIAL_PILL, "cls": "", "mark": "", "badge": False})
     if row.get("Rank_Group") == "real_estate":
         out.append({"word": "REIT", "why": REIT_PILL, "cls": "", "mark": "", "badge": False})
+    if row.get("Rank_Group") == "utility":
+        out.append({"word": "utility", "why": UTILITY_PILL, "cls": "", "mark": "", "badge": False})
     if row.get("Rank_Group") == "unprofitable":
         add("loss-making", "Owner earnings or return on capital not positive in a normal year: scored, but not in the "
             "rankings, which hold profitable operating companies only.")  # fmt: skip
@@ -101,6 +103,8 @@ FINANCIAL_PILL = ("Measured as a financial: net income, return on equity and boo
                   "kind only, not in the rankings.")  # fmt: skip
 REIT_PILL = ("An equity REIT: judged against other REITs in the Real estate list, not in the rankings (its book is "
              "depreciated cost under US rules, fair value under IFRS).")  # fmt: skip
+UTILITY_PILL = ("A utility: judged against other utilities in the Utilities list, not in the rankings (regulated or "
+                "contracted returns on assets financed with debt).")  # fmt: skip
 
 
 def list_pills(row: pd.Series) -> list[dict]:

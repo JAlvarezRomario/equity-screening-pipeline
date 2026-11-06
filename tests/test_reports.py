@@ -279,7 +279,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     # Three top lists, Shortlist, Repeaters, Operating companies, Fast growers, Cannibals, Below book,
     # Net cash, Off the radar, Dividend carry, Unbroken dividends; by kind: Banks and lenders, Insurers, Real estate,
     # Energy (Nov 5, 2026).
-    assert len(panels) == 17
+    assert len(panels) == 18
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)

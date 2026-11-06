@@ -123,6 +123,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         ),
         "repeater_ranked": ", ".join(RANKED_TABS),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
+        "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
         "energy_value": g(sc.ENERGY_MIN_VALUE), "energy_quality": g(sc.ENERGY_MIN_QUALITY),
         "energy_roic": g(sc.ENERGY_MIN_ROIC), "carry_unbroken": sc.CARRY_MIN_UNBROKEN_YEARS,
     }  # fmt: skip

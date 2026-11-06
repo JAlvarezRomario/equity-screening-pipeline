@@ -28,7 +28,7 @@ Each company gets two scores:
 - **Quality:** how much the business earns on the capital it uses, how steadily, and whether each share keeps
   growing.
 
-Both are plain arithmetic, with no model inside. Seventeen lists then pick out companies worth a closer look, and an
+Both are plain arithmetic, with no model inside. Eighteen lists then pick out companies worth a closer look, and an
 LLM grades those companies' moat and management. The grade only reorders the lists; it never changes a score. A
 frozen forward test tracks month by month whether the lists beat the market. The output is a static website
 with one page per company.

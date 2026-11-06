@@ -147,3 +147,12 @@ def test_a_young_company_in_a_hard_hit_industry_needs_to_lead_it_with_net_cash()
     assert _lasting_business(df).tolist() == [False, True, False]
     assert _lasting_business(df.assign(Recession_Dividend_Fall=0.0)).all()  # its own record decides
     assert _lasting_business(df.assign(industry="Packaged Foods")).all()  # not a hard-hit industry: a blank passes
+
+
+def test_utilities_list_holds_its_own_kind_with_debt_bounded_and_the_dividend_held():
+    df = _frame(5, Rank_Group="utility", Business_Model="asset_heavy", Owner_Yield=6.0, Interest_Coverage=3.0,
+                NetDebt_to_EBIT=6.0)  # fmt: skip
+    assert sc.utility_list(df)["Ticker"].tolist() == ["T0"]  # the best fifth of five utilities
+    df.loc[0, "NetDebt_to_EBIT"] = 9.0  # financed beyond the bound
+    assert sc.utility_list(df).empty
+    assert sc.kind(df).eq("utility").all()

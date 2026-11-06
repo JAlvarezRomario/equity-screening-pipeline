@@ -521,7 +521,8 @@ def test_unranked_models_are_scored_but_not_ranked(cfg):
 
 
 def test_banks_insurers_holdings_reits_and_loss_makers_are_scored_but_ranked_apart(cfg):
-    # User's choice, Nov 5, 2026: the rankings hold profitable operating companies only; scores do not move.
+    # User's choice, Nov 5, 2026: the rankings hold profitable operating companies only; since Nov 6 each is scored
+    # against its own group (the ranked among the ranked, each kind among its kind).
     df, c = _toy(cfg, a=[10, 5, 1, 7, 6, 4, 3], b=[1, 5, 1, 2, 3, 4, 2])
     c = replace(c, financial_value_criteria=c.value_criteria, financial_quality_criteria=c.quality_criteria)
     df["Business_Model"] = ["bank", "operating", "holding", "operating", "insurer", "asset_heavy", "operating"]
@@ -533,13 +534,17 @@ def test_banks_insurers_holdings_reits_and_loss_makers_are_scored_but_ranked_apa
     apart = ranked["Rank_Group"] != "ranked"
     assert ranked.loc[apart, ["Rank", "Value_Rank", "Quality_Rank"]].isna().all().all()
     assert ranked.loc[~apart, "Rank"].tolist() and ranked["Ranked_Model"].all()  # still in the market's reference
-    # The scores are those of one ranking: taking the kinds apart moves positions only.
-    together = apply_dual_ranking(df, replace(c, rank_apart_models=())).set_index("Ticker")
+    # The ranked are scored among the ranked: banks, holdings, REITs and loss-makers do not move their scores.
+    alone = apply_dual_ranking(df[df["Ticker"].isin(["T1", "T3"])], c).set_index("Ticker")
     for col in ("Value_Score", "Quality_Score"):
-        assert ranked[col].to_dict() == pytest.approx(together[col].to_dict())
-    # Cheap among its own kind: a lender's levered yield is not set against EV yields.
-    market = apply_dual_ranking(df, replace(c, value_market_families=("operating", "asset_heavy", "financial")))
-    assert ranked.at["T0", "Value_Score"] > market.set_index("Ticker").at["T0", "Value_Score"]
+        assert ranked.loc[["T1", "T3"], col].tolist() == pytest.approx(alone.loc[["T1", "T3"], col].tolist())
+    # A bank among banks: a far cheaper operating company added to the run leaves the bank's score as it was.
+    richer = df.copy()
+    richer.loc[len(richer)] = richer.loc[1].copy()
+    richer.loc[len(richer) - 1, ["Ticker", "a"]] = ["T7", 100.0]
+    more = apply_dual_ranking(richer, c).set_index("Ticker")
+    assert more.at["T0", "Value_Score"] == pytest.approx(ranked.at["T0", "Value_Score"])
+    assert more.at["T1", "Value_Score"] < ranked.at["T1", "Value_Score"]  # the ranked one has a new rival
     # The ranked rows first, then the others.
     order = apply_dual_ranking(df, c)["Ticker"].tolist()
     assert set(order[:2]) == {"T1", "T3"}
@@ -1293,8 +1298,9 @@ def test_market_criteria_compare_every_model_on_one_scale(cfg):
     c = replace(c, financial_quality_criteria=c.quality_criteria, quality_market_criteria=("b",))
     df["Business_Model"] = ["bank", "operating", "operating", "operating", "bank"]
     by = apply_dual_ranking(df, c).set_index("Ticker")
-    assert by.at["T0", "Pct_b"] == pytest.approx(by.at["T1", "Pct_b"])  # same value, same percentile
-    assert by.at["T0", "Pct_a"] == pytest.approx(100.0)  # a stays within peers: best of the two banks
+    # One scale for every ranked model; a bank, ranked apart (Nov 6, 2026), on the scale of the banks only.
+    assert by.at["T0", "Pct_b"] == pytest.approx(100.0) and by.at["T0", "Pct_a"] == pytest.approx(100.0)
+    assert by.at["T1", "Pct_b"] < by.at["T0", "Pct_b"]  # the same 5 is mid-table among the operating companies
 
 
 def test_earnings_power_alone_is_enough_coverage_and_roic_leads_quality(cfg):
@@ -1451,3 +1457,20 @@ def test_shrinking_revenue_is_flagged_and_leaves_highlights(cfg):
     assert not df.loc[0, "Revenue_Decline"] and not df.loc[2, "Revenue_Decline"]  # grower; bank left out
     ranked = apply_dual_ranking(df, cfg)
     assert raw.loc[1, "Ticker"] not in set(top_n(ranked, "Value_Rank", 4)["Ticker"])
+
+
+def test_utilities_are_ranked_apart_and_scored_among_utilities_and_a_run_uses_the_benchmarks_groups(cfg):
+    # User's choice, Nov 6, 2026: utilities leave the rankings; each kind is scored among its own.
+    df, c = _toy(cfg, a=[10, 5, 1, 7, 2, 3], b=[1, 5, 1, 2, 3, 4])
+    df["Business_Model"] = ["operating", "operating", "operating", "asset_heavy", "asset_heavy", "operating"]
+    df["industry"] = [None, None, None, "Utilities - Regulated Electric", "Utilities - Regulated Water", None]
+    df["Owner_Yield"] = 5.0
+    ranked = apply_dual_ranking(df, c).set_index("Ticker")
+    assert ranked.loc[["T3", "T4"], "Rank_Group"].eq("utility").all() and ranked.loc[["T3", "T4"], "Rank"].isna().all()
+    assert ranked.at["T3", "Pct_a"] == pytest.approx(100.0)  # the better of the two utilities, whatever the others
+    assert ranked.loc[["T0", "T1", "T2", "T5"], "Rank"].notna().all()
+    # A portfolio run against the benchmark takes each company's percentiles from its group in the benchmark.
+    one = apply_dual_ranking(df[df["Ticker"].isin(["T1", "T4"])], c, reference=ranked.reset_index(), benchmark="b")
+    one = one.set_index("Ticker")
+    for ticker in ("T1", "T4"):
+        assert one.at[ticker, "Pct_a"] == pytest.approx(ranked.at[ticker, "Pct_a"])

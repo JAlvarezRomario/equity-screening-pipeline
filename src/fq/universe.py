@@ -220,6 +220,15 @@ def real_estate_industry_keys() -> frozenset[str]:
     return frozenset(industry_key(i) for i in _read_lines("real_estate_owners.txt"))
 
 
+def utility_industry_keys() -> frozenset[str]:
+    return frozenset(industry_key(i) for i in _read_lines("utilities.txt"))
+
+
+def is_utility(industry) -> bool:
+    """Industry in `lists/utilities.txt`: scored among utilities, ranked apart (`ranking.rank_group`, "utility")."""
+    return isinstance(industry, str) and industry_key(industry) in utility_industry_keys()
+
+
 def is_real_estate_owner(industry) -> bool:
     """Industry in `lists/real_estate_owners.txt` (the equity REITs): scored, ranked apart (`ranking.rank_group`)."""
     return isinstance(industry, str) and industry_key(industry) in real_estate_industry_keys()

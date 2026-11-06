@@ -49,6 +49,7 @@ METHOD_LISTS = (
     "business_models.txt", "model_overrides.txt", "cyclical_industries.txt", "excluded_industries.txt",
     "excluded_tickers.txt", "share_classes.txt", "accounting_standards.txt", "inflation_basis.txt",
     "real_estate_owners.txt",
+    "utilities.txt",
 )  # fmt: skip
 UNKNOWN_METHOD = "unknown"  # snapshots saved before methods were recorded
 

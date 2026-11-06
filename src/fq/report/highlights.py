@@ -131,6 +131,8 @@ TABS: tuple[Tab, ...] = (
         group="kind", sort="Book_Order"),
     Tab("Real estate", "real_estate", "hl-real-estate", sc.REAL_ESTATE_COLUMNS, _plain(sc.real_estate_list),
         group="kind", sort="Kind_Rank"),
+    Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
+        sort="Kind_Rank"),
     Tab("Energy", "energy", "hl-energy", sc.ENERGY_COLUMNS, _plain(sc.energy_list), group="kind"),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, _top("Value_Rank"), group="raw",
         sort="Value_Rank", ranked=True, ai_screen=False),

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from fq.settings import BUSINESS_MODELS, Criterion, Settings, display_name
-from fq.universe import is_real_estate_owner
+from fq.universe import is_real_estate_owner, is_utility
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ RANK_GROUP_LABELS = {  # why a company has no rank, as the full table's pill and
     "financial": "bank or insurer",
     "holding": "holding",
     "real_estate": "REIT",
+    "utility": "utility",
     "apart": "model not ranked",
     "insufficient": "too little data",
     "unprofitable": "loss in a normal year",
@@ -71,11 +72,10 @@ RANK_GROUP_LABELS = {  # why a company has no rank, as the full table's pill and
 def rank_group(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     """Which companies take a position in the rankings (user's choice, Nov 5, 2026: profitable operating companies
     only). "financial" (bank, insurer) and "holding" (`Settings.rank_apart_models`), "real_estate" (an equity REIT,
-    `lists/real_estate_owners.txt`), "apart" (a model outside `Settings.ranked_models`), "insufficient" (no Value or
+    `lists/real_estate_owners.txt`), "utility" (`lists/utilities.txt`, Nov 6, 2026), "apart" (a model outside `Settings.ranked_models`), "insufficient" (no Value or
     no Quality score), "unprofitable" (normal-year owner earnings or normalised ROIC at or below zero: `Owner_Yield`,
     `ROIC_Norm`, both normalised, so one bad year or a cyclical trough keeps the rank; a blank is not a loss), else
-    `RANKED`. Scores are not
-    touched: the percentiles keep `comparable`'s market."""
+    `RANKED`. Each group's percentiles are taken among its own (`score_group`)."""
     models = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
     industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
     bank_or_insurer = models.isin({"bank", "insurer"}) & models.isin(cfg.rank_apart_models)
@@ -85,8 +85,8 @@ def rank_group(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     return pd.Series(
         np.select(
             [bank_or_insurer, models.isin(cfg.rank_apart_models), industry.map(is_real_estate_owner).astype(bool),
-             ~comparable(df), insufficient, ~profitable],
-            ["financial", "holding", "real_estate", "apart", "insufficient", "unprofitable"],
+             industry.map(is_utility).astype(bool), ~comparable(df), insufficient, ~profitable],
+            ["financial", "holding", "real_estate", "utility", "apart", "insufficient", "unprofitable"],
             RANKED,
         ),
         index=df.index,
@@ -105,6 +105,22 @@ def rankable(df: pd.DataFrame) -> pd.Series:
     if "Rank" in df.columns:
         return pd.to_numeric(df["Rank"], errors="coerce").notna()
     return comparable(df)
+
+
+# The kinds ranked apart that are scored against their own kind only (user's choice, Nov 6, 2026), besides banks and
+# insurers (by `Business_Model`); every other row is scored against the ranked companies.
+OWN_KIND_GROUPS = frozenset({"holding", "real_estate", "utility"})
+
+
+def score_group(df: pd.DataFrame, cfg: Settings | None = None) -> pd.Series:
+    """The group a company's percentiles are taken in (user's choice, Nov 6, 2026): a bank among banks, an insurer
+    among insurers, a holding, an equity REIT or a utility among its own kind; every other company, loss-makers and the
+    too-thin included, among the ranked ones (`RANKED`, profitable operating companies), so the rankings' scores spread
+    over the rankings' own companies and a loss-maker's says where it would stand among them."""
+    group = df["Rank_Group"] if "Rank_Group" in df.columns else rank_group(df, cfg or Settings())
+    model = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    out = group.where(group.isin(OWN_KIND_GROUPS), RANKED)
+    return out.where(group != "financial", model).fillna(RANKED)
 
 
 def combined_order(value_pos: pd.Series, quality_pos: pd.Series, penalty: float) -> pd.Series:
@@ -292,6 +308,51 @@ def weighted_percentile_score(
     return score, coverage, pcts
 
 
+def _scores(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame, own_kind: bool, extras: bool = True):
+    """Value and Quality scores and coverage, `Pct_<criterion>`, and with `extras` the candidates' `Cand_Pct_*` and the
+    shown percentiles, of `df` against `reference`. `own_kind`: `reference` is one kind (`score_group`), and every
+    criterion is taken within it as one market (no peer groups, no sector blend)."""
+    out = pd.DataFrame(index=df.index)
+    families = sorted(set(model_groups(df)[1]) | set(model_groups(reference)[1]))
+    for name, blend in (("Value", cfg.sector_blend), ("Quality", 0.0)):
+        of = lambda family, n=name: cfg.criteria(n, family)  # noqa: E731
+        if own_kind:
+            every = tuple(sorted({c for f in families for c, _, _ in of(f)}))
+            args = (0.0, cfg.sector_min_members, (), every)
+        else:
+            args = (
+                blend,
+                cfg.sector_min_members,
+                cfg.value_market_families if name == "Value" else cfg.quality_market_families,
+                cfg.quality_market_criteria if name == "Quality" else (),
+            )
+        result = weighted_percentile_score(df, of, cfg.min_coverage, cfg.winsor_pct, reference, *args)
+        score, coverage, pcts = result if result is not None else (np.nan, np.nan, {})
+        for column, pct in pcts.items():
+            out[f"Pct_{column}"] = pct * 100
+        out[f"{name}_Score"] = score
+        out[f"{name}_Coverage"] = coverage
+    if not extras:
+        return out
+    # Candidates under observation: same percentiles as a Quality criterion, but no score uses them.
+    candidates = [(c, d, 1.0) for c, d in cfg.quality_candidates if c in df.columns]
+    if candidates:
+        market = tuple(c for c, _, _ in candidates) if own_kind else ()
+        result = weighted_percentile_score(df, candidates, 0.0, cfg.winsor_pct, reference, market_criteria=market)
+        for column, pct in (result[2] if result is not None else {}).items():
+            out[f"Cand_Pct_{column}"] = pct * 100
+    # Shown percentiles (for highlight lists like Compounders, Asset Plays, and company display):
+    shown = [(c, d, 1.0) for c, d in getattr(cfg, "shown_percentiles", ()) if c in df.columns]
+    if shown:
+        market = tuple(c for c, _, _ in shown) if own_kind else getattr(cfg, "shown_market_criteria", ())
+        result = weighted_percentile_score(df, shown, 0.0, cfg.winsor_pct, reference, 0.0, cfg.sector_min_members,
+                                           (), market)  # fmt: skip
+        for column, pct in (result[2] if result is not None else {}).items():
+            if f"Pct_{column}" not in out.columns:
+                out[f"Pct_{column}"] = pct * 100
+    return out
+
+
 def apply_dual_ranking(
     df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None = None, benchmark: str | None = None
 ) -> pd.DataFrame:
@@ -305,31 +366,37 @@ def apply_dual_ranking(
     their sum, among the reference companies when benchmarked; rows that are not `trusted` follow every trusted one.
     Companies without enough data in either dimension get `Insufficient_Data`, take no `Rank` and
     sort after every scored company. Only `rank_group` "ranked" rows (profitable operating companies, Nov 5, 2026)
-    take `Rank`, `Value_Rank` and `Quality_Rank`; the others (`Rank_Group` says why) are scored as before, against
-    `comparable`'s market, and sort after everyone in their own combined order.
+    take `Rank`, `Value_Rank` and `Quality_Rank`; the others (`Rank_Group` says why) sort after everyone in their own
+    combined order.
+
+    Two passes (user's choice, Nov 6, 2026): the first, against the whole market, only tells each company's
+    `Rank_Group` (who has the data for a score); the second takes every percentile in its `score_group` of the
+    reference: the ranked companies among the ranked (loss-makers, banks and REITs no longer pad the bottom), each kind
+    ranked apart among its own kind.
     """
     out = df.copy()
     benchmarked = reference is not None
     if "Business_Model" in out.columns:
         out["Ranked_Model"] = out["Business_Model"].isin(cfg.ranked_models)
     penalty = len(out) + 1
-
-    for name, blend in (
-        ("Value", cfg.sector_blend),  # cheapness: against the market and the sector, or the peer group
-        ("Quality", 0.0),  # a better business is better in any sector: peer group, or market-wide where comparable
-    ):
-        result = weighted_percentile_score(
-            out, lambda family, n=name: cfg.criteria(n, family), cfg.min_coverage, cfg.winsor_pct, reference,
-            blend, cfg.sector_min_members,
-            cfg.value_market_families if name == "Value" else cfg.quality_market_families,
-            cfg.quality_market_criteria if name == "Quality" else (),
-        )  # fmt: skip
-        score, coverage, pcts = result if result is not None else (np.nan, np.nan, {})
-        for column, pct in pcts.items():
-            out[f"Pct_{column}"] = pct * 100
-        out[f"{name}_Score"] = score
-        out[f"{name}_Coverage"] = coverage
-    out["Rank_Group"] = rank_group(out, cfg)
+    base = out if reference is None else reference
+    first = _scores(out, cfg, base, own_kind=False, extras=False)  # who has the data for a score
+    out["Rank_Group"] = rank_group(out.assign(**first[["Value_Score", "Quality_Score"]]), cfg)
+    groups, base_groups = score_group(out, cfg), score_group(base, cfg)
+    ranked_base = base[rankable(base)]
+    parts = []
+    for group in groups.unique():
+        rows = groups == group
+        own = group != RANKED
+        ref = base[base_groups == group] if own else ranked_base
+        if ref.empty:  # a kind the reference lacks (a benchmark ranked before the group existed): among themselves
+            ref = out[rows]
+        lacking = set(model_groups(out[rows])[1]) - set(model_groups(ref)[1])  # a family with no peer there
+        if lacking:
+            ref = pd.concat([ref, base[model_groups(base)[1].isin(lacking) & ~base.index.isin(ref.index)]])
+        parts.append(_scores(out[rows], cfg, ref, own_kind=own))
+    scores = pd.concat(parts).reindex(out.index)
+    out = out.drop(columns=[c for c in scores.columns if c in out.columns]).join(scores)
     apart = ~rankable(out)
     for name in ("Value", "Quality"):
         out[f"{name}_Rank"] = out[f"{name}_Score"].where(~apart).rank(method="min", ascending=False)
@@ -338,31 +405,6 @@ def apply_dual_ranking(
             out[f"{name}_Rank_Bench"] = out[f"{name}_Score"].map(
                 lambda s, r=ref_scores: np.nan if pd.isna(s) else 1 + int((r > s + 1e-9).sum())
             )
-    # Candidates under observation: same percentiles as a Quality criterion, but no score uses them.
-    candidates = [(c, d, 1.0) for c, d in cfg.quality_candidates if c in out.columns]
-    result = weighted_percentile_score(out, candidates, 0.0, cfg.winsor_pct, reference) if candidates else None
-    for column, pct in (result[2] if result is not None else {}).items():
-        out[f"Cand_Pct_{column}"] = pct * 100
-    # Shown percentiles (for highlight lists like Compounders, Asset Plays, and company display):
-    shown = [(c, d, 1.0) for c, d in getattr(cfg, "shown_percentiles", ()) if c in out.columns]
-    result_shown = (
-        weighted_percentile_score(
-            out,
-            shown,
-            0.0,
-            cfg.winsor_pct,
-            reference,
-            0.0,
-            cfg.sector_min_members,
-            (),
-            getattr(cfg, "shown_market_criteria", ()),
-        )
-        if shown
-        else None
-    )
-    for column, pct in (result_shown[2] if result_shown is not None else {}).items():
-        if f"Pct_{column}" not in out.columns:
-            out[f"Pct_{column}"] = pct * 100
     if benchmarked:
         out["Benchmark"] = benchmark or "reference"
         ranked_ref = reference[rankable(reference)]
@@ -395,7 +437,7 @@ def apply_dual_ranking(
     ranked = rankable(out) & ~out["Insufficient_Data"]
     out["Rank"] = pd.Series(np.arange(1, len(out) + 1), index=out.index).where(ranked)
     themes = reference[rankable(reference)] if benchmarked else out[rankable(out)]  # industry-wide discounts
-    scored = reference[comparable(reference)] if benchmarked else out[comparable(out)]  # the asset plays' yardstick
+    scored = themes  # the asset plays' yardstick: the ranked companies, holdings judged on the same scale
     out["Dislocation"], out["Mood_Check"] = dislocation(out, cfg, themes, benchmark if benchmarked else None)
     if out["Dislocation"].any():
         log.info("Possible mood mispricings: %s", ", ".join(out.loc[out["Dislocation"], "Ticker"]))

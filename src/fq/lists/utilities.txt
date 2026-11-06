@@ -1,0 +1,10 @@
+# Yahoo industries of the utilities: regulated or contracted returns on long-lived assets financed with debt, so
+# they are not compared with operating companies. Ranked apart (`ranking.rank_group`, "utility"; user's choice,
+# Nov 6, 2026), scored among utilities only (`ranking.score_group`) and listed in "Utilities"
+# (`screens.utility_list`). In `evaluate.METHOD_LISTS`. One Yahoo industry per line, as Yahoo spells it.
+Utilities - Regulated Electric
+Utilities - Regulated Gas
+Utilities - Regulated Water
+Utilities - Diversified
+Utilities - Independent Power Producers
+Utilities - Renewable
