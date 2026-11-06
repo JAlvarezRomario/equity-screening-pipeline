@@ -1,0 +1,189 @@
+# Sovereign dollar default spread (%) of the country a company is headquartered in (Yahoo's `country`), for the
+# Boring companies bond hurdle (`screens.bond_hurdle`; user's choice, Nov 7, 2026): the owner yield must beat the
+# 10-year Treasury (at least 6%) plus how much more than the US the company's own government pays to borrow dollars
+# (this spread less the United States' own, never below 0). Shown and tested by that list only; never scored.
+#
+# Source: Damodaran, "Country Default Spreads and Risk Premiums", the rating-based adjusted default spread
+# (pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/ctryprem.html), January 2026 update, read Nov 7, 2026.
+# Review each January, with the dividend withholding rates (`dividend_wht.txt`).
+#
+# `Country: spread  # Moody's rating`. A country not listed (Monaco, Gibraltar, British Virgin Islands) counts as the US.
+
+Abu Dhabi: 0.42  # Aa2
+Albania: 3.06  # Ba3
+Algeria: 3.83  # NR
+Andorra  (Principality of): 1.36  # Baa1
+Angola: 5.52  # B3
+Argentina: 6.37  # Caa1
+Armenia: 3.06  # Ba3
+Aruba: 1.87  # Baa3
+Australia: 0.00  # Aaa
+Austria: 0.23  # Aa1
+Azerbaijan: 1.87  # Baa3
+Bahamas: 3.83  # B1
+Bahrain: 4.67  # B2
+Bangladesh: 4.67  # B2
+Barbados: 4.67  # B2
+Belarus: 17.50  # C
+Belgium: 0.51  # Aa3
+Belize: 6.37  # Caa1
+Benin: 3.83  # B1
+Bermuda: 0.72  # A2
+Bolivia: 10.20  # Ca
+Bosnia and  Herzegovina: 5.52  # B3
+Botswana: 1.36  # Baa1
+Brazil: 2.13  # Ba1
+Brunei: 0.51  # NR
+Bulgaria: 1.36  # Baa1
+Burkina Faso: 6.37  # Caa1
+Cambodia: 4.67  # B2
+Cameroon: 6.37  # Caa1
+Canada: 0.00  # Aaa
+Cape Verde: 4.67  # B2
+Cayman Islands: 0.51  # Aa3
+Chile: 0.72  # A2
+China: 0.60  # A1
+Colombia: 1.87  # Baa3
+Congo  (Democratic Republic of): 5.52  # B3
+Congo  (Republic of): 7.65  # Caa2
+Cook Islands: 3.83  # B1
+Costa Rica: 2.56  # Ba2
+Côte d'Ivoire: 2.56  # Ba2
+Croatia: 1.02  # A3
+Cuba: 10.20  # Ca
+Curaçao: 1.87  # Baa3
+Cyprus: 1.02  # A3
+Czech Republic: 0.51  # Aa3
+Denmark: 0.00  # Aaa
+Dominican  Republic: 2.56  # Ba2
+Ecuador: 8.50  # Caa3
+Egypt: 6.37  # Caa1
+El Salvador: 5.52  # B3
+Estonia: 0.60  # A1
+Ethiopia: 7.65  # Caa2
+Fiji: 3.83  # B1
+Finland: 0.23  # Aa1
+France: 0.51  # Aa3
+Gabon: 7.65  # Caa2
+Gambia: 4.67  # NR
+Georgia: 2.56  # Ba2
+Germany: 0.00  # Aaa
+Ghana: 6.37  # Caa1
+Greece: 1.87  # Baa3
+Guatemala: 2.13  # Ba1
+Guernsey  (States of): 0.60  # A1
+Guinea: 7.65  # NR
+Guinea-Bissau: 6.37  # NR
+Guyana: 1.36  # NR
+Haiti: 8.50  # NR
+Honduras: 3.83  # B1
+Hong Kong: 0.51  # Aa3
+Hungary: 1.62  # Baa2
+Iceland: 0.60  # A1
+India: 1.87  # Baa3
+Indonesia: 1.62  # Baa2
+Iran: 6.37  # NR
+Iraq: 6.37  # Caa1
+Ireland: 0.51  # Aa3
+Isle of Man: 0.51  # Aa3
+Israel: 1.36  # Baa1
+Italy: 1.62  # Baa2
+Jamaica: 3.06  # Ba3
+Japan: 0.60  # A1
+Jersey (States  of): 0.51  # Aa3
+Jordan: 3.06  # Ba3
+Kazakhstan: 1.36  # Baa1
+Kenya: 6.37  # Caa1
+South Korea: 0.42  # Aa2
+Korea, D.P.R.: 10.20  # NR
+Kuwait: 0.60  # A1
+Kyrgyzstan: 5.52  # B3
+Laos: 7.65  # Caa2
+Latvia: 1.02  # A3
+Lebanon: 17.50  # C
+Liberia: 7.65  # NR
+Libya: 2.56  # NR
+Liechtenstein: 0.00  # Aaa
+Lithuania: 0.72  # A2
+Luxembourg: 0.00  # Aaa
+Macau: 0.51  # Aa3
+Macedonia: 3.06  # Ba3
+Madagascar: 5.52  # NR
+Malawi: 8.50  # NR
+Malaysia: 1.02  # A3
+Maldives: 7.65  # Caa2
+Mali: 7.65  # Caa2
+Malta: 0.72  # A2
+Mauritius: 1.87  # Baa3
+Mexico: 1.62  # Baa2
+Moldova: 5.52  # B3
+Mongolia: 3.83  # B1
+Montenegro: 3.83  # B1
+Montserrat: 1.87  # Baa3
+Morocco: 2.13  # Ba1
+Mozambique: 8.50  # Caa3
+Myanmar: 10.20  # NR
+Namibia: 3.83  # B1
+Nepal: 3.06  # Ba3
+Netherlands: 0.00  # Aaa
+New Zealand: 0.00  # Aaa
+Nicaragua: 4.67  # B2
+Niger: 8.50  # Caa3
+Nigeria: 5.52  # B3
+Norway: 0.00  # Aaa
+Oman: 1.87  # Baa3
+Pakistan: 6.37  # Caa1
+Panama: 1.87  # Baa3
+Papua New  Guinea: 4.67  # B2
+Paraguay: 1.87  # Baa3
+Peru: 1.36  # Baa1
+Philippines: 1.62  # Baa2
+Poland: 0.72  # A2
+Portugal: 1.02  # A3
+Qatar: 0.42  # Aa2
+Ras Al Khaimah  (Emirate of): 1.02  # A3
+Romania: 1.87  # Baa3
+Russia: 2.56  # NR
+Rwanda: 4.67  # B2
+Saudi Arabia: 0.51  # Aa3
+Senegal: 6.37  # Caa1
+Serbia: 2.56  # Ba2
+Sharjah: 2.13  # Ba1
+Sierra Leone: 5.52  # NR
+Singapore: 0.00  # Aaa
+Slovakia: 1.02  # A3
+Slovenia: 1.02  # A3
+Solomon  Islands: 6.37  # Caa1
+Somalia: 8.50  # NR
+South Africa: 2.56  # Ba2
+Spain: 1.02  # A3
+Sri Lanka: 10.20  # Ca
+St. Maarten: 2.56  # Ba2
+St. Vincent  & the Grenadines: 5.52  # B3
+Sudan: 17.50  # NR
+Suriname: 6.37  # Caa1
+Swaziland: 4.67  # B2
+Sweden: 0.00  # Aaa
+Switzerland: 0.00  # Aaa
+Syria: 10.20  # NR
+Taiwan: 0.51  # Aa3
+Tajikistan: 5.52  # B3
+Tanzania: 3.83  # B1
+Thailand: 1.36  # Baa1
+Togo: 5.52  # B3
+Trinidad and  Tobago: 2.56  # Ba2
+Tunisia: 6.37  # Caa1
+Turkey: 3.06  # Ba3
+Turks and  Caicos Islands: 1.36  # Baa1
+Uganda: 5.52  # B3
+Ukraine: 10.20  # Ca
+United Arab Emirates: 0.42  # Aa2
+United Kingdom: 0.51  # Aa3
+United States: 0.23  # Aa1
+Uruguay: 1.36  # Baa1
+Uzbekistan: 3.06  # Ba3
+Venezuela: 17.50  # C
+Vietnam: 2.56  # Ba2
+Yemen,  Republic: 10.20  # NR
+Zambia: 7.65  # Caa2
+Zimbabwe: 7.65  # NR

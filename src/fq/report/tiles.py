@@ -102,6 +102,7 @@ HEADLINE_FACTS = [
     ("Insiders", "heldPercentInsiders", ".1f", 100, "%"),
     ("Employees", "fullTimeEmployees", ",.0f", 1, ""),
     ("Dividend WHT", "Dividend_WHT", "g", 1, "%"),
+    ("Country spread", "Sovereign_Spread", ".2f", 1, "%"),
 ]  # fmt: skip
 
 # Context in large type under the score drivers (`score_tiles`; financial mode swaps two). `company_facts` then

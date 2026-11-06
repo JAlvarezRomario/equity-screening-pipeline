@@ -22,7 +22,7 @@ from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
 from fq.ranking import top_n
 from fq.report import screens as sc
 from fq.settings import Settings
-from fq.universe import dividend_wht, industry_key
+from fq.universe import dividend_wht, industry_key, sovereign_spread
 
 TOP_N = 20  # rows of each list on the index page (about 10 in view, the rest scroll in the card)
 SHORTLIST = "Shortlist"
@@ -237,6 +237,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
         df = df.assign(NCAV_to_Price=df["NCAV_to_Price"].where(~land, np.nan))
     countries = df["country"] if "country" in df.columns else [None] * len(df)
     df = df.assign(Dividend_WHT=[dividend_wht(t, c) for t, c in zip(df["Ticker"], countries, strict=True)])
+    df = df.assign(Sovereign_Spread=[sovereign_spread(c) for c in countries])  # the Boring companies bond hurdle
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)

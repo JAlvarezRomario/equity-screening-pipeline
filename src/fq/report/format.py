@@ -93,6 +93,9 @@ COLUMN_HELP = {
     "Above_52W_Low": "Price above its 52-week low, % (0 = at the low). Shown, never scored.",
     "Dividend_WHT": "Statutory dividend withholding tax on a non-resident individual, before treaties or refunds, by "
                     "country (lists/dividend_wht.txt), %. Shown, never scored.",
+    "Sovereign_Spread": "How much more than the US the company's home government pays to borrow dollars: its "
+                        "rating-based default spread (Damodaran, lists/sovereign_spread.txt) less the US's, %. Added "
+                        "to the Boring companies bond hurdle; never scored.",
     "Dividend_Yield": "Cash dividends paid over the last twelve months / market cap, %. Shown, never scored.",
     "Revenue_Growth_Steady": "USD revenue growth: the latest year's when it rose every year (plus the step-up when "
                              "growth sped up every year), else the trend x its R², %.",

@@ -174,6 +174,28 @@ def dividend_wht(ticker: str, country) -> float:
     return float("nan") if rate is None else rate
 
 
+@cache
+def _sovereign_spread_table() -> dict[str, float]:
+    """country key -> sovereign dollar default spread (%) from `lists/sovereign_spread.txt`."""
+    table = {}
+    for line in _read_lines("sovereign_spread.txt"):
+        entry = line.split("#")[0].strip()
+        if ":" in entry:
+            country, spread = entry.split(":", 1)
+            table[industry_key(country)] = float(spread)
+    return table
+
+
+def sovereign_spread(country) -> float:
+    """How much more than the US Yahoo's `country`'s government pays to borrow dollars, % (its default spread in
+    `lists/sovereign_spread.txt` less the United States', at least 0): 0 for a country not listed or unknown, the
+    Treasury already holding the US's own. The Boring companies bond hurdle only (user's choice, Nov 7, 2026); never
+    scored."""
+    table = _sovereign_spread_table()
+    spread = table.get(industry_key(country)) if isinstance(country, str) else None
+    return 0.0 if spread is None else max(0.0, spread - table.get(industry_key("United States"), 0.0))
+
+
 def share_classes() -> dict[str, tuple[str, float]]:
     """Linked share classes from `lists/share_classes.txt`: ticker -> (sister ticker, sister/own ratio)."""
     links = {}

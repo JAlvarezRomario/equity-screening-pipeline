@@ -934,7 +934,9 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),
         ("net debt within half of equity", net_debt_ok | financial),
         ("kept its margin through inflation", _margin_held(df)),
-        ("beats the bond", ~(num("Owner_Yield") < hurdle)),
+        # The owner yield beats the Treasury and what more the company's own government pays to borrow dollars
+        # (`Sovereign_Spread`, `universe.sovereign_spread`; user's choice, Nov 7, 2026); a frame without it: the US's.
+        ("beats the bond", ~(num("Owner_Yield") < hurdle + num("Sovereign_Spread").fillna(0.0))),
         ("durable returns",
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
          & (num("Quality_Score") >= SHORTLIST_MIN_QUALITY)),

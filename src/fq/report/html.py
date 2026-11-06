@@ -21,7 +21,7 @@ from fq.report.format import benchmark_note, fmt, headers, period_range, report_
 from fq.report.highlights import GROUPS, RANKED_TABS, REPEATERS, SHORTLIST, TABS, Highlights, Tab, fails
 from fq.report.links import slug
 from fq.settings import Settings
-from fq.universe import _read_lines
+from fq.universe import _read_lines, sovereign_spread
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +76,10 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "none is replaced. A grade changes no score and no rank.")  # fmt: skip
 
 
+# Countries the Boring companies rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
+SPREAD_EXAMPLES = ("Brazil", "South Africa", "India", "China", "Japan", "Germany")
+
+
 def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: float) -> dict:
     """The thresholds the tabs' sentences quote (`templates/list_rules.html.j2`), formatted once."""
     g = lambda v: f"{v:g}"  # noqa: E731
@@ -91,6 +95,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "ebit_fall": g(-cfg.dislocation_ebit_change_min),
         "net_debt_equity": g(sc.SHORTLIST_MAX_NET_DEBT_EQUITY), "leader_share": g(sc.SHORTLIST_LEADER_SHARE * 100),
         "leader_min": g(sc.SHORTLIST_LEADER_MIN), "hurdle": g(round(hurdle, 1)),
+        "spreads": ", ".join(f"{c} {sovereign_spread(c):.1f}" for c in SPREAD_EXAMPLES),
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
         "cannibal_min_reduction": g(cfg.cannibal_min_share_reduction), "cannibal_min_value": g(cfg.cannibal_min_value),
         "cannibal_min_quality": g(cfg.cannibal_min_quality),
