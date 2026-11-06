@@ -95,9 +95,15 @@ def build_forward(
     if copy_static:
         for name in STATIC_FILES:
             shutil.copy2(TEMPLATE_DIR / name, out_dir / name)
-    start = cohort["Start"].iloc[0]
+    (start, main), *later_groups = forward.pivot_groups(cohort)
     _, fwd_ledger = forward.phases(ledger, start)
-    fwd = _phase(cohort, fwd_ledger, start, live, index_charts.FORWARD_ID)
+    fwd = _phase(main, fwd_ledger, start, live, index_charts.FORWARD_ID)
+    later = []
+    for when, part in later_groups:  # lists bought at a pivot of their own, measured apart
+        phase = _phase(part, forward.phases(ledger, when)[1], when, live, f"{index_charts.FORWARD_ID}_{when:%Y%m%d}")
+        later.append(phase | {"pivot": f"{forward.last_close(when):%d %B %Y}", "anchor": f"forward-{when:%Y-%m}",
+                              "first": f"{forward.last_close(when + pd.offsets.MonthEnd(1)):%d %B %Y}",
+                              "lists": [label(n) for n in part["List"].unique()]})  # fmt: skip
     members = forward.member_table(cohort, ledger, live)
     pages = {p.stem for p in (out_dir / "companies").glob("*.html")}
     no_fx = sorted(set(ledger.loc[ledger.get("No_FX", pd.Series(False, index=ledger.index)).astype(bool), "Ticker"]))
@@ -110,14 +116,23 @@ def build_forward(
         .render(
             root="",
             pivot=f"{forward.last_close(start):%d %B %Y}",
-            published_on=f"{cohort['Published_On'].iloc[0]:%d %B %Y}",
+            published_on=f"{main['Published_On'].iloc[0]:%d %B %Y}",
             first_fwd=f"{forward.last_close(first_fwd):%d %B %Y}",
             first_fwd_run=f"{first_fwd + pd.Timedelta(days=1):%d %B}",
             fwd=fwd,
             gated_out=cohort.attrs.get("gated_out"),
             gate_date=f"{cohort.attrs['gate_date']:%d %B %Y}" if "gate_date" in cohort.attrs else "",
             n_lists=cohort.loc[~cohort["List"].isin([forward.PORTFOLIO_LIST, *forward.LATE_LISTS]), "List"].nunique(),
-            late_lists=[{"name": label(r.List), "date": f"{r.Published_On:%d %B %Y}"} for r in late.itertuples()],
+            late_lists=[
+                {
+                    "name": label(r.List),
+                    "date": f"{r.Published_On:%d %B %Y}",
+                    "own": r.Start != start,
+                    "pivot": f"{forward.last_close(r.Start):%d %B %Y}",
+                }
+                for r in late.itertuples()
+            ],  # fmt: skip
+            later=later,
             check=sorted(set(fwd_ledger.loc[check, "Ticker"])),
             groups=member_groups(members, pages),
             no_fx=no_fx,

@@ -325,6 +325,33 @@ def test_late_list_is_added_once_outside_the_cohort_and_backfilled(tmp_path, mon
     assert cohort[cohort["List"] == "Repeaters"]["Ticker"].tolist() == ["NEW", "A"]
 
 
+def test_a_list_with_a_pivot_of_its_own_is_bought_at_its_close_and_measured_apart(tmp_path, monkeypatch):
+    folder = _setup(tmp_path, monkeypatch)
+    _stored(folder, [(t, 0.0, False) for t in ("A", "B", "SPY", "VT")])
+    monkeypatch.setattr(forward, "LATE_LISTS", {"Energy": pd.Timestamp("2024-05-01")})
+    monkeypatch.setattr(forward, "LATE_PIVOTS", {"Energy": MONTHS[1]})  # April's close, a month after the others
+    frozen = (folder / "cohort.parquet").read_bytes()
+    ranked = pd.DataFrame({"Ticker": ["A", "NEW"], "Rank": [1, 2], "currency": "USD"})
+    tabs = pd.DataFrame({"List": ["Energy"], "Ticker": ["NEW"]})
+
+    def fetch(tickers, since):  # NEW doubles in April, before its pivot, then gains 10% in May
+        days = pd.bdate_range(since, "2024-07-15")
+        new = np.select([days <= MONTHS[0], days <= MONTHS[1]], [50.0, 100.0], 110.0)
+        return _flat(since, tickers).assign(**({"NEW": new} if "NEW" in tickers else {}))
+
+    cohort, ledger = forward.step(folder, tabs, ranked, set(), pd.Timestamp("2024-06-02"), fetch, lambda c: None,
+                                  late={"Energy": tabs})  # fmt: skip
+    assert (folder / "cohort.parquet").read_bytes() == frozen
+    assert cohort.loc[cohort["List"] == "Energy", "Start"].eq(MONTHS[1]).all()
+    assert cohort.loc[cohort["List"] == "L", "Start"].eq(MONTHS[0]).all()
+    assert [when for when, _ in forward.pivot_groups(cohort)] == [MONTHS[0], MONTHS[1]]
+    members = forward.member_table(cohort, ledger).set_index(["List", "Ticker"])
+    assert members.loc[("Energy", "NEW"), "Return_Fwd"] == pytest.approx(10.0)  # April's doubling is not its own
+    html = build_forward(tmp_path / "site", cohort, ledger).read_text(encoding="utf-8")
+    assert "Forward: since 30 April 2024 (Energy)" in html and "a start of its own" in html
+    assert html.count('id="forward_chart') == 2  # one chart per pivot
+
+
 def test_dividend_recorded_late_is_carried_once_into_the_next_month(tmp_path, monkeypatch):
     folder = _setup(tmp_path, monkeypatch)
     # April was stored flat; Yahoo then recorded a 2% dividend gone ex in late April: April's start is scaled down.

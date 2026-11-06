@@ -126,7 +126,7 @@
   <li>No new shares: the share count over 10 years not rising more than {{ r.unbroken_shares }}% a year, and not up since the last annual report.</li>
   <li>Boring and lasting: not cyclical, not at peak margins, past the AI screen, outside the industries Operating companies leaves out, the dividend not cut more than {{ r.recession_fall }}% in a past recession. Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation.</li>
   <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks, insurers and holdings: equity at least {{ r.equity }}% of assets).</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking; a bank or an insurer, ranked apart, the best {{ r.top }} of its own kind.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro shortlist(r) %}{% call rules("Candidates for deeper research: cheap, good, cleanly reported, and through stress tests for AI, recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>

@@ -732,10 +732,20 @@ def unbroken_dividend_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     financials) >= `UNBROKEN_MIN_ROIC` and never down more than `OPERATING_MAX_DIP` in a year nor below where it
     started (`_never_fell`); shares not issued (`Shares_Change_10Y` <= `UNBROKEN_MAX_SHARE_GROWTH`, nor since the last
     report); a boring business (`_lasting_business`, outside `operating_avoid.txt`) with pricing power
-    (`_margin_held`); a sound balance sheet (`_sound_balance_sheet`); `in_best_fraction`. Combined rank order, trusted
-    as `ranking.top_n`. Display only."""
+    (`_margin_held`); a sound balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer
+    (ranked apart, so it has no `Rank`) the best fraction of its own kind (`kind_order`). Ordered by position as a
+    share of the ranking (`Rank` among the ranked, `Kind_Rank` within the kind), trusted as `ranking.top_n`. Display
+    only."""
     s = Settings()
     df = with_dividend_record(df)
+    kind_rank, kind_best = kind_order(df)
+    kinds = kind(df)
+    financial = kinds.isin(("bank", "insurer"))
+    rank = _num(df, "Rank")
+    order = (rank / max(int(rank.notna().sum()), 1)).where(~financial)
+    for k in ("bank", "insurer"):
+        members = kinds == k
+        order = order.where(~members, kind_rank / max(int(kind_rank[members].notna().sum()), 1))
     yield_ = _num(df, "Dividend_Yield")
     keep = (
         _flag(df, "Dividend_Record_Whole")
@@ -753,9 +763,9 @@ def unbroken_dividend_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & ~_in_industries(df, "operating_avoid.txt")
         & _margin_held(df)
         & _sound_balance_sheet(df)
-        & in_best_fraction(df)
+        & (in_best_fraction(df) | (financial & kind_best))
     )
-    return top_n(df[keep], "Rank", n)
+    return top_n(df[keep].assign(List_Order=order[keep]), "List_Order", n)
 
 
 def _latest_value(df: pd.DataFrame, concept: str) -> pd.Series:

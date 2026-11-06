@@ -67,7 +67,18 @@ ADDED_GLOB = "cohort_added_*.parquet"  # later additions, one file per publicati
 # traded after the pivot's close. It admits only companies that pass the grade, so the frozen gate does not apply.
 # Nectar on its final rules (user's choice, Nov 2, 2026), ranked from the same cache as the re-frozen cohort, so no later
 # price reached it. Its first freeze, on earlier rules, is kept in `archive_nectar_first_rules/`.
-LATE_LISTS: dict[str, pd.Timestamp] = {"Nectar": pd.Timestamp("2026-11-02")}
+# The lists by kind (user's choice, Nov 5, 2026) were born on Nov 5 from a cache holding prices to that day, so they
+# cannot be bought at the Oct 30 close without hindsight. Each is bought at a pivot of its own (`LATE_PIVOTS`), the
+# Nov 30 close (November's month-end mark), with the tabs published on Dec 1 from a cache written before the markets
+# opened that day, and measured apart from the other lists (`pivot_groups`). A list not in `LATE_PIVOTS`: `START`.
+KIND_PIVOT = pd.Timestamp("2026-11-30")
+LATE_PIVOTS: dict[str, pd.Timestamp] = dict.fromkeys(
+    ("Banks and lenders", "Insurers", "Real estate", "Energy"), KIND_PIVOT
+)
+LATE_LISTS: dict[str, pd.Timestamp] = {
+    "Nectar": pd.Timestamp("2026-11-02"),
+    **dict.fromkeys(LATE_PIVOTS, pd.Timestamp("2026-12-01")),
+}
 # Re-frozen once (user's choice, Nov 1, 2026, after Japan joined the benchmark), with Repeaters and that round's grades,
 # still bought at the Oct 30 close. The report that froze it ran on Nov 2, when markets had traded, but its lists were
 # ranked from a cache last written on Sunday Nov 1 (offline; the grades read those pages, no search tool), so Monday's
@@ -164,8 +175,8 @@ def freeze_late_lists(
     grades: pd.DataFrame | None = None,
 ) -> None:
     """Freeze each list of `LATE_LISTS` no added file holds yet, a publication date at a time once `late` holds every
-    list of that date (its saved tabs: Ticker, List, in the order shown): same pivot as the cohort, the list's own
-    publication date, less the members `grades` (with `Passes`) fail, as the frozen gate does not cover them. The first
+    list of that date (its saved tabs: Ticker, List, in the order shown): the cohort's pivot `start`, or the list's own
+    (`LATE_PIVOTS`), the list's own publication date, less the members `grades` (with `Passes`) fail, as the frozen gate does not cover them. The first
     addition goes to `ADDED_FILE`, each later date to a file of its own (`ADDED_GLOB`), so no stored file is ever
     rewritten; `cohort.parquet` is not touched."""
     have = {name for path in _added_files(folder) for name in pd.read_parquet(path, columns=["List"])["List"]}
@@ -181,7 +192,7 @@ def freeze_late_lists(
         held = {
             name: late[name].loc[(late[name]["List"] == name) & ~late[name]["Ticker"].isin(failed)] for name in names
         }
-        parts = [freeze_cohort(held[name], ranked, set(), start, when, method) for name in names]
+        parts = [freeze_cohort(held[name], ranked, set(), LATE_PIVOTS.get(name, start), when, method) for name in names]
         save_cohort(pd.concat(parts, ignore_index=True), path)
         log.info("Forward test: %s added", ", ".join(names))
 
@@ -196,6 +207,12 @@ def load_cohort(folder: Path) -> pd.DataFrame:
     """The frozen cohort plus the lists added after it."""
     parts = [pd.read_parquet(folder / "cohort.parquet"), *(pd.read_parquet(p) for p in _added_files(folder))]
     return pd.concat(parts, ignore_index=True) if len(parts) > 1 else parts[0]
+
+
+def pivot_groups(cohort: pd.DataFrame) -> list[tuple[pd.Timestamp, pd.DataFrame]]:
+    """(pivot, its lists) for each pivot the cohort holds, the cohort's own (`START`, the portfolio's) first: a list
+    bought later is measured from its own close, against the benchmarks over the same months, never beside the others."""
+    return [(pd.Timestamp(when), part) for when, part in cohort.groupby("Start", sort=True)]
 
 
 def back_start(start: pd.Timestamp) -> pd.Timestamp:
@@ -397,14 +414,18 @@ def summary(
 
 
 def member_table(cohort: pd.DataFrame, ledger: pd.DataFrame, live: pd.DataFrame | None = None) -> pd.DataFrame:
-    """Every frozen member: its list, entry position, backward and forward return (%), stale and still on its list
-    today."""
-    start = cohort["Start"].iloc[0]
-    back, fwd = phases(ledger, start)
+    """Every frozen member: its list, entry position, backward and forward return (%; forward from its list's own
+    pivot, `pivot_groups`), stale and still on its list today."""
+    start = cohort["Start"].min()
+    back, _ = phases(ledger, start)
     out = cohort.assign(Stale=cohort["Ticker"].isin(_stale_now(ledger)))
-    for col, part, since in (("Return_Back", back, back_start(start)), ("Return_Fwd", fwd, start)):
-        value = growth(part, since).iloc[-1] - 1 if not part.empty else pd.Series(dtype=float)
-        out[col] = out["Ticker"].map(value * 100)
+    value = growth(back, back_start(start)).iloc[-1] - 1 if not back.empty else pd.Series(dtype=float)
+    out["Return_Back"] = out["Ticker"].map(value * 100)
+    out["Return_Fwd"] = np.nan
+    for when, part in pivot_groups(out):
+        _, fwd = phases(ledger, when)
+        value = growth(fwd, when).iloc[-1] - 1 if not fwd.empty else pd.Series(dtype=float)
+        out.loc[part.index, "Return_Fwd"] = part["Ticker"].map(value * 100)
     if live is not None:
         pairs = set(zip(live["List"].replace(RENAMED), live["Ticker"], strict=True))
         out["Still_Listed"] = [(a, t) in pairs for a, t in zip(out["List"], out["Ticker"], strict=True)]

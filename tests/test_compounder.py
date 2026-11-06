@@ -258,6 +258,29 @@ def test_unbroken_dividends_need_a_whole_record_a_covered_yield_stable_returns_a
     assert unbroken_dividend_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
 
 
+def test_unbroken_dividends_take_a_bank_ranked_apart_on_its_own_kinds_best():
+    from fq.report.screens import unbroken_dividend_list
+
+    def r(ticker, rank, **over):
+        row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
+        return row | {"Dividend_Unbroken_Years": 15.0, "Dividend_Record_Whole": True, "Regular_DPS_Growth_10Y": 5.0,
+                      "Recessions_Covered": 2.0, "Recessions_Due": 2.0, "Dividend_Yield": 4.0, "Owner_Yield": 8.0,
+                      "ROIC_Norm": 15.0, "Shares_Change_10Y": -1.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
+                      "Common Stock Equity_Y0": 100.0, "Rank_Group": "ranked", "In_Best_Fraction": True,
+                      "Kind_Rank": np.nan, "In_Kind_Best": False} | over  # fmt: skip
+
+    apart = {"Rank": np.nan, "In_Best_Fraction": False, "Rank_Group": "financial", "Business_Model": "bank",
+             "Financial_Mode": True, "Equity_to_Assets": 9.0}  # fmt: skip
+    df = pd.DataFrame([
+        r("A", 1.0),
+        r("B", 9.0),  # ninth of ten ranked: after a bank first among its kind
+        r("BANK", 4.0, Kind_Rank=1.0, In_Kind_Best=True, **apart),
+        r("BANK_LOW", 4.0, Kind_Rank=2.0, In_Kind_Best=False, **apart),  # not in its kind's best fraction
+    ])  # fmt: skip
+    df = pd.concat([df, pd.DataFrame({"Ticker": [f"X{i}" for i in range(8)], "Rank": np.arange(2.0, 10.0)})])
+    assert unbroken_dividend_list(df.reset_index(drop=True))["Ticker"].tolist() == ["A", "BANK", "B"]
+
+
 def test_fast_growers_need_fast_smooth_owner_earnings_rising_margins_and_a_yield():
     from fq.report.screens import fast_grower_list
 
