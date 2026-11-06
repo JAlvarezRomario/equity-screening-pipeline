@@ -48,9 +48,10 @@ from fq.grading import passes_shortlist
 
 log = logging.getLogger(__name__)
 
-# The pivot (user's choice, Oct 30, 2026): October's month-end mark, i.e. the Oct 30, 2026 close (its last trading
-# day), with the lists published that day. Backward before it, forward after it.
-START = pd.Timestamp("2026-10-31")
+# The pivot (user's choice, Nov 6, 2026: the test restarts on the lists as refined by then): November's month-end mark,
+# i.e. the Nov 30, 2026 close, with the lists published on Dec 1 (`FROZEN_ON`). Backward before it, forward after it.
+# The first test (Oct 30 close) is kept in `archive_2026-10-30_cohort/`, not shown.
+START = pd.Timestamp("2026-11-30")
 BENCHMARKS = {"SPY": "S&P 500 (SPY)", "VT": "Total world (VT)"}  # USD ETFs, total return
 WORLD = "VT"  # the market each list is ranked against
 PORTFOLIO_LIST = "Portfolio (equal weight)"
@@ -67,24 +68,15 @@ ADDED_GLOB = "cohort_added_*.parquet"  # later additions, one file per publicati
 # traded after the pivot's close. It admits only companies that pass the grade, so the frozen gate does not apply.
 # Nectar on its final rules (user's choice, Nov 2, 2026), ranked from the same cache as the re-frozen cohort, so no later
 # price reached it. Its first freeze, on earlier rules, is kept in `archive_nectar_first_rules/`.
-# The lists by kind (user's choice, Nov 5, 2026) were born on Nov 5 from a cache holding prices to that day, so they
-# cannot be bought at the Oct 30 close without hindsight. Each is bought at a pivot of its own (`LATE_PIVOTS`), the
-# Nov 30 close (November's month-end mark), with the tabs published on Dec 1 from a cache written before the markets
-# opened that day, and measured apart from the other lists (`pivot_groups`). A list not in `LATE_PIVOTS`: `START`.
-KIND_PIVOT = pd.Timestamp("2026-11-30")
-LATE_PIVOTS: dict[str, pd.Timestamp] = dict.fromkeys(
-    ("Banks and lenders", "Insurers", "Real estate", "Energy"), KIND_PIVOT
-)
-LATE_LISTS: dict[str, pd.Timestamp] = {
-    "Nectar": pd.Timestamp("2026-11-02"),
-    **dict.fromkeys(LATE_PIVOTS, pd.Timestamp("2026-12-01")),
-}
-# Re-frozen once (user's choice, Nov 1, 2026, after Japan joined the benchmark), with Repeaters and that round's grades,
-# still bought at the Oct 30 close. The report that froze it ran on Nov 2, when markets had traded, but its lists were
-# ranked from a cache last written on Sunday Nov 1 (offline; the grades read those pages, no search tool), so Monday's
-# prices reached no choice. The Oct 30 cohort, its gate and the Repeaters addition are kept in `archive_2026-10-30/`;
-# the ledger is per ticker and stays.
-FROZEN_ON = pd.Timestamp("2026-11-02")
+# A list born after the freeze can be added (`LATE_LISTS`: name -> the date of its saved tabs), bought at `START` or at
+# a pivot of its own (`LATE_PIVOTS`: name -> a later month-end), measured apart from the others (`pivot_groups`).
+# None since the restart.
+LATE_PIVOTS: dict[str, pd.Timestamp] = {}
+LATE_LISTS: dict[str, pd.Timestamp] = {}
+# The cohort is frozen only from the tabs saved on this day (`pipeline.forward_step`; a day keeps its last report's
+# tabs, so every benchmark report of Dec 1 must rank the cache written before the markets opened that day), at the
+# first online run after it. Until those tabs exist the site shows a placeholder (`forward_page.build_placeholder`).
+FROZEN_ON = pd.Timestamp("2026-12-01")
 MAX_STALE_SHARE = 0.2  # above this share of tickers without a price, a month is a failed download: not stored, retried
 UNIT_BREAK = (
     20.0  # a one-day move this large (either way) is a change of quote unit (BCG.L, pence to euros), not a return

@@ -21,7 +21,7 @@ from fq import forward, fx, grading, health, history, refresh
 from fq.filters import clean_and_filter
 from fq.metrics import calculate_metrics
 from fq.ranking import apply_dual_ranking
-from fq.report.forward_page import build_forward
+from fq.report.forward_page import build_forward, build_placeholder
 from fq.report.highlights import Highlights
 from fq.report.html import build_site
 from fq.settings import BENCHMARK_MIN_CACHED, DEFAULT_BENCHMARK, SELF_BENCHMARKED, Settings
@@ -204,8 +204,8 @@ def forward_step(cfg: Settings, ranked: pd.DataFrame, h: Highlights, offline: bo
     """The backward and forward test (`fq.forward`) of the benchmark run: (cohort, ledger, today's lists), or None for
     other runs, when nothing is stored offline, or when it fails (the report goes on without it).
 
-    The cohort is frozen from the lists published on `forward.FROZEN_ON` (the last report of that day), else from
-    today's."""
+    The cohort is frozen only from the lists published on `forward.FROZEN_ON` (the last report of that day): before
+    they exist, nothing is frozen and None is returned (the site shows a placeholder)."""
     if cfg.label != DEFAULT_BENCHMARK:
         return None
     try:
@@ -217,6 +217,8 @@ def forward_step(cfg: Settings, ranked: pd.DataFrame, h: Highlights, offline: bo
             published_on = max(saved)
             published = saved[published_on][["Ticker", "List"]]
             published_on = published_on.normalize()
+        elif not (cfg.data_dir / "forward" / "cohort.parquet").exists():
+            return None  # never frozen from any other day's lists
         tabs = evaluate_mod.load_published(cfg.snapshot_dir, cfg.label)
         late = {name: frame for name, when in forward.LATE_LISTS.items() for d, frame in tabs.items()
                 if d.normalize() == when and name in set(frame["List"])}  # fmt: skip
@@ -289,6 +291,8 @@ def write_report(
     bench = pd.read_parquet(cfg.bench_path) if cfg.bench_path.exists() else None
     h = Highlights.compute(ranked, cfg, bench)  # every list once: the page, the forward test, the grading
     fw = forward_step(cfg, ranked, h, offline) if not companies_only and tickers is None else None
+    soon = fw is None and cfg.label == DEFAULT_BENCHMARK and not companies_only and tickers is None
+    forward_link = "Forward test" if fw is not None or soon else None
     index = build_site(
         ranked,
         cfg,
@@ -297,7 +301,7 @@ def write_report(
         index_only=index_only,
         companies_only=companies_only,
         tickers=tickers,
-        forward=None if fw is None else "Forward test",
+        forward=forward_link,
         highlights=h,
     )
     # The benchmark's listed companies are graded from the pages just written; a new grade re-renders its page and
@@ -307,10 +311,12 @@ def write_report(
     if grade and grade_companies(cfg, ranked, h, max_grades=grading.MAX_PER_RUN):
         h = Highlights.compute(ranked, cfg, bench)  # the new grades move rows below the bar and into Repeaters
         index = build_site(ranked, cfg, bench=bench, held=portfolio(),
-                           forward=None if fw is None else "Forward test", highlights=h)  # fmt: skip
+                           forward=forward_link, highlights=h)  # fmt: skip
     if fw is not None:
         cohort, ledger, live = fw
         log.info("Forward test written to %s", build_forward(cfg.site_dir, cohort, ledger, live=live))
+    elif soon:
+        log.info("Forward test not started: placeholder written to %s", build_placeholder(cfg.site_dir))
     if not companies_only and tickers is None:  # the tabs as shown, for `fq evaluate`
         tabs = evaluate_mod.save_published(h.published(), cfg.snapshot_dir, cfg.label,
                                            pd.Timestamp.now())  # fmt: skip
@@ -474,7 +480,7 @@ def forward_only(cfg: Settings, offline: bool = False) -> None:
     ranked, bench = load_benchmark_run(cfg)
     fw = forward_step(cfg, ranked, Highlights.compute(ranked, cfg, bench), offline)
     if fw is None:
-        print("Nothing to show yet (run without --offline once).")
+        print(f"Not started yet: placeholder written to {build_placeholder(cfg.site_dir).resolve()}")
         return
     cohort, ledger, live = fw
     print(f"\nOpen {build_forward(cfg.site_dir, cohort, ledger, live=live).resolve()}")

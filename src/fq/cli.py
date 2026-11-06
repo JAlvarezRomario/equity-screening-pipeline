@@ -288,7 +288,7 @@ def forward_cmd(
     data_dir: DataDirOpt = Path("data"),
     output_dir: OutDirOpt = Path("output"),
 ) -> None:
-    """The backward and forward test alone: freeze the lists (once, Oct 30, 2026), add the month-ends passed, write
+    """The backward and forward test alone: freeze the lists (once, from the tabs of `forward.FROZEN_ON`), add the month-ends passed, write
     forward.html (`fq run -u benchmark` does this too)."""
     _setup_logging()
     cfg = Settings(data_dir=data_dir, output_dir=output_dir, label=DEFAULT_BENCHMARK)

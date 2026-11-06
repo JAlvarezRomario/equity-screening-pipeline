@@ -1,0 +1,16 @@
+{% extends "base.html.j2" %}
+{% block title %}Forward test &middot; Turning over the Rocks{% endblock %}
+{% block header %}
+<h1>Forward test</h1>
+<p class="subtitle">Did the lists work? Every highlight list, frozen once, held without trading, against the S&amp;P 500 and the whole world market, in US dollars with dividends.</p>
+<nav class="page-sections">
+  <a href="index.html">&larr; Back to the lists</a>
+</nav>
+{% endblock %}
+{% block content %}
+<div class="card intro" id="forward">
+  <h2>Starting soon</h2>
+  <p class="fw-lead"><strong>The test starts at the close of {{ pivot }}.</strong> The lists are still being refined until then. Every highlight list, as published on {{ frozen_on }}, will be frozen once and bought at that close in equal amounts per company, then held without trading.</p>
+  <p class="empty">The first result is the close of {{ first_fwd }}, added by the update after that month-end. It takes years to say much: a few months are mostly noise.</p>
+</div>
+{% endblock %}

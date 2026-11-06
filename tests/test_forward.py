@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from fq import forward
-from fq.report.forward_page import build_forward
+from fq.report.forward_page import build_forward, build_placeholder
 
 START = pd.Timestamp("2024-01-01")
 
@@ -140,6 +140,14 @@ def test_step_freezes_then_backward_then_forward(tmp_path, monkeypatch):
     assert "Not investment, financial, tax or legal advice" in html
     assert forward.step(tmp_path / "empty", published, ranked, set(), pd.Timestamp("2024-05-10"), fetch, usd,
                         offline=True) is None  # fmt: skip
+
+
+def test_placeholder_names_the_start_and_the_first_result(tmp_path):
+    html = build_placeholder(tmp_path / "site").read_text(encoding="utf-8")
+    start = forward.last_close(forward.START)
+    first = forward.last_close(forward.START + pd.offsets.MonthEnd(1))
+    assert f"{start:%d %B %Y}" in html and f"{first:%d %B %Y}" in html and f"{forward.FROZEN_ON:%d %B %Y}" in html
+    assert "Starting soon" in html and "Back to the lists" in html
 
 
 def test_summary_against_benchmarks():

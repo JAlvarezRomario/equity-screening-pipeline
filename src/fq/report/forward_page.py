@@ -81,6 +81,27 @@ def _phase(cohort: pd.DataFrame, ledger: pd.DataFrame, start: pd.Timestamp, live
             "rows": rows if len(values) > 1 else []}  # fmt: skip
 
 
+def build_placeholder(out_dir: Path) -> Path:
+    """Write `<out_dir>/forward.html` before the cohort is frozen: when the test starts and when its first result
+    comes (`forward.START`, `forward.FROZEN_ON`)."""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    first = forward.START + pd.offsets.MonthEnd(1)
+    page = (
+        _env()
+        .get_template("forward_soon.html.j2")
+        .render(
+            root="",
+            pivot=f"{forward.last_close(forward.START):%d %B %Y}",
+            frozen_on=f"{forward.FROZEN_ON:%d %B %Y}",
+            first_fwd=f"{forward.last_close(first):%d %B %Y}",
+        )  # fmt: skip
+    )
+    path = out_dir / "forward.html"
+    path.write_text(page, encoding="utf-8")
+    return path
+
+
 def build_forward(
     out_dir: Path,
     cohort: pd.DataFrame,
