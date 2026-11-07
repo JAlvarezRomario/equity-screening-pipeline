@@ -149,6 +149,8 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["extra"] = r["ticker"] in extras
         r["fails"] = bool(row["_fails"])
         r["pills"].append(grade_pill(row))
+        if tab.key == "carry" and row.get("Carry_Record") == False:  # noqa: E712 - numpy bool
+            r["pills"].append({"label": "shorter record", "why": sc.CARRY_SHORT_PILL, "cls": ""})
     if tab.name == REPEATERS:  # the Lists cell names the lists on hover
         every = h.candidates()
         names = dict(zip(every["Ticker"], every["Repeat_Lists"], strict=True))

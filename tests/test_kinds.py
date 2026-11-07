@@ -104,7 +104,9 @@ def test_untaxed_dividends_needs_ten_years_without_a_cut_and_a_record():
     df = _record(df, Dividend_Unbroken_Years=[15.0, 6.0, 0.0, np.nan, 12.0],
                  Dividend_Cut_Recent=[False, False, True, False, False])  # fmt: skip
     # T1 cut 6 years ago, T2 cut this year, T3 has no record; T0 and T4 have held for 10 years or more.
-    assert sc.dividend_carry_list(df)["Ticker"].tolist() == ["T0", "T4"]
+    out = sc.dividend_carry_list(df)
+    assert out["Ticker"].tolist() == ["T0", "T4", "T1", "T3"]  # the shorter records fill; a cut now never does
+    assert out["Carry_Record"].tolist() == [True, True, False, False]
 
 
 def test_a_benchmark_ranked_before_the_rank_groups_never_lends_a_bank_its_old_position():
@@ -136,6 +138,10 @@ def test_untaxed_dividends_yield_must_beat_the_obtained_borrowing_cost():
                 **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
                 **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
     assert sc.dividend_carry_list(_record(df))["Ticker"].tolist() == ["T0"]  # 5.5% does not pay a 5.8% loan
+    out = sc.dividend_carry_list(
+        _record(df.assign(Borrow_Rate=4.44, Dividend_Yield=[6.0, 4.6]))
+    )  # 4.6%: above the loan, under the 5% floor
+    assert out["Ticker"].tolist() == ["T0", "T1"] and out["Carry_Record"].tolist() == [True, False]
 
 
 def test_a_young_company_in_a_hard_hit_industry_needs_to_lead_it_with_net_cash():

@@ -157,7 +157,18 @@ def test_dividend_carry_needs_untaxed_covered_unbroken_dividends_in_the_best_qui
             company("OUTSIDE", 30.0),
         ]
     )
-    assert dividend_carry_list(df)["Ticker"].tolist() == ["A", "B"]
+    out = dividend_carry_list(df)
+    assert out.loc[out["Carry_Record"], "Ticker"].tolist() == ["A", "B"]  # the full record first
+    # Filled to 20 (Nov 7, 2026) with the shorter records: no cut now, untaxed, covered, not cyclical, in the best.
+    assert set(out.loc[~out["Carry_Record"], "Ticker"]) == {
+        "LOW_YIELD",
+        "CUT_SIX_YEARS_AGO",
+        "NO_RECORD",
+        "LOWER_THAN_TEN_YEARS_AGO",
+        "OE_FALLING",
+    }
+    assert out["Ticker"].tolist()[:2] == ["A", "B"] and out["Carry_Order"].is_monotonic_increasing
+    assert dividend_carry_list(df, 3)["Ticker"].tolist()[:2] == ["A", "B"] and len(dividend_carry_list(df, 3)) == 3
 
 
 def _twenty_year_row(ticker, rank, owner=(130, 120, 110, 100), revenue=(400, 300, 200, 100), shares=(10, 10, 10, 11),

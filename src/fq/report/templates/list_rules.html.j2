@@ -104,15 +104,16 @@
   <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, covered by what the business earns.") %}<ul>
+{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, covered by what the business earns. Few companies have the full record, so the list is filled to 20 with shorter ones, marked.") %}<ul>
   <li>No dividend withholding tax for a foreign individual (statutory rate): the dividend is kept whole.</li>
   <li>Yield of {{ r.carry_min_yield }}% or more, and above what a euro margin loan costs today, {{ r.carry_borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety, read at each update), so it could service a loan.</li>
   <li>Covered by the owner yield: what is not paid out stays in the company and keeps growing its value.</li>
-  <li>The dividend record, payment by payment: no cut in the last {{ r.carry_unbroken }} complete years nor in the last twelve months, and the regular dividend per share no lower than ten years ago, in US terms. A company without that record is left out: a dividend bought on a loan needs the evidence.</li>
+  <li>The dividend record, payment by payment: no cut in the last {{ r.carry_unbroken }} complete years nor in the last twelve months, and the regular dividend per share no lower than ten years ago, in US terms. A dividend bought on a loan needs that evidence: a company without it only fills the list (below).</li>
   <li>Owner earnings per share, in US terms, trended up over at least {{ r.carry_min_years }} annual reports (one dip allowed).</li>
   <li>Little debt inside the company, since a loan to buy it adds leverage on top: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks, insurers and holdings: equity at least {{ r.equity }}% of assets).</li>
   <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
+  <li>It keeps only the best {{ r.top }} of the combined ranking. The companies passing every test come first, in combined-rank order.</li>
+  <li>Then, until there are 20, the companies passing every test but the record, marked <em>shorter record</em>, in combined-rank order: still no cut in the last twelve months and the yield above the loan cost, but fewer than {{ r.carry_unbroken }} unbroken years (or no record), a yield under {{ r.carry_min_yield }}%, a dividend below ten years ago or owner earnings not trending up. Less evidence behind the dividend: weigh that before borrowing for it.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro dividend_growers(r) %}{% call rules("A dividend held for at least a decade and growing faster than inflation, covered by owner earnings, in a lasting business with little debt.") %}<ul>

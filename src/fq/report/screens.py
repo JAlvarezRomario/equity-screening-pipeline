@@ -403,8 +403,20 @@ def _trending_up(per_share: pd.DataFrame, min_years: int, max_dips: int) -> pd.S
 CARRY_MIN_UNBROKEN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
 
 
+CARRY_SHORT_PILL = ("A shorter dividend record: it passes every Untaxed dividends test but the full record (no cut in "
+                    f"{CARRY_MIN_UNBROKEN_YEARS} complete years, the dividend no lower than 10 years ago, owner "
+                    "earnings per share trending up, a yield of at least the list's floor), so it fills the list after "
+                    "the companies that have it.")  # fmt: skip
+
+
 def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Dividend payers a non-resident keeps whole (`Dividend_WHT` 0): yield at least `Settings.carry_min_yield` and above
+    """Filled to `n` (user's choice, Nov 7, 2026: the full record left 1 to 3 companies, and the list should hold about
+    20): the companies passing every test below (`Carry_Record` True) first, in combined rank order, then those passing
+    all but the record tests (`Carry_Record` False: no cut in the last 12 months still required, the yield above the
+    loan cost but not `Settings.carry_min_yield`, the unbroken years, the 10-year growth and the owner trend not
+    asked; `CARRY_SHORT_PILL`), in combined rank order, until `n`; `Carry_Order` is the order shown.
+
+    Dividend payers a non-resident keeps whole (`Dividend_WHT` 0): yield at least `Settings.carry_min_yield` and above
     the cost of a euro margin loan (`Borrow_Rate`, set by `highlights.Highlights.compute` from `fx.get_borrow_rate`;
     `fx.FALLBACK_BORROW_RATE` without it), covered by the owner yield (what is left is retained and grows the value), the dividend
     record (`dividend_record`, user's choice, Nov 5, 2026: the list is bought partly on borrowed money, so a cut is the
@@ -422,20 +434,27 @@ def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     )
     owner = _owner_per_share(df, s.annual_years)
     yield_ = num("Dividend_Yield")
-    keep = (
+    loan = num("Borrow_Rate").fillna(FALLBACK_BORROW_RATE)
+    core = (
         (num("Dividend_WHT") == 0)
-        & (yield_ >= np.maximum(s.carry_min_yield, num("Borrow_Rate").fillna(FALLBACK_BORROW_RATE)))
+        & (yield_ >= loan)
         & (num("Owner_Yield") > yield_)
-        & (num("Dividend_Unbroken_Years") >= CARRY_MIN_UNBROKEN_YEARS)  # 0 when a cut was paid this year
         & ~_flag(df, "Dividend_Cut_Recent")
-        & (num("Regular_DPS_Growth_10Y_US") >= 0)
-        & _trending_up(owner, s.carry_min_years, s.carry_max_dips)
         & in_best_fraction(df)
         & (df["Cyclical"] != True if "Cyclical" in df.columns else True)  # noqa: E712 - handles NaN / numpy bool
         & ~(num("Peak_Margin_Ratio") > s.peak_margin_ratio)
         & _sound_balance_sheet(df)
     )
-    return top_n(df[keep], "Rank", n)
+    record = (
+        (yield_ >= s.carry_min_yield)
+        & (num("Dividend_Unbroken_Years") >= CARRY_MIN_UNBROKEN_YEARS)  # 0 when a cut was paid this year
+        & (num("Regular_DPS_Growth_10Y_US") >= 0)
+        & _trending_up(owner, s.carry_min_years, s.carry_max_dips)
+    )
+    full = top_n(df[core & record], "Rank", n)
+    short = top_n(df[core & ~record], "Rank", max(n - len(full), 0))
+    out = pd.concat([full.assign(Carry_Record=True), short.assign(Carry_Record=False)])
+    return out.assign(Carry_Record=out["Carry_Record"].astype(bool), Carry_Order=np.arange(len(out), dtype=float))
 
 
 # The "Net cash" list: what put a company on it, then the usual facts (user's choice, Oct 29, 2026).

@@ -181,7 +181,7 @@ TABS: tuple[Tab, ...] = (
     Tab("Dividend growers", "dividend_growers", "hl-dividend-growers", sc.DIVIDEND_GROWER_COLUMNS,
         _plain(sc.dividend_grower_list), group="income"),
     Tab("Dividend carry", "carry", "hl-carry", sc.CARRY_COLUMNS, _plain(sc.dividend_carry_list), group="income",
-        label="Untaxed dividends"),
+        label="Untaxed dividends", sort="Carry_Order"),
     Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list), group="balance"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
         group="balance", sort="Book_Order"),
