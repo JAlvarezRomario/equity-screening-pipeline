@@ -123,8 +123,9 @@ data, and the site builder (uncoloured) only writes local files. The metric core
 | `valuation` | the Value inputs (owner yield on a normal year) |
 | `flags` | suspect-data and model-review flags that keep a company off every list |
 
-Each criterion is a percentile against the benchmark's companies (banks, insurers and holdings against their own
-kind), so a company's score does not depend on which run it is in. Each criterion is a named entry in
+Each criterion is a percentile against the benchmark's companies of the same group: profitable operating companies
+against each other (the rankings), and banks, insurers, holdings, REITs and utilities each against their own kind
+(`ranking.score_group`), so a company's score does not depend on which run it is in. Each criterion is a named entry in
 `settings.py`, and its input is computed in the matching `metrics/` step.
 
 [Back to contents](#contents)

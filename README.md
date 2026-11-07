@@ -28,8 +28,10 @@ Each company gets two scores:
 - **Quality:** how much the business earns on the capital it uses, how steadily, and whether each share keeps
   growing.
 
-Both are plain arithmetic, with no model inside. Seventeen lists then pick out companies worth a closer look, and an
-LLM grades those companies' moat and management. The grade only reorders the lists; it never changes a score. A
+Both are plain arithmetic, with no model inside. Profitable operating companies are ranked against each other;
+banks, insurers, holdings, REITs and utilities are scored against their own kind. Seventeen lists then pick out
+companies worth a closer look, and an LLM grades those companies' moat and management. The grade only folds a
+list's weaker members away; it never changes a score. A
 frozen forward test tracks month by month whether the lists beat the market. The output is a static website
 with one page per company.
 
@@ -48,11 +50,11 @@ with one page per company.
 
 | | |
 |---|---|
-| Companies ranked | 10k+, from a benchmark of 11k+ tickers drawn from 50+ index and market lists |
+| Companies scored | 10k+, from a benchmark of 11k+ tickers drawn from 50+ index and market lists; about 6,400 profitable operating companies ranked |
 | Markets | about 70 countries; statements read in their reporting currency, returns compared in US terms |
 | Data | about 480 raw columns per company and about 870 in the ranked table, in parquet |
 | Code | about 12,000 lines of Python, plus about 400 offline tests |
-| LLM cost | under $50 so far, for about 400 graded companies; recorded per company |
+| LLM cost | about $0.10 a graded company (two passes, one when the first fails); about 580 graded; recorded per company |
 
 ## Architecture at a glance
 
