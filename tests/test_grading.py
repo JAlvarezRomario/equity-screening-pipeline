@@ -284,6 +284,44 @@ def test_new_only_grades_never_graded_companies_and_rewrites_no_synthesis(cfg, m
     assert sent == ["NEW"] and rewritten == []
 
 
+def test_fq_grade_grades_in_waves_until_nothing_changes(cfg, monkeypatch):
+    # Nov 7, 2026: new grades put new names on lists filled from graded companies, due in turn (333, 4, 0).
+    from fq import pipeline
+
+    waves = iter([333, 4, 0, 99])
+    calls = []
+    monkeypatch.setattr(pipeline, "load_benchmark_run", lambda cfg: (pd.DataFrame(), None))
+    monkeypatch.setattr(pipeline.Highlights, "compute", classmethod(lambda cls, *a: object()))
+    monkeypatch.setattr(pipeline, "grade_companies", lambda *a, **k: calls.append(k) or next(waves))
+    monkeypatch.setattr(pipeline, "write_report", lambda *a, **k: calls.append("report"))
+    pipeline.grade_only(cfg)
+    assert len(calls) == 4 and calls[-1] == "report"  # three waves, the third changing nothing, then the site
+    calls.clear()
+    pipeline.grade_only(cfg, max_grades=10)  # a cap is one wave
+    assert len(calls) == 2
+    calls.clear()
+    monkeypatch.setattr(pipeline, "grade_companies", lambda *a, **k: calls.append(k) or 1)
+    pipeline.grade_only(cfg, report=False)
+    assert len(calls) == pipeline.GRADE_WAVES  # bounded
+
+
+def test_todays_grades_stay_current_under_the_management_line():
+    # User's choice, Nov 7, 2026: the new line grades new companies only; no re-grade is spent.
+    assert "ca61a6316a06" in grading.PASS_HASH_ALIASES and grading.prompt_hash() != "ca61a6316a06"
+    assert "capital allocation across the whole record" in grading._prompt("grade_prompt.md")
+    now = pd.Timestamp("2026-11-07")
+    ranked = pd.DataFrame({"Ticker": ["A"], "PeriodEnd_Y0": pd.to_datetime(["2025-12-31"])})
+    grades = pd.DataFrame({"Ticker": ["A"], "Graded_At": [pd.Timestamp("2026-11-07")],
+                           "Y0_End": [pd.Timestamp("2025-12-31")], "Prompt_Hash": ["ca61a6316a06"]})  # fmt: skip
+    assert grading.due(["A"], ranked, grades, now) == []
+
+
+def test_the_client_has_a_call_timeout(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    client = grading._client()
+    assert client._api_client._http_options.timeout == grading.CALL_TIMEOUT_MS
+
+
 def test_best_grades_take_both_at_least_four_and_one_above_by_owner_yield():
     import numpy as np
 

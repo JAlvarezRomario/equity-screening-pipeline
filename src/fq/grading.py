@@ -36,6 +36,7 @@ PASSES = 2
 SECOND_PASS_ONLY_IF_GATE = True  # the second pass runs only when the first clears `passes` (user, Nov 6, 2026)
 NO_SECOND_NOTE = "(none: one note only)"  # Note B of the synthesis when only the first pass ran
 WORKERS = 6  # companies graded at once
+CALL_TIMEOUT_MS = 600_000  # one model call (about a minute normally); past it the call raises and `_call` retries
 MAX_AGE_DAYS = 365  # re-grade after a year, or when a new annual report lands (`due`)
 MAX_PER_RUN = 60  # companies graded by one `fq run -u benchmark` (~$6 now); `fq grade` has no cap
 
@@ -68,8 +69,10 @@ COLUMNS = ["Ticker", "Moat", "Management", "Moat_1", "Mgmt_1", "Moat_2", "Mgmt_2
            "Cost_USD"]  # fmt: skip
 # Older grading-pass hashes whose passes count as current (only their synthesis is redone, `resynthesize`). Emptied
 # Nov 6, 2026: "1ab400c79f69" (before the synthesis had a hash of its own, Oct 31) was made with the grading prompt
-# replaced that day, and no stored grade carried it any more.
-PASS_HASH_ALIASES: frozenset[str] = frozenset()
+# replaced that day, and no stored grade carried it any more. "ca61a6316a06" (Nov 7, 2026, user's choice): the
+# price-free input before the management line on the whole record; its grades stay until due for another reason
+# (a new annual report, `MAX_AGE_DAYS`), so the line costs no re-grade.
+PASS_HASH_ALIASES: frozenset[str] = frozenset({"ca61a6316a06"})
 
 
 def passes(moat, mgmt) -> bool | None:
@@ -471,11 +474,13 @@ def synthesis_due(grades: pd.DataFrame, tickers=None) -> list[str]:
 
 def _client():
     from google import genai
+    from google.genai import types
 
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY is not set")
-    return genai.Client(api_key=key)
+    # Without a timeout a call that never answers holds its worker forever (Nov 7, 2026: all six hung for two hours).
+    return genai.Client(api_key=key, http_options=types.HttpOptions(timeout=CALL_TIMEOUT_MS))
 
 
 def resynthesize(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WORKERS, client=None) -> int:

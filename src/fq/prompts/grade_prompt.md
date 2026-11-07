@@ -76,6 +76,7 @@ State plainly whether the **dependency cap** in the rubric applies, and why.
 
 ## III. Management & Capital Allocation (The Offense)
 *Management is graded on per-share value creation, not size.*
+*Judge it on capital allocation across the whole record: one or two strong recent years are the business or the cycle, not proof of the managers.*
 
 
 1.  **Capital Allocation & The "Buffett Test":** Has the company retained earnings only when it could create at least $1 of market value for every $1 retained? Or have they "diworsified" into terrible industries?

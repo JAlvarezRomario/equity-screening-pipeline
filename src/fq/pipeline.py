@@ -39,6 +39,9 @@ class PipelineError(Exception):
 # dated as it happened, the grades cost real money, and the score snapshots and raw archives are what `fq
 # evaluate` and `--rescore` follow forward. Delete them by hand if ever needed.
 PROTECTED_DATA = ("forward", "forward_backup_*", "snapshots", "grades*.parquet", "grade_gate*.parquet")
+# `fq grade` without a cap: rounds of grading, each on the lists recomputed with the grades before it (Nov 7, 2026:
+# a full re-grade ran 333, then 4, then 0). Later waves are small; the bound keeps a loop that never settles finite.
+GRADE_WAVES = 5
 
 
 def clean(output_dir: Path, data_dir: Path, cache: bool = False) -> tuple[list[Path], list[Path]]:
@@ -467,11 +470,21 @@ def load_benchmark_run(cfg: Settings) -> tuple[pd.DataFrame, pd.DataFrame | None
 
 def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynthesize_only: bool = False,
                report: bool = True, new_only: bool = False) -> None:  # fmt: skip
-    """`fq grade`: grades (or syntheses) alone, then the site again from the cache when something changed."""
+    """`fq grade`: grades (or syntheses) alone, then the site again from the cache when something changed. Without a
+    cap it grades in waves: new grades move companies onto the lists filled from graded names (Cheapest, Repeaters),
+    which are then due themselves, so the lists are recomputed and graded again until a wave changes nothing, at most
+    `GRADE_WAVES`. A cap (`max_grades`) or `dry_run` is one wave."""
     ranked, bench = load_benchmark_run(cfg)
-    h = Highlights.compute(ranked, cfg, bench)
-    if grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run, resynthesize_only=resynthesize_only,
-                       new_only=new_only) and report:  # fmt: skip
+    waves = 1 if (max_grades or dry_run or resynthesize_only) else GRADE_WAVES
+    changed = 0
+    for _ in range(waves):
+        h = Highlights.compute(ranked, cfg, bench)  # reads the grades saved so far
+        n = grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run,
+                            resynthesize_only=resynthesize_only, new_only=new_only)  # fmt: skip
+        changed += n
+        if not n:
+            break
+    if changed and report:
         write_report(cfg, offline=True)
 
 

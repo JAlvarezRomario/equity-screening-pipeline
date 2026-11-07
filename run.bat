@@ -15,6 +15,8 @@ rem   run.bat fetch|rank|report|clean ...  single steps (same options)
 
 setlocal
 cd /d "%~dp0"
+rem One render process unless set: two ran this 8 GB machine out of memory on a full re-render (Nov 7, 2026).
+if not defined FQ_RENDER_WORKERS set "FQ_RENDER_WORKERS=1"
 
 where uv >nul 2>nul
 if errorlevel 1 (
