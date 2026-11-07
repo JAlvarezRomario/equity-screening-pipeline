@@ -64,9 +64,9 @@ def grade_card(row: pd.Series) -> dict | None:
         strict = passes_shortlist(moat, mgmt)
         verdict += (
             (
-                "; Boring companies' stricter bar too"
+                "; Boring businesses' stricter bar too"
                 if strict
-                else f"; below Boring companies' stricter bar (both at least {MIN_BOTH:g} and either at least "
+                else f"; below Boring businesses' stricter bar (both at least {MIN_BOTH:g} and either at least "
                 f"{SHORTLIST_MIN_TOP:g}), so shaded at the bottom there"
             )
             if not low

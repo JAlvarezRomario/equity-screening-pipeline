@@ -1,5 +1,5 @@
 # Sovereign dollar default spread (%) of the country a company is headquartered in (Yahoo's `country`), for the
-# Boring companies bond hurdle (`screens.bond_hurdle`; user's choice, Nov 7, 2026): the owner yield must beat the
+# Boring businesses bond hurdle (`screens.bond_hurdle`; user's choice, Nov 7, 2026): the owner yield must beat the
 # 10-year Treasury (at least 6%) plus how much more than the US the company's own government pays to borrow dollars
 # (this spread less the United States' own, never below 0). Shown and tested by that list only; never scored.
 #

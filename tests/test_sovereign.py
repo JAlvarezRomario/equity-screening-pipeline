@@ -1,4 +1,4 @@
-"""The Boring companies bond hurdle with the home country's sovereign dollar spread (user's choice, Nov 7, 2026)."""
+"""The Boring businesses bond hurdle with the home country's sovereign dollar spread (user's choice, Nov 7, 2026)."""
 
 import pandas as pd
 import pytest

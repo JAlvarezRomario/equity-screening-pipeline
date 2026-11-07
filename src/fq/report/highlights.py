@@ -19,7 +19,7 @@ import pandas as pd
 from fq import grading
 from fq.fx import FALLBACK_BORROW_RATE, get_borrow_rate, get_treasury_yield
 from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
-from fq.ranking import top_n
+from fq.ranking import top_n, trusted
 from fq.report import screens as sc
 from fq.settings import Settings
 from fq.universe import dividend_wht, industry_key, sovereign_spread
@@ -27,6 +27,8 @@ from fq.universe import dividend_wht, industry_key, sovereign_spread
 TOP_N = 20  # rows of each list on the index page (about 10 in view, the rest scroll in the card)
 SHORTLIST = "Shortlist"
 REPEATERS = "Repeaters"
+BEST_GRADES = "Best grades"
+DERIVED = (REPEATERS, BEST_GRADES)  # tabs that follow the other lists, never counted by Repeaters as a style
 # The Shortlist's bar, stricter than the other lists' (`grading.passes_shortlist`); its pills say so.
 SHORTLIST_BAR = (f"both at least {grading.MIN_BOTH:g} and either at least {grading.SHORTLIST_MIN_TOP:g}, stricter "
                  "than the other lists")  # fmt: skip
@@ -94,7 +96,10 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # (heading, the one line that says what such a list is for).
 # The rows by idea (user's choice, Nov 6, 2026; were Start here, By style, By kind, Raw scores).
 GROUPS = {
-    "start": ("Start here", "The answer: cheap and good at once, then boring companies worth research in depth."),
+    "start": (
+        "Start here",
+        "The answer: cheap and good at once, boring businesses worth research in depth, and the best graded.",
+    ),
     "growth": ("Growth", "Businesses compounding per share, from the best {top} of the combined ranking."),
     "income": ("Income", "Dividends to count on: held for a decade and growing, or untaxed for a non-resident."),
     "balance": ("Balance sheet", "Value held on the balance sheet: a pile of net cash, or a price at or below book."),
@@ -113,8 +118,11 @@ TABS: tuple[Tab, ...] = (
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.TOP_LIST_COLUMNS, _top("Rank"), group="start",
         ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
-        funnel=sc.shortlist_funnel, label="Boring companies"),
+        funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
+    Tab(BEST_GRADES, "best_grades", "hl-best-grades", sc.BEST_GRADE_COLUMNS,
+        lambda df, n, hurdle: best_grade_list(df, n), group="start",
+        sort="Best_Order"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list),
         group="growth"),
     Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list), group="growth",
@@ -179,7 +187,7 @@ def repeater_candidates(df: pd.DataFrame, picks: dict[str, tuple[Pick, int]]) ->
     not fail that list's own grade bar (`fails`); the pure rankings (`RANKED_TABS`) are left out."""
     member: dict[str, list[str]] = {}
     for name in TAB_ORDER:
-        if name == REPEATERS or name in RANKED_TABS or name not in picks:
+        if name in DERIVED or name in RANKED_TABS or name not in picks:
             continue
         pick, _ = picks[name]
         qual = pick(df, len(df))
@@ -201,6 +209,19 @@ def repeater_list(df: pd.DataFrame, n: int, picks: dict[str, tuple[Pick, int]]) 
         return out.head(0)
     passed = out["Grade_Pass"].map(lambda v: v is True or v == True).astype(bool)  # noqa: E712 (empty: rows, not columns)
     return out[passed].head(n)
+
+
+def best_grade_list(df: pd.DataFrame, n: int) -> pd.DataFrame:
+    """The Best grades tab (user's choice, Nov 7, 2026): every graded company (each was graded because a list showed
+    it) with trustworthy figures (`ranking.trusted`) whose moat and management grades are both at least
+    `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best`), highest owner yield first (`Best_Order`).
+    It shows its companies, so `Highlights.grade_pool` keeps their grades current."""
+    if "Grade_Moat" not in df.columns:  # nothing graded: nothing passes
+        return df.head(0).assign(Best_Order=pd.Series(dtype=float))
+    best = [grading.passes_best(m, g) for m, g in zip(df["Grade_Moat"], df["Grade_Mgmt"], strict=True)]
+    out = df[pd.Series(best, index=df.index, dtype=bool) & trusted(df)]
+    order = -pd.to_numeric(out["Owner_Yield"], errors="coerce").fillna(-np.inf)
+    return out.assign(Best_Order=order).sort_values("Best_Order", kind="stable").head(n)
 
 
 def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
@@ -237,7 +258,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
         df = df.assign(NCAV_to_Price=df["NCAV_to_Price"].where(~land, np.nan))
     countries = df["country"] if "country" in df.columns else [None] * len(df)
     df = df.assign(Dividend_WHT=[dividend_wht(t, c) for t, c in zip(df["Ticker"], countries, strict=True)])
-    df = df.assign(Sovereign_Spread=[sovereign_spread(c) for c in countries])  # the Boring companies bond hurdle
+    df = df.assign(Sovereign_Spread=[sovereign_spread(c) for c in countries])  # the Boring businesses bond hurdle
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
@@ -298,7 +319,7 @@ class Highlights:
 
     def candidates(self) -> pd.DataFrame:
         """Every company on two or more lists, graded or not (`repeater_candidates`)."""
-        return repeater_candidates(self.lists, {k: v for k, v in self.picks.items() if k != REPEATERS})
+        return repeater_candidates(self.lists, {k: v for k, v in self.picks.items() if k not in DERIVED})
 
     def listed(self) -> set[str]:
         """Every company a tab shows (the zero-withholding extras left out)."""

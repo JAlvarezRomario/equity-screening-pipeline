@@ -72,11 +72,11 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "combined-rank order. Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
-                 "{one} (Boring companies asks more), are the list; the others stay on it, folded away under the table, and "
+                 "{one} (Boring businesses asks more), are the list; the others stay on it, folded away under the table, and "
                  "none is replaced. A grade changes no score and no rank.")  # fmt: skip
 
 
-# Countries the Boring companies rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
+# Countries the Boring businesses rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
 SPREAD_EXAMPLES = ("Brazil", "South Africa", "India", "China", "Japan", "Germany")
 
 
@@ -97,6 +97,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "leader_min": g(sc.SHORTLIST_LEADER_MIN), "hurdle": g(round(hurdle, 1)),
         "spreads": ", ".join(f"{c} {sovereign_spread(c):.1f}" for c in SPREAD_EXAMPLES),
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
+        "grade_best": g(grading.BEST_MIN_BOTH),
         "cannibal_min_reduction": g(cfg.cannibal_min_share_reduction), "cannibal_min_value": g(cfg.cannibal_min_value),
         "cannibal_min_quality": g(cfg.cannibal_min_quality),
         "asset_min_nav": g(cfg.asset_play_min_nav_compounding), "asset_horizon": g(cfg.asset_play_horizon_years),

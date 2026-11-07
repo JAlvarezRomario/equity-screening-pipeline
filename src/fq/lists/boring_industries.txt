@@ -1,4 +1,4 @@
-# Yahoo industries of "Boring companies" (`screens._shortlist_gates`, user's choice, Nov 6, 2026): dull, essential
+# Yahoo industries of "Boring businesses" (`screens._shortlist_gates`, user's choice, Nov 6, 2026): dull, essential
 # businesses in industries that do not attract new capital (mature, unglamorous, local or niche), so the incumbents
 # face few new competitors (Peter Lynch's boring companies). On top of the AI screen every list applies; commodity
 # producers and the hard-hit cyclicals stay out (the recession test guards the rest). Display only: no score or

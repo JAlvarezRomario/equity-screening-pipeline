@@ -30,6 +30,13 @@ TOP_LIST_COLUMNS = [
 
 # Repeaters (`highlights.repeater_list`): how many lists, then the usual facts.
 REPEATER_COLUMNS = [("Lists", "Repeat_Count", ".0f", 1, ""), *TOP_LIST_COLUMNS]
+# Best grades (`highlights.best_grade_list`): both grades and the owner yield it is ordered by, then the usual facts.
+BEST_GRADE_COLUMNS = [
+    ("Moat", "Grade_Moat", ".2f", 1, ""),
+    ("Management", "Grade_Mgmt", ".2f", 1, ""),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
 
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
 VALUE_LIST_COLUMNS = [*TOP_LIST_COLUMNS, ("Owner Yield", "Owner_Yield", ".1f", 1, "%")]
@@ -465,7 +472,7 @@ def net_cash_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # fingerprint (`evaluate.METHOD_MODULES`) and every snapshot's method group stay as they are. The top 20 by combined
 # rank since Nov 5, 2026 (user's choice: about 20 picks before the grade, more cannot be followed; it was 100).
 SHORTLIST_N = 20
-# Boring companies (the Shortlist's reader name since Nov 6, 2026): only industries that do not attract new capital.
+# Boring businesses (the Shortlist's reader name since Nov 6, 2026): only industries that do not attract new capital.
 BORING_INDUSTRIES = "boring_industries.txt"
 SHORTLIST_MIN_FCF_POS = 75.0  # % of years with positive reported free cash flow: the profit turns into cash
 SHORTLIST_MAX_BENEISH = -1.78  # Beneish M-score above it is the usual earnings-manipulation warning

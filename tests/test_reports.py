@@ -278,7 +278,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
     # Three top lists, Shortlist, Repeaters, Compounders, Cannibals, Net cash, Off the radar, Dividend carry, Dividend
     # growers; by kind: Banks and lenders, Insurers, Below book, Real estate, Utilities, Energy (Nov 6, 2026).
-    assert len(panels) == 17
+    assert len(panels) == 18  # and Best grades (Nov 7, 2026)
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -287,7 +287,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     groups = ("Start here", "Growth", "Income", "Balance sheet", "By kind", "Raw scores")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert "Untaxed dividends" in html and ">Dividend carry<" not in html
-    assert "Boring companies" in html
+    assert "Boring businesses" in html
     assert "Compounders" in html and "Dividend growers" in html and "Steady growers, net cash" not in html
 
 
@@ -681,7 +681,7 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     assert funnel[0] == len(df) and funnel[-1] == len(picked)
     assert all(a >= b for a, b in zip(funnel, funnel[1:], strict=False))
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-shortlist">Boring companies</button>' in html and 'class="list-funnel muted"' in html
+    assert 'data-panel="hl-shortlist">Boring businesses</button>' in html and 'class="list-funnel muted"' in html
 
 
 def test_industry_leader_is_the_top_tenth_and_always_the_top_three():

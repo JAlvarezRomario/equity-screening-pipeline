@@ -46,6 +46,8 @@ MIN_BOTH = 3.0
 MIN_ONE = 4.25
 # The Shortlist's stricter gate (user's rule, Oct 31, 2026): both at least MIN_BOTH and either at least SHORTLIST_MIN_TOP.
 SHORTLIST_MIN_TOP = 4.0
+# Best grades (user's choice, Nov 7, 2026): both at least BEST_MIN_BOTH and either above it (grades step by 0.25).
+BEST_MIN_BOTH = 4.0
 
 MOAT_LABEL = "Economic Moat Score"
 MGMT_LABEL = "Management Quality Score"
@@ -72,6 +74,13 @@ def passes(moat, mgmt) -> bool | None:
     if pd.isna(moat) or pd.isna(mgmt):
         return None
     return bool((moat >= MIN_BOTH and mgmt >= MIN_BOTH) or max(moat, mgmt) >= MIN_ONE)
+
+
+def passes_best(moat, mgmt) -> bool:
+    """The Best grades tab's test: both grades reach `BEST_MIN_BOTH` and either is above it; False when ungraded."""
+    if pd.isna(moat) or pd.isna(mgmt):
+        return False
+    return bool(moat >= BEST_MIN_BOTH and mgmt >= BEST_MIN_BOTH and max(moat, mgmt) > BEST_MIN_BOTH)
 
 
 def passes_shortlist(moat, mgmt) -> bool | None:

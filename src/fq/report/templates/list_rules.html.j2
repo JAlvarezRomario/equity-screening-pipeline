@@ -28,7 +28,7 @@
   <li>Both routes: owner earnings per share positive and close to their rising trend; no new shares since the last annual report; no banks, insurers or holdings.</li>
   <li>Growth that earns its keep: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added since the oldest annual report.</li>
   <li>Pricing power: the gross margin now no more than {{ r.max_margin_loss }} points below where it was in the year of the highest inflation, so the costs were passed on.</li>
-  <li>Not cyclical, not at peak margins, past the AI screen. Through recessions: its dividend per share not cut by more than {{ r.recession_fall }}% in a past global recession ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}, whose supervisors suspended dividends). A company whose dividend record reaches no recession passes, except where a recession hits hard (the industries Boring companies names): there only an industry leader holding net cash.</li>
+  <li>Not cyclical, not at peak margins, past the AI screen. Through recessions: its dividend per share not cut by more than {{ r.recession_fall }}% in a past global recession ({{ r.recessions }}, and {{ r.downturns }}; {{ r.recession_exempt }}, whose supervisors suspended dividends). A company whose dividend record reaches no recession passes, except where a recession hits hard (the industries Boring businesses names): there only an industry leader holding net cash.</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
 </ul>
 <details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
@@ -120,7 +120,7 @@
   <li>It keeps only the best {{ r.top }} of the combined ranking; a bank or an insurer, ranked apart, the best {{ r.top }} of its own kind.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro shortlist(r) %}{% call rules("Boring companies worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
+{% macro shortlist(r) %}{% call rules("Boring businesses worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
   <li><strong>Growth without dilution</strong>: revenue (book for banks, insurers and holdings) per share growing, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
   <li><strong>Cash</strong>: free cash flow positive in at least {{ r.fcf }}% of the years.</li>
   <li><strong>Clean accounts</strong>: Beneish M-score (a test for manipulated earnings) at most {{ r.beneish }}; accruals (profit not backed by operating cash) at most {{ r.accruals }}% of assets.</li>
@@ -137,5 +137,11 @@
   <li>On two or more of the screened lists across at least two distinct styles (so the two 20-year compounder lists or the two balance-sheet lists alone do not make a repeater), ordered by how many lists (most first), then by the combined rank. Hover the Lists number to see which.</li>
   <li>Each screened list counts every company that qualifies and meets that list's own moat and management grade bar; the pure score rankings ({{ r.repeater_ranked }}) are left out.</li>
   <li>Only companies whose moat and management grade passes the bar (both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}); ungraded ones are graded before they can enter.</li>
-  <li>Many of them are among the Boring companies too: the same answer, reached from several directions. Banks, insurers and REITs are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
+  <li>Many of them are among the Boring businesses too: the same answer, reached from several directions. Banks, insurers and REITs are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro best_grades(r) %}{% call rules("The companies the other lists show whose moat and management the AI model grades highest, cheapest first.") %}<ul>
+  <li>Drawn from every company graded so far: each was graded because one of the other lists showed it. Companies whose figures need checking and the industries the AI screen leaves out are left out.</li>
+  <li>Both grades at least {{ r.grade_best }} and either above {{ r.grade_best }}, on the 1 to 5 scale; ungraded companies are left out.</li>
+  <li>Ordered by owner yield, highest first: the owner earnings the price buys.</li>
 </ul>{% endcall %}{% endmacro %}

@@ -268,3 +268,20 @@ def test_new_only_grades_never_graded_companies_and_rewrites_no_synthesis(cfg, m
     ranked = pd.DataFrame({"Ticker": ["NEW", "OLD"]})
     pipeline.grade_companies(cfg, ranked, h, max_grades=150, new_only=True)
     assert sent == ["NEW"] and rewritten == []
+
+
+def test_best_grades_take_both_at_least_four_and_one_above_by_owner_yield():
+    import numpy as np
+
+    from fq.report.highlights import best_grade_list
+
+    assert grading.passes_best(4.0, 4.25) and grading.passes_best(5.0, 4.0)
+    assert not grading.passes_best(4.0, 4.0) and not grading.passes_best(3.75, 5.0)
+    assert not grading.passes_best(np.nan, 5.0)
+    df = pd.DataFrame({
+        "Ticker": ["LOW_YIELD", "HIGH_YIELD", "FOURS", "WEAK_MGMT", "UNGRADED"],
+        "Grade_Moat": [4.5, 4.0, 4.0, 5.0, np.nan],
+        "Grade_Mgmt": [4.5, 4.25, 4.0, 3.75, np.nan],
+        "Owner_Yield": [3.0, 8.0, 9.0, 10.0, 11.0],
+    })  # fmt: skip
+    assert best_grade_list(df, 20)["Ticker"].tolist() == ["HIGH_YIELD", "LOW_YIELD"]
