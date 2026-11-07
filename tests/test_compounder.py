@@ -219,6 +219,7 @@ def test_operating_companies_need_high_returns_a_yield_and_smooth_growth_on_ever
         r("ISSUED_SINCE", 6.0, **{"Ordinary Shares Number_TTM": 11}),
         r("RECESSION_CUT", 6.0, Recession_Dividend_Fall=-30.0),  # its dividend fell 30% in a past recession
         r("RECESSION_HELD", 6.5, Recession_Dividend_Fall=-10.0),  # a 10% dip passes
+        r("LEVERED", 6.0, NetDebt_to_EBIT=6.0, Interest_Coverage=3.0),
         r("LOW_RANK", 6.0, In_Best_Fraction=False),
     ])  # fmt: skip
     assert operating_list(df)["Ticker"].tolist() == [
@@ -322,6 +323,7 @@ def test_fast_growers_need_fast_smooth_owner_earnings_rising_margins_and_a_yield
         r("CYCLICAL", 5.0, Cyclical=True),
         r("AI_RISK", 5.0, industry="Consulting Services"),
         r("RECESSION_CUT", 5.0, Recession_Dividend_Fall=-30.0),  # its dividend fell 30% in a past recession
+        r("LEVERED", 5.0, NetDebt_to_EBIT=6.0, Interest_Coverage=3.0),
         r("LOW_RANK", 5.0, In_Best_Fraction=False),
     ])  # fmt: skip
     assert fast_grower_list(df)["Ticker"].tolist() == ["A", "B", "LOW_ROIC"]  # A, B: no dividend record, passes

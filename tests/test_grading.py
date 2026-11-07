@@ -326,3 +326,26 @@ def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded(
     assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # LOW skipped, NEW waits for its grade
     assert out["Grade_Pass"].tolist() == [True, None, True]
     assert grading.passes_cheapest(np.nan, 3.0) is None and grading.passes_cheapest(3.0, 2.75) is False
+
+
+def test_best_grades_deducts_sovereign_spread_from_owner_yield():
+    from fq.report import highlights as hl
+
+    df = pd.DataFrame(
+        {
+            "Ticker": ["EM_BANK", "US_GROWER"],
+            "Grade_Moat": [4.5, 4.0],
+            "Grade_Mgmt": [4.5, 4.25],
+            "Owner_Yield": [10.0, 8.5],
+            "Sovereign_Spread": [2.0, 0.0],  # EM_BANK net: 8.0%, US_GROWER net: 8.5%
+            "Distress": [False, False],
+            "Peak_Margin": [False, False],
+            "Cyclical": [False, False],
+            "Data_Suspect": [False, False],
+            "Revenue_Decline": [False, False],
+            "Accounting_Flag": [False, False],
+            "Earnings_Collapse": [False, False],
+        }
+    )
+    out = hl.best_grade_list(df, 2)
+    assert out["Ticker"].tolist() == ["US_GROWER", "EM_BANK"]

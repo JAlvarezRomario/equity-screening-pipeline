@@ -304,10 +304,11 @@ CANNIBAL_COLUMNS = [
 
 
 def cannibal_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Flagged `Cannibal` companies in the best fraction of the combined ranking, ordered by combined rank."""
+    """Flagged `Cannibal` companies in the best fraction of the combined ranking, bounded debt, ordered by combined
+    rank."""
     if "Cannibal" not in df.columns:
         return df.head(0)
-    d = df[(df["Cannibal"] == True) & in_best_fraction(df)]  # noqa: E712
+    d = df[(df["Cannibal"] == True) & in_best_fraction(df) & _debt_bounded(df)]  # noqa: E712
     if "Rank" in d.columns:
         return d.sort_values("Rank", ascending=True).head(n)
     if "Share_Reduction_Rate" in d.columns:
@@ -729,6 +730,7 @@ def operating_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & ~(_num(df, "Ordinary Shares Number_TTM") > _num(df, f"Ordinary Shares Number_{s.latest}") * MAX_NEW_SHARES)
         & _earns_its_keep(df)
         & _margin_held(df)
+        & _debt_bounded(df)
         & in_best_fraction(df)
     )
     return top_n(df[keep], "Rank", n)
@@ -772,6 +774,7 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & _lasting_business(df)
         & _earns_its_keep(df)
         & _margin_held(df)
+        & _debt_bounded(df)
         & in_best_fraction(df)
     )
     return top_n(df[keep], "Rank", n)
@@ -973,11 +976,13 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
 def trouble_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:
     """Temporary trouble (user's choice, Nov 7, 2026; Lynch's "temporary trouble"): every test of `_shortlist_gates`
     but `NOTHING_BREAKING`, which it must fail: a boring, cheap, good business whose sales, profit or estimates are
-    falling right now (3255.KL, Ambev, Tsingtao). `in_best_fraction`, trusted as `ranking.top_n`, in combined rank
-    order. Display only."""
+    falling right now (3255.KL, Ambev, Tsingtao). Zero-growth owner earnings (EPV) must beat the bond as well.
+    `in_best_fraction`, trusted as `ranking.top_n`, in combined rank order. Display only."""
     keep = in_best_fraction(df)
     for label, mask in _shortlist_gates(df, hurdle):
         keep &= ~mask if label == NOTHING_BREAKING else mask
+    spread = _num(df, "Sovereign_Spread").fillna(0.0)
+    keep &= ~(np.minimum(_num(df, "Owner_Yield"), _num(df, "EPV_Yield")) < hurdle + spread)
     return top_n(df[keep], "Rank", n)
 
 

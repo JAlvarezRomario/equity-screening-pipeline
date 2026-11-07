@@ -232,22 +232,26 @@ def _memo(pick: Pick) -> Pick:
 
 def repeater_candidates(df: pd.DataFrame, picks: dict[str, tuple[Pick, int]]) -> pd.DataFrame:
     """Companies on two or more screened lists across at least two distinct styles (`_REPEAT_FAMILIES`), with
-    `Repeat_Count`, `Repeat_Lists` (in `TAB_ORDER`) and `Repeat_Key`, most lists first, then the combined rank;
-    `Repeat_Lists` names them as the page does (`label`). A screened list counts every company that qualifies and does
-    not fail that list's own grade bar (`fails`); the pure rankings (`RANKED_TABS`) are left out."""
+    `Repeat_Count`, `Repeat_Lists` (in `TAB_ORDER`) and `Repeat_Key`, most distinct styles first, then most lists,
+    then the combined rank; `Repeat_Lists` names them as the page does (`label`). A screened list counts every
+    company that qualifies and does not fail that list's own grade bar (`fails`); the pure rankings (`RANKED_TABS`)
+    are left out."""
     member: dict[str, list[str]] = {}
     for name in TAB_ORDER:
         if name in DERIVED or name in RANKED_TABS or name not in picks:
             continue
         pick, _ = picks[name]
         qual = pick(df, len(df))
+        if name == "Dividend carry" and "Carry_Record" in qual.columns:
+            qual = qual[qual["Carry_Record"].fillna(False).astype(bool)]
         for ticker in qual[~fails(qual)]["Ticker"]:
             member.setdefault(ticker, []).append(name)
     many = {t: names for t, names in member.items() if len({_REPEAT_FAMILIES.get(n, n) for n in names}) >= 2}
     out = df[df["Ticker"].isin(many)]
+    fams = out["Ticker"].map(lambda t: len({_REPEAT_FAMILIES.get(n, n) for n in many[t]})).astype(float)
     count = out["Ticker"].map(lambda t: len(many[t])).astype(float)  # float even when empty (else text)
     out = out.assign(Repeat_Count=count, Repeat_Lists=out["Ticker"].map(lambda t: ", ".join(map(label, many[t]))),
-                     Repeat_Key=-count * _REPEAT_STEP + out["Rank"].fillna(_REPEAT_STEP - 1))  # fmt: skip
+                     Repeat_Key=-fams * 1e7 - count * 1e4 + out["Rank"].fillna(1e4 - 1))  # fmt: skip
     return out.sort_values("Repeat_Key", kind="stable")
 
 
@@ -264,13 +268,19 @@ def repeater_list(df: pd.DataFrame, n: int, picks: dict[str, tuple[Pick, int]]) 
 def best_grade_list(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """The Best grades tab (user's choice, Nov 7, 2026): every graded company (each was graded because a list showed
     it) with trustworthy figures (`ranking.trusted`) whose moat and management grades are both at least
-    `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best`), highest owner yield first (`Best_Order`).
-    It shows its companies, so `Highlights.grade_pool` keeps their grades current."""
+    `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best`), highest owner yield above the sovereign
+    spread first (`Best_Order`). It shows its companies, so `Highlights.grade_pool` keeps their grades current."""
     if "Grade_Moat" not in df.columns:  # nothing graded: nothing passes
         return df.head(0).assign(Best_Order=pd.Series(dtype=float))
     best = [grading.passes_best(m, g) for m, g in zip(df["Grade_Moat"], df["Grade_Mgmt"], strict=True)]
     out = df[pd.Series(best, index=df.index, dtype=bool) & trusted(df)]
-    order = -pd.to_numeric(out["Owner_Yield"], errors="coerce").fillna(-np.inf)
+    spread = (
+        pd.to_numeric(out["Sovereign_Spread"], errors="coerce").fillna(0.0)
+        if "Sovereign_Spread" in out.columns
+        else 0.0
+    )
+    yield_ = pd.to_numeric(out["Owner_Yield"], errors="coerce")
+    order = -(yield_ - spread).fillna(-np.inf)
     return out.assign(Best_Order=order).sort_values("Best_Order", kind="stable").head(n)
 
 
@@ -317,7 +327,11 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     leaders_among = df
     if bench is not None and not bench.empty:  # the benchmark, plus the run's companies outside it
         leaders_among = pd.concat([bench, df[~df["Ticker"].isin(bench["Ticker"])]])
-    return df.assign(Industry_Leader=sc.industry_leader(df, leaders_among))
+    df = df.assign(Industry_Leader=sc.industry_leader(df, leaders_among))
+    if "Compounder" in df.columns:
+        comp_idx = sc.compounder_list(df[sc.ai_resilient(df)], len(df)).index
+        df = df.assign(Compounder=df["Compounder"].fillna(False).astype(bool) | df.index.isin(comp_idx))
+    return df
 
 
 def listable(df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
