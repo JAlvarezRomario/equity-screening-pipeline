@@ -292,7 +292,7 @@ def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return d.sort_values("Book_Order").head(n)
 
 
-# The Cannibals list (`ranking.cannibal`): companies retiring shares (>7%/yr) from their own free cash flow,
+# The Cannibals list (`ranking.cannibal`): companies retiring shares (> 5%/yr) from their own free cash flow,
 # ordered by combined rank.
 CANNIBAL_COLUMNS = [
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
@@ -474,6 +474,7 @@ def net_cash_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 SHORTLIST_N = 20
 # Boring businesses (the Shortlist's reader name since Nov 6, 2026): only industries that do not attract new capital.
 BORING_INDUSTRIES = "boring_industries.txt"
+NOTHING_BREAKING = "nothing breaking now"  # the gate Temporary trouble turns over (`trouble_list`)
 SHORTLIST_MIN_FCF_POS = 75.0  # % of years with positive reported free cash flow: the profit turns into cash
 SHORTLIST_MAX_BENEISH = -1.78  # Beneish M-score above it is the usual earnings-manipulation warning
 SHORTLIST_MAX_ACCRUALS = 5.0  # (net income - operating cash flow) / assets, %: earnings well ahead of cash
@@ -931,7 +932,7 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
          ~(num("Beneish_M") > SHORTLIST_MAX_BENEISH) & ~(num("Accruals") > SHORTLIST_MAX_ACCRUALS)),
         ("growth earns its keep", ~(num("Incremental_ROIC") < SHORTLIST_MIN_INCREMENTAL_ROIC)),
         ("sound balance sheet", _debt_bounded(df)),
-        ("nothing breaking now",
+        (NOTHING_BREAKING,
          ~(num("EPS_Rev_90d") < s.estimate_cut_pct)
          & _dividend_held(df)  # no dividend cut paid in the last 12 months (Nov 5, 2026)
          & ~(num("Revenue_Change_Recent") < s.dislocation_revenue_change_min)
@@ -948,6 +949,17 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
          & (num("Quality_Score") >= SHORTLIST_MIN_QUALITY)),
     ]  # fmt: skip
+
+
+def trouble_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:
+    """Temporary trouble (user's choice, Nov 7, 2026; Lynch's "temporary trouble"): every test of `_shortlist_gates`
+    but `NOTHING_BREAKING`, which it must fail: a boring, cheap, good business whose sales, profit or estimates are
+    falling right now (3255.KL, Ambev, Tsingtao). `in_best_fraction`, trusted as `ranking.top_n`, in combined rank
+    order. Display only."""
+    keep = in_best_fraction(df)
+    for label, mask in _shortlist_gates(df, hurdle):
+        keep &= ~mask if label == NOTHING_BREAKING else mask
+    return top_n(df[keep], "Rank", n)
 
 
 def shortlist_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:

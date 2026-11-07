@@ -83,6 +83,50 @@ def _hurdled(fn):
     return lambda df, n, hurdle: fn(df, n, hurdle=hurdle)
 
 
+TROUBLE = "Temporary trouble"
+TROUBLE_BAR = (f"both at least {grading.TROUBLE_MIN_BOTH:g} and either at least {grading.TROUBLE_MIN_TOP:g}, graded "
+               "before it counts")  # fmt: skip
+
+
+CHEAPEST_BAR = f"both at least {grading.CHEAPEST_MIN_BOTH:g}, graded before it counts"
+CHEAPEST_WAITING = TOP_N  # ungraded companies the Cheapest walk holds at once: the next grading run's batch
+
+
+def cheapest_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
+    """Cheapest (user's choice, Nov 7, 2026): down the Value ranking (`ranking.top_n` on `Value_Rank`), the companies
+    whose moat and management are both at least `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`) until `n`
+    of them; a company graded below is skipped and the next one taken. Ungraded companies met on the way (at most
+    `CHEAPEST_WAITING`) stay in the list, marked not graded, so the grading (`Highlights.grade_pool`) reaches them and the list
+    fills to `n` within a few runs."""
+    ordered = top_n(df, "Value_Rank", len(df))
+    moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else pd.Series(np.nan, index=ordered.index)
+    mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else pd.Series(np.nan, index=ordered.index)
+    keep, verdicts, passed, waiting = [], [], 0, 0
+    for i, m, g in zip(ordered.index, moat, mgmt, strict=True):
+        if passed >= n:
+            break
+        verdict = grading.passes_cheapest(m, g)
+        if verdict is None and waiting < CHEAPEST_WAITING:
+            waiting += 1
+            keep.append(i)
+            verdicts.append(None)  # not graded yet: keeps its place, marked, as on every list
+        elif verdict:
+            passed += 1
+            keep.append(i)
+            verdicts.append(True)
+    out = ordered.loc[keep]
+    return out.assign(Grade_Pass=pd.Series(verdicts, index=out.index, dtype=object), Grade_Bar=CHEAPEST_BAR)
+
+
+def _trouble(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
+    """Temporary trouble with `Grade_Pass` re-judged by its own bar (`grading.passes_trouble`: ungraded fails)."""
+    out = sc.trouble_list(df, n, hurdle=hurdle)
+    moat = out["Grade_Moat"] if "Grade_Moat" in out.columns else pd.Series(np.nan, index=out.index)
+    mgmt = out["Grade_Mgmt"] if "Grade_Mgmt" in out.columns else pd.Series(np.nan, index=out.index)
+    verdict = [grading.passes_trouble(m, g) for m, g in zip(moat, mgmt, strict=True)]
+    return out.assign(Grade_Pass=pd.Series(verdict, index=out.index, dtype=object), Grade_Bar=TROUBLE_BAR)
+
+
 def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
     """The Shortlist with `Grade_Pass` re-judged by its stricter gate and `Grade_Bar` naming it."""
     out = sc.shortlist_list(df, n, hurdle=hurdle)
@@ -98,7 +142,8 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 GROUPS = {
     "start": (
         "Start here",
-        "The answer: cheap and good at once, boring businesses worth research in depth, and the best graded.",
+        "The answer: cheap and good at once, boring businesses worth research in depth (sound now, or in temporary "
+        "trouble), and the best graded.",
     ),
     "growth": ("Growth", "Businesses compounding per share, from the best {top} of the combined ranking."),
     "income": ("Income", "Dividends to count on: held for a decade and growing, or untaxed for a non-resident."),
@@ -109,7 +154,11 @@ GROUPS = {
         "Banks, insurers, REITs and utilities judged against their own kind, outside the rankings; "
         "and energy, ranked, seen apart.",
     ),
-    "raw": ("Raw scores", "One score alone, whatever the other: the top of Value, the top of Quality."),
+    "raw": (
+        "Raw scores",
+        "One score alone, whatever the other: the top of Value (with a moat and management that hold up), the top of "
+        "Quality.",
+    ),
 }
 
 # The tabs in the order the index page shows them, group by group; a company page lists its tabs in this order too.
@@ -119,6 +168,7 @@ TABS: tuple[Tab, ...] = (
         ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
+    Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
     Tab(BEST_GRADES, "best_grades", "hl-best-grades", sc.BEST_GRADE_COLUMNS,
         lambda df, n, hurdle: best_grade_list(df, n), group="start",
@@ -144,7 +194,7 @@ TABS: tuple[Tab, ...] = (
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
         sort="Kind_Rank"),
     Tab("Energy", "energy", "hl-energy", sc.ENERGY_COLUMNS, _plain(sc.energy_list), group="kind"),
-    Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, _top("Value_Rank"), group="raw",
+    Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="raw",
         sort="Value_Rank", ranked=True, ai_screen=False),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, _top("Quality_Rank"), group="raw",
         sort="Quality_Rank", ranked=True, ai_screen=False),

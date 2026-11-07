@@ -285,3 +285,44 @@ def test_best_grades_take_both_at_least_four_and_one_above_by_owner_yield():
         "Owner_Yield": [3.0, 8.0, 9.0, 10.0, 11.0],
     })  # fmt: skip
     assert best_grade_list(df, 20)["Ticker"].tolist() == ["HIGH_YIELD", "LOW_YIELD"]
+
+
+def test_temporary_trouble_turns_over_nothing_breaking_now_and_must_be_graded():
+    import numpy as np
+
+    from fq.report import screens as sc
+
+    assert grading.passes_trouble(3.0, 3.5) and not grading.passes_trouble(3.25, 3.25)
+    assert not grading.passes_trouble(2.75, 5.0) and not grading.passes_trouble(np.nan, 4.0)
+    df = pd.DataFrame({"Ticker": ["FALLING", "FINE"], "Rank": [1.0, 2.0]})
+    gates = sc._shortlist_gates
+    try:
+        sc._shortlist_gates = lambda d, hurdle: [
+            ("a boring industry", pd.Series(True, index=d.index)),
+            (sc.NOTHING_BREAKING, d["Ticker"] == "FINE"),
+        ]
+        sc.in_best_fraction, best = (lambda d: pd.Series(True, index=d.index)), sc.in_best_fraction
+        try:
+            assert sc.trouble_list(df)["Ticker"].tolist() == ["FALLING"]
+            assert sc.shortlist_list(df)["Ticker"].tolist() == ["FINE"]
+        finally:
+            sc.in_best_fraction = best
+    finally:
+        sc._shortlist_gates = gates
+
+
+def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded():
+    import numpy as np
+
+    from fq.report import highlights as hl
+
+    df = pd.DataFrame({
+        "Ticker": ["LOW", "GOOD", "NEW", "GOOD2", "GOOD3"],
+        "Value_Rank": [1.0, 2.0, 3.0, 4.0, 5.0],
+        "Grade_Moat": [2.5, 3.0, np.nan, 4.0, 3.5],
+        "Grade_Mgmt": [4.0, 3.0, np.nan, 3.0, 3.5],
+    })  # fmt: skip
+    out = hl.cheapest_list(df, 2)
+    assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # LOW skipped, NEW waits for its grade
+    assert out["Grade_Pass"].tolist() == [True, None, True]
+    assert grading.passes_cheapest(np.nan, 3.0) is None and grading.passes_cheapest(3.0, 2.75) is False

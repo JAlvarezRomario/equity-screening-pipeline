@@ -29,7 +29,7 @@ Each company gets two scores:
   growing.
 
 Both are plain arithmetic, with no model inside. Profitable operating companies are ranked against each other;
-banks, insurers, holdings, REITs and utilities are scored against their own kind. Eighteen lists then pick out
+banks, insurers, holdings, REITs and utilities are scored against their own kind. Nineteen lists then pick out
 companies worth a closer look, and an LLM grades those companies' moat and management. The grade only folds a
 list's weaker members away; it never changes a score. A
 frozen forward test tracks month by month whether the lists beat the market. The output is a static website

@@ -12,7 +12,6 @@ from pathlib import Path
 import pandas as pd
 
 from fq import grading
-from fq.ranking import value_quality_correlation
 from fq.report import dividend_record, index_charts
 from fq.report import screens as sc
 from fq.report.cards import grade_pill
@@ -63,17 +62,18 @@ TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking. T
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
                  "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
                  "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
-                 "holdings and REITs are judged against their own kind in the By kind lists. Every list but Cheap "
-                 "and good, Cheapest and Best businesses also leaves out "
+                 "REITs and utilities are judged against their own kind in the By kind lists, holdings in Below "
+                 "book. Every list but Cheap and good, Cheapest and Best businesses also leaves out "
                  "the industries AI substitutes or disrupts (software, IT services, consulting, staffing, advertising, "
                  "publishing, education, business services, internet content, gaming, health information, entertainment "
-                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings; every other "
-                 "list keeps only the best {top} of the combined ranking (of its own kind, for the By kind lists), in "
-                 "combined-rank order. Each company a "
+                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings; the other "
+                 "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists; "
+                 "Energy, Repeaters and Best grades say how they pick). Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
-                 "{one} (Boring businesses asks more), are the list; the others stay on it, folded away under the table, and "
-                 "none is replaced. A grade changes no score and no rank.")  # fmt: skip
+                 "{one} (Boring businesses, Temporary trouble, Cheapest and Best grades set bars of their own), are the "
+                 "list; the others stay on it, folded away under the table, and none is replaced (Cheapest takes the "
+                 "next one down instead). A grade changes no score and no rank.")  # fmt: skip
 
 
 # Countries the Boring businesses rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
@@ -97,7 +97,8 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "leader_min": g(sc.SHORTLIST_LEADER_MIN), "hurdle": g(round(hurdle, 1)),
         "spreads": ", ".join(f"{c} {sovereign_spread(c):.1f}" for c in SPREAD_EXAMPLES),
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
-        "grade_best": g(grading.BEST_MIN_BOTH),
+        "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
+        "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "cannibal_min_reduction": g(cfg.cannibal_min_share_reduction), "cannibal_min_value": g(cfg.cannibal_min_value),
         "cannibal_min_quality": g(cfg.cannibal_min_quality),
         "asset_min_nav": g(cfg.asset_play_min_nav_compounding), "asset_horizon": g(cfg.asset_play_horizon_years),
@@ -242,7 +243,8 @@ def build_site(
             "per_run": cfg.max_full_fetches,
             "price_days": cfg.price_refresh_days,
         },  # fmt: skip
-        vq_corr=fmt(value_quality_correlation(df), "+.2f"),
+        vq_corr=fmt(index_charts.map_correlation(df), "+.2f"),
+        n_map=len(index_charts.map_points(df)),
         bench_note=benchmark_note(df),
         has_bench=has_bench,
         quadrant=index_charts.quadrant_html(df, bench),

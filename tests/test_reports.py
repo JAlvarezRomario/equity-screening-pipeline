@@ -278,7 +278,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
     # Three top lists, Shortlist, Repeaters, Compounders, Cannibals, Net cash, Off the radar, Dividend carry, Dividend
     # growers; by kind: Banks and lenders, Insurers, Below book, Real estate, Utilities, Energy (Nov 6, 2026).
-    assert len(panels) == 18  # and Best grades (Nov 7, 2026)
+    assert len(panels) == 19  # and Best grades, Temporary trouble (Nov 7, 2026)
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -717,7 +717,9 @@ def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
     assert set(cannibal_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
     picks = highlight_picks(6.0)
     total = {name: len(pick(df, len(df))) for name, (pick, _) in picks.items()}
-    assert best.sum() < total["Cheapest"] == total["Best businesses"] <= trusted(df).sum()
+    assert best.sum() < total["Best businesses"] <= trusted(df).sum()
+    # Cheapest walks down Value waiting for grades (Nov 7, 2026): ungraded, it holds its batch of 20 only.
+    assert total["Cheapest"] == min(20, total["Best businesses"])
 
 
 def test_highlight_lists_leave_out_models_to_confirm(cfg):

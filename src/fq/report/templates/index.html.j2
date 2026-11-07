@@ -71,7 +71,7 @@
     <div><dt>Combined</dt><dd>Companies ordered by the worse of their Value and Quality positions{% if has_bench %} among the benchmark's companies{% endif %}, ties by the sum: a company must be both cheap and good, one does not make up for the other.</dd></div>
   </dl>
   <p>Systematic fundamental screening across all business models. Financials and holdings are evaluated on net income and book value against peer groups. {{ bench_note }}</p>
-  <p class="muted">Value&ndash;Quality correlation: {{ vq_corr }} (profitable operating companies; loss-makers, low on both, and banks, insurers and holdings, whose Value and Quality both rest on return on equity, would inflate it). Near zero or mildly positive is expected: the market does not pay fully for high returns on capital. The highlight lists leave out companies whose figures need checking or whose business model is still to confirm; the full ranking keeps them.</p>
+  <p class="muted">Value&ndash;Quality correlation: {{ vq_corr }} (Spearman, over the {{ "{:,}".format(n_map) }} companies on the map below: profitable operating companies with trustworthy figures; loss-makers, low on both, and banks, insurers and holdings, whose Value and Quality both rest on return on equity, would inflate it). Near zero or mildly positive is expected: the market does not pay fully for high returns on capital. The highlight lists leave out companies whose figures need checking or whose business model is still to confirm; the full ranking keeps them.</p>
   </details>
 </div>
 
@@ -101,7 +101,8 @@
 
 <div class="card dot-chart-card" id="map">
   <h2>The map: Value vs Quality</h2>
-  <p class="chart-instruction">Each dot is a company: its area is the market cap, blue for S&amp;P 500 members, orange for the rest. The two lines mark the median (50) of each score: top right is above it on both, cheap and good. Click a dot to open that company's page. Companies whose figures need checking are left out (their pages say why).{% if has_bench %} Grey dots are benchmark companies outside this run.{% endif %}</p>
+  <p class="chart-instruction">What it shows: the {{ "{:,}".format(n_map) }} companies the rankings hold, profitable operating companies only. Loss-makers, banks, insurers, holdings, REITs and utilities are scored against their own kind on scales of their own, so they are not on the map (the By kind lists show them); companies whose figures need checking are left out too (their pages say why).</p>
+  <p class="chart-instruction">Each dot is a company: its area is the market cap, blue for S&amp;P 500 members, orange for the rest. The two lines mark the median (50) of each score: top right is above it on both, cheap and good. The dashed line is the best fit and &rho; the Spearman correlation, both over the dots shown. Click a dot to open that company's page.{% if has_bench %} Grey dots are benchmark companies outside this run.{% endif %}</p>
   {{ quadrant | safe }}
 </div>
 

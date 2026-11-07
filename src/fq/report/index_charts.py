@@ -23,7 +23,6 @@ QUADRANT_JS = """
   const plotDiv = document.getElementById('quadrant_plot');
   const meta = %s;
   const usBox = document.getElementById('us-companies-checkbox');
-  const lossBox = document.getElementById('profitable-checkbox');
   const held = new Set(window.FQ_HELD || []);
   function update() {
     const holdings = document.body.classList.contains('holdings-mode');  // the page's Holdings switch
@@ -32,14 +31,13 @@ QUADRANT_JS = """
       const custom = plotDiv.data[m.trace].customdata;
       if (!custom) return;
       opacities.push(custom.map(function (c) {
-        if ((c[2] === 1 && !usBox.checked) || (c[1] !== 1 && !lossBox.checked)) return 0;
+        if (c[1] === 1 && !usBox.checked) return 0;
         return holdings && !held.has(c[0]) ? 0.12 : (m.opacity || 0.75);
       }));
     });
     Plotly.restyle(plotDiv, {'marker.opacity': opacities}, meta.map(function (m) { return m.trace; }));
   }
   usBox.addEventListener('change', update);
-  lossBox.addEventListener('change', update);
   document.addEventListener('fq-holdings', update);
   plotDiv.on('plotly_click', function (ev) {
     if (ev.points.length && ev.points[0].customdata) {
@@ -53,13 +51,12 @@ QUADRANT_JS = """
 QUADRANT_CONTROLS = """
 <div class="filter-controls">
   <label><input type="checkbox" id="us-companies-checkbox" checked> Include US companies</label>
-  <label><input type="checkbox" id="profitable-checkbox" checked> Include non-profitable</label>
 </div>
 """
 
 
 def quadrant_html(df: pd.DataFrame, bench: pd.DataFrame | None = None) -> str:
-    """Value-vs-Quality scatter with US / profitability toggles; dots link to company pages."""
+    """Value-vs-Quality scatter with a US toggle; dots link to company pages."""
     built = quadrant_figure(df, bench=bench)
     if built is None:
         return "<p>No valid data for the quadrant plot.</p>"
@@ -106,6 +103,27 @@ def _plain(values, digits: int = 2) -> list:
     return np.round(pd.to_numeric(pd.Series(values), errors="coerce").astype(float), digits).tolist()
 
 
+MAP_COLUMNS = ["Value_Score", "Quality_Score", "Market Cap", "shortName", "Ticker", "country"]
+
+
+def map_points(df: pd.DataFrame) -> pd.DataFrame:
+    """The companies the map draws: ranked ones only (`ranking.rankable`: profitable operating companies, user's
+    choice, Nov 5, 2026), without those whose figures may be wrong (`tiles.unreliable`, Nov 4, 2026: a misfiled cash
+    flow put them at Value 99), with every figure a dot needs. Its n, correlation and fit read these rows alone."""
+    if not all(c in df.columns for c in MAP_COLUMNS):
+        return df.head(0)
+    return df[~unreliable(df) & rankable(df)].dropna(subset=MAP_COLUMNS)
+
+
+def map_correlation(df: pd.DataFrame) -> float:
+    """Spearman correlation of Value and Quality over the dots the map draws (`map_points`, user's choice, Nov 7,
+    2026: the figure must describe what is in the chart); NaN with fewer than 3."""
+    d = map_points(df)
+    if len(d) < 3:
+        return float("nan")
+    return float(d[["Value_Score", "Quality_Score"]].corr(method="spearman").iloc[0, 1])
+
+
 def quadrant_figure(
     df: pd.DataFrame, labels: bool = False, bench: pd.DataFrame | None = None
 ) -> tuple[go.Figure, list[dict]] | None:
@@ -117,10 +135,7 @@ def quadrant_figure(
     misfiled cash flow put them at Value 99, top of the map). Only ranked companies (`ranking.rankable`: profitable
     operating companies, user's choice, Nov 5, 2026) are drawn, in the run and in the cloud.
     """
-    needed = ["Value_Score", "Quality_Score", "Market Cap", "FCFy_Norm", "shortName", "Ticker", "country"]
-    if not all(c in df.columns for c in needed):
-        return None
-    d = df[~unreliable(df) & rankable(df)].dropna(subset=needed).copy()  # profitable operating only (Nov 5, 2026)
+    d = map_points(df).copy()
     if d.empty:
         return None
 
@@ -130,7 +145,6 @@ def quadrant_figure(
     d["y"] = d["Value_Score"]
     d["is_sp500"] = d["Ticker"].isin(sp500)
     d["is_us"] = (d["country"] == "United States") | d["is_sp500"]
-    d["profitable"] = (d["FCFy_Norm"] >= 0).astype(int)
     d["slug"] = d["Ticker"].map(slug)
 
     cloud = _bench_cloud(df, bench)
@@ -169,7 +183,7 @@ def quadrant_figure(
                 x=_plain(seg["x"]), y=_plain(seg["y"]), mode="markers+text" if labels else "markers", name=label,
                 legendrank=rank,
                 textposition="top center", textfont=dict(size=9),
-                customdata=[[a, int(b), int(c)] for a, b, c in zip(seg["slug"], seg["profitable"], seg["is_us"], strict=True)],
+                customdata=[[a, int(b)] for a, b in zip(seg["slug"], seg["is_us"], strict=True)],
                 text=seg["Ticker"] if labels else None, hoverinfo="none",
                 marker=dict(
                     size=_plain(seg["marker_size"], 1),
@@ -181,14 +195,10 @@ def quadrant_figure(
         )  # fmt: skip
         meta.append({"is_sp500": is_sp, "opacity": opacity, "trace": len(fig.data) - 1})
 
-    d_corr = d[d["profitable"] == 1]
-    if len(d_corr) < 3:
-        d_corr = d
-    n_corr = len(d_corr)
-    corr = np.corrcoef(d_corr["x"], d_corr["y"])[0, 1] if n_corr >= 3 else float("nan")
-    if n_corr >= 3:
-        slope, intercept = np.polyfit(d_corr["x"], d_corr["y"], 1)
-        xs = np.array([d_corr["x"].min(), d_corr["x"].max()])
+    corr = map_correlation(df)  # the dots drawn, no others (Nov 7, 2026)
+    if n >= 3:
+        slope, intercept = np.polyfit(d["x"], d["y"], 1)
+        xs = np.array([d["x"].min(), d["x"].max()])
         fig.add_trace(
             go.Scatter(x=xs, y=slope * xs + intercept, mode="lines", name="Best fit",
                        line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"), hoverinfo="none",
@@ -223,7 +233,7 @@ def quadrant_figure(
         hovermode="closest",  # needed for plotly_click; hoverinfo="none" on the traces shows no tooltip
         dragmode=False,
         margin=dict(l=40, r=40, b=40, t=85),
-        annotations=[dict(x=top * 0.98, y=top * 0.05, text=f"ρ = {fmt(corr, '.2f')}", showarrow=False,
+        annotations=[dict(x=top * 0.98, y=top * 0.05, text=f"Spearman ρ = {fmt(corr, '+.2f')} (n={n:,})", showarrow=False,
                           font=dict(size=14, color="grey"), xanchor="right", yanchor="bottom")],
     )  # fmt: skip
     return fig, meta

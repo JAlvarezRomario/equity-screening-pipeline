@@ -86,7 +86,7 @@ flowchart TB
     RAW -->|"copy per run date"| RA[("<code>snapshots/raw/</code><br/>dated archive")]
     CORE -->|"overwrite"| RK[("<code>ranked_‹label›.parquet</code><br/>1 row / ticker · ~870 cols")]
     CORE -->|"one per run date"| SN[("<code>snapshots/</code><br/>scores + method hash")]
-    RK --> HL["<code>highlights</code><br/>the 18 lists"]
+    RK --> HL["<code>highlights</code><br/>the 19 lists"]
     HL --> GR["<code>grading</code>"]
     GR <-->|"only when due"| GM(["Gemini"])
     GR -->|"upsert"| GD[("<code>grades.parquet</code><br/>1 row / ticker")]
