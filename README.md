@@ -69,7 +69,7 @@ flowchart TB
         FQ["<b>fq pipeline</b><br/>Python · uv"] <--> ST[("Local stores<br/>parquet + JSON")]
     end
     FQ ---->|"statements, prices"| Y(["Yahoo Finance"])
-    FQ ---->|"page text → grades"| G(["Gemini API"])
+    FQ ---->|"statements → grades"| G(["Gemini API"])
     FQ ---->|"static HTML"| CF(["Cloudflare Pages<br/>behind Access"])
     R(["Invited readers"]) --> CF
 
@@ -155,7 +155,7 @@ The grade needs `GEMINI_API_KEY` in the environment and is skipped without it. E
 - The site I build is for personal research and is shared privately behind access control. It is not a public data
   service, and the bulk CSV is never uploaded.
 - The index lists are ticker symbols compiled from public sources, with no affiliation to the index providers.
-- The grade is written by a third-party LLM (Google Gemini) from the figures on each company page.
+- The grade is written by a third-party LLM (Google Gemini) from each company's description and statements, without its price.
 - **Nothing here is investment advice.** Figures may contain errors from the source or from processing.
 
 ## License

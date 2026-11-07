@@ -19,7 +19,7 @@ import pandas as pd
 from fq import grading
 from fq.fx import FALLBACK_BORROW_RATE, get_borrow_rate, get_treasury_yield
 from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
-from fq.ranking import top_n, trusted
+from fq.ranking import rankable, top_n, trusted
 from fq.report import screens as sc
 from fq.settings import Settings
 from fq.universe import dividend_wht, industry_key, sovereign_spread
@@ -143,7 +143,7 @@ GROUPS = {
     "start": (
         "Start here",
         "The answer: cheap and good at once, boring businesses worth research in depth (sound now, or in temporary "
-        "trouble), and the best graded.",
+        "trouble), and the companies several lists pick.",
     ),
     "growth": ("Growth", "Businesses compounding per share, from the best {top} of the combined ranking."),
     "income": ("Income", "Dividends to count on: held for a decade and growing, or untaxed for a non-resident."),
@@ -157,7 +157,7 @@ GROUPS = {
     "raw": (
         "Raw scores",
         "One score alone, whatever the other: the top of Value (with a moat and management that hold up), the top of "
-        "Quality.",
+        "Quality, and the best graded moats and managers whatever their price.",
     ),
 }
 
@@ -170,9 +170,6 @@ TABS: tuple[Tab, ...] = (
         funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
     Tab(REPEATERS, "repeaters", "hl-repeaters", sc.REPEATER_COLUMNS, None, group="start", sort="Repeat_Key"),
-    Tab(BEST_GRADES, "best_grades", "hl-best-grades", sc.BEST_GRADE_COLUMNS,
-        lambda df, n, hurdle: best_grade_list(df, n), group="start",
-        sort="Best_Order"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list),
         group="growth"),
     Tab("Cannibals", "cannibals", "hl-cannibals", sc.CANNIBAL_COLUMNS, _plain(sc.cannibal_list), group="growth",
@@ -198,6 +195,10 @@ TABS: tuple[Tab, ...] = (
         sort="Value_Rank", ranked=True, ai_screen=False),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, _top("Quality_Rank"), group="raw",
         sort="Quality_Rank", ranked=True, ai_screen=False),
+    # Best grades sits with the raw scores (user's choice, Nov 7, 2026): price orders it but is never tested, so it is a
+    # reference for the best moats and managers, not an answer to start from.
+    Tab(BEST_GRADES, "best_grades", "hl-best-grades", sc.BEST_GRADE_COLUMNS,
+        lambda df, n, hurdle: best_grade_list(df, n), group="raw", sort="Best_Order"),
 )
 # fmt: on
 TAB = {t.name: t for t in TABS}
@@ -267,13 +268,14 @@ def repeater_list(df: pd.DataFrame, n: int, picks: dict[str, tuple[Pick, int]]) 
 
 def best_grade_list(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """The Best grades tab (user's choice, Nov 7, 2026): every graded company (each was graded because a list showed
-    it) with trustworthy figures (`ranking.trusted`) whose moat and management grades are both at least
+    it) with trustworthy figures (`ranking.trusted`), ranked (`ranking.rankable`: a bank's, insurer's, holding's or
+    REIT's yield does not compare, so they stay in their own lists; Nov 7, 2026), whose moat and management grades are both at least
     `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best`), highest owner yield above the sovereign
     spread first (`Best_Order`). It shows its companies, so `Highlights.grade_pool` keeps their grades current."""
     if "Grade_Moat" not in df.columns:  # nothing graded: nothing passes
         return df.head(0).assign(Best_Order=pd.Series(dtype=float))
     best = [grading.passes_best(m, g) for m, g in zip(df["Grade_Moat"], df["Grade_Mgmt"], strict=True)]
-    out = df[pd.Series(best, index=df.index, dtype=bool) & trusted(df)]
+    out = df[pd.Series(best, index=df.index, dtype=bool) & trusted(df) & rankable(df)]
     spread = (
         pd.to_numeric(out["Sovereign_Spread"], errors="coerce").fillna(0.0)
         if "Sovereign_Spread" in out.columns

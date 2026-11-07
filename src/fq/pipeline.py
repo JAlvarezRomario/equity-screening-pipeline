@@ -242,7 +242,7 @@ def grade_companies(
 ) -> int:
     """Grade the companies the highlight lists show and every Repeaters candidate (`Highlights.grade_pool`), and
     the holdings whose grade is missing or due
-    (`grading.due`), at most `max_grades` (0 = no cap), from their pages as the last report wrote them; then rewrite
+    (`grading.due`), at most `max_grades` (0 = no cap), from their rows (`grading.grade_input`, no price); then rewrite
     every synthesis written with an older synthesis prompt (`grading.resynthesize`, the cheap model only).
     `resynthesize_only` skips the grading; `new_only` grades only companies never graded and rewrites no synthesis
     (no re-grade is spent). Returns how many grades or syntheses changed; never fails the report (an error is logged)."""
@@ -262,7 +262,7 @@ def grade_companies(
     changed = 0
     if todo and not dry_run:
         try:
-            new = grading.run(todo, ranked, cfg.site_dir / "companies", path)
+            new = grading.run(todo, ranked, path)
             log.info("Graded %d companies for $%.2f", len(new), new["Cost_USD"].sum() if len(new) else 0.0)
             changed += len(new)
         except Exception as exc:  # never lose the report to the grading

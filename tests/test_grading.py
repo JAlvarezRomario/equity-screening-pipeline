@@ -129,7 +129,7 @@ def test_the_grading_prompt_asks_for_dependency_and_caps_the_moat():
     assert "- ROIC: 20%" in prompt and "{" not in prompt.replace("{{", "")
     assert "II.B Revenue Dependency & Concentration" in prompt and "Dependency cap" in prompt
     assert "at most 3.0" in prompt and "at most 2.5" in prompt and "mutual lock-in" in prompt
-    assert "The page is context, not the verdict" in prompt and "scores and ranks," not in prompt
+    assert "The figures are context, not the verdict" in prompt and "scores and ranks," not in prompt
 
 
 def test_cost_follows_the_rates_in_force():
@@ -139,37 +139,51 @@ def test_cost_follows_the_rates_in_force():
     assert grading.estimate_usd(10, after) == 2 * grading.estimate_usd(10, before)
 
 
-def test_page_markdown_keeps_figures_definitions_and_chart_tables():
-    traces = [{"name": "ROIC", "x": ["Y1", "Y0"], "y": {"dtype": "f8", "bdata": "AAAAAAAAJEAAAAAAAAA0QA=="}}]
-    layout = {"xaxis": {"tickvals": ["Y1", "Y0"], "ticktext": ["Dec-24", "Dec-25"]}, "shapes": [{"a": 1}, {"b": 2}]}
-    html = (f'<main><h1>Acme <span>ACM</span></h1><p>Makes anvils.</p>'
-            f'<dl class="facts"><div data-help="Return on capital."><dt>ROIC</dt><dd>20%</dd></div></dl>'
-            f'<section class="card grade-card"><p>Moat 5</p></section>'
-            f'<script>Plotly.newPlot("returns_chart", {json.dumps(traces)}, {json.dumps(layout)}, {{}})</script></main>'
-            f'<footer>Disclaimer</footer>')  # fmt: skip
-    md = grading.page_markdown(html)
-    assert "## Acme ACM" in md and "Makes anvils." in md and "- ROIC: 20% (Return on capital.)" in md
-    assert "| series | Dec-24 | Dec-25 |" in md and "| ROIC | 10 | 20 |" in md  # binary arrays decoded
-    assert "Moat 5" not in md and "Disclaimer" not in md  # an earlier grade is never read back
+def _grading_row(**over):
+    row = {"Ticker": "ACM", "shortName": "Acme", "country": "Germany", "sector": "Industrials", "industry": "Tools",
+           "Business_Model": "operating", "Financial_Mode": False, "longBusinessSummary": "Makes anvils.",
+           "fullTimeEmployees": 1200, "heldPercentInsiders": 0.21, "PeriodEnd_Y0": "2025-12-31",
+           "PeriodEnd_Y1": "2024-12-31", "PeriodEnd_TTM": "2026-06-30",
+           "Total Revenue_Y1": 900e6, "Total Revenue_Y0": 1000e6, "Total Revenue_TTM": 1040e6,
+           "EBIT_Y0": 150e6, "ROIC_Y0": 18.0, "ROIC_Norm": 17.5, "Beneish_M": -2.6, "Net Interest Income_Y0": -5e6,
+           "DPS_Hist": json.dumps({"2009": 0.5, "2025": 1.25}),
+           # Price and everything over a price, the market's mood and our own verdicts: none may reach the grader.
+           "currentPrice": 87.65, "marketCap": 4.2e9, "Market Cap": 4.2, "trailingPE": 13.3, "Momentum_6M": 84.8,
+           "Above_52W_Low": 97.0, "Owner_Yield": 9.2, "EPV_Yield": 8.1, "Dividend_Yield": 3.1, "BV_to_Price": 41.0,
+           "numberOfAnalystOpinions": 7, "EPS_Rev_90d": -4.4, "Dividend_WHT": 26.4, "Sovereign_Spread": 0.28,
+           "Value_Score": 91.0, "Quality_Score": 77.0, "Rank": 3.0, "Return_Quality": 15.2, "Compounder": True}  # fmt: skip
+    return pd.Series(row | over)
 
 
-def test_page_markdown_leaves_out_our_conclusions():
-    html = ('<main><ul class="badges"><li class="badge" data-help="Mastercard-league">Compounder</li></ul>'
-            '<aside class="score-panel"><p class="score-sentence">Above the median.</p><dl class="ranks"><div>'
-            '<dt>Rank</dt><dd>3 of 100</dd></div></dl></aside><span class="tag">In portfolio</span>'
-            '<dl class="facts"><div data-help="Shares retired per year, %. Higher is better. Scored: Quality, weight 0.1.">'
-            '<dt>Shares reduced / yr</dt><dd>+2.0% p82 · w0.1</dd></div></dl>'
-            '<section class="callout"><h3>2 data notes</h3><ul class="notes"><li>Cheap (Value 90). Business held.</li>'
-            '<li>TTM taken from Yahoo.</li></ul></section>'
-            '<section class="card why-here"><p>On the lists Cheap and good #4</p></section>'
-            '<div class="tile"><div class="tile-value">14.5%</div><div class="tile-label">Owner yield</div>'
-            '<div class="tile-pct">better than 96% · all of Value</div></div></main>')  # fmt: skip
-    md = grading.page_markdown(html)
-    assert "- Shares reduced / yr: +2.0% (Shares retired per year, %.)" in md and "TTM taken from Yahoo." in md
-    assert "- Owner yield: 14.5%" in md  # the figure stays, its rank does not
-    for ours in ("Compounder", "Mastercard", "Above the median", "3 of 100", "In portfolio", "p82", "Scored",
-                 "better", "Cheap (Value", "2 data notes", "On the lists", "Cheap and good #4", "96%"):  # fmt: skip
-        assert ours not in md, ours
+def test_the_grader_reads_the_business_from_the_statements_and_never_a_price():
+    md = grading.grade_input(_grading_row())
+    assert "## Acme (ACM)" in md and "Makes anvils." in md and "Germany · Industrials · Tools" in md
+    assert "| | Dec-24 | Dec-25 | TTM Jun-26 |" in md and "| Revenue | 900 | 1,000 | 1,040 |" in md
+    assert "- Normalised return on invested capital (on equity for financials): 17.5%" in md
+    assert "- Held by insiders: 21.0%" in md and "| Dividend per share | 0.5 | 1.25 |" in md
+    assert "Net interest income" not in md  # an operating company's is the interest it pays, not a lender's income
+    for price_or_verdict in ("87.65", "4,200", "13.3", "84.8", "97", "9.2", "8.1", "3.1", "41", "-4.4", "26.4",
+                             "0.28", "91", "77", "15.2", "Price", "price", "Market", "P/E", "Momentum", "yield",
+                             "Yield", "nalyst", "Score", "Rank", "Compounder", "WHT", "spread"):  # fmt: skip
+        assert price_or_verdict not in md, price_or_verdict
+
+
+def test_a_lender_shows_its_net_interest_income_and_the_input_is_in_the_hash():
+    md = grading.grade_input(_grading_row(Business_Model="bank", Financial_Mode=True))
+    assert "| Net interest income | – | -5 | – |" in md and "return on equity and book value" in md
+    assert "TTM" not in grading.grade_input(_grading_row(TTM_Identical_To_Latest=True))  # TTM repeats Y0: left out
+    hash_now = grading.prompt_hash()
+    grading.INPUT_VERSION += 1
+    try:
+        assert grading.prompt_hash() != hash_now  # a new input makes every grade due
+    finally:
+        grading.INPUT_VERSION -= 1
+
+
+def test_the_grading_prompt_caps_a_moat_ai_can_replace_and_says_the_price_is_left_out():
+    prompt = (grading.PROMPT_DIR / "grade_prompt.md").read_text(encoding="utf-8")
+    assert "AI substitution cap" in prompt and "No price, on purpose" in prompt
+    assert "{company_figures}" in prompt and "yields are % of today's price" not in prompt
 
 
 def _graded(cfg, df, moat, mgmt):
@@ -285,6 +299,23 @@ def test_best_grades_take_both_at_least_four_and_one_above_by_owner_yield():
         "Owner_Yield": [3.0, 8.0, 9.0, 10.0, 11.0],
     })  # fmt: skip
     assert best_grade_list(df, 20)["Ticker"].tolist() == ["HIGH_YIELD", "LOW_YIELD"]
+
+
+def test_best_grades_holds_ranked_companies_and_sits_with_the_raw_scores():
+    from fq.report import highlights as hl
+
+    df = pd.DataFrame({"Ticker": ["MOAT", "BANK"], "Grade_Moat": [4.5, 4.5], "Grade_Mgmt": [4.5, 4.5],
+                       "Owner_Yield": [4.0, 10.0], "Rank_Group": ["ranked", "financial"]})  # fmt: skip
+    assert hl.best_grade_list(df, 20)["Ticker"].tolist() == ["MOAT"]  # a bank's yield does not compare
+    assert hl.TAB[hl.BEST_GRADES].group == "raw"
+
+
+def test_the_untested_pill_counts_data_holes_not_blanks_by_design():
+    from fq.report import screens as sc
+
+    row = pd.Series({"Beneish_M": float("nan"), "Accruals": -2.0, "FCF_Positive_Share": 100.0,
+                     "Gross_Margin_Held": 0.5, "Incremental_ROIC": float("nan"), "EPS_Rev_90d": float("nan")})  # fmt: skip
+    assert sc.untested(row) == ["Beneish M-score"]  # incremental ROIC and estimates may be blank by design
 
 
 def test_temporary_trouble_turns_over_nothing_breaking_now_and_must_be_graded():

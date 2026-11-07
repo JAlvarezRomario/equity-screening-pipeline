@@ -131,7 +131,7 @@ def test_dividend_carry_needs_untaxed_covered_unbroken_dividends_in_the_best_qui
 
     def company(ticker, rank, div=(6, 5, 4), oe=(9, 8, 7), **changes):
         row = {"Ticker": ticker, "Rank": rank, "Dividend_WHT": 0.0, "Dividend_Yield": 6.0, "Owner_Yield": 9.0,
-               "Cyclical": False, "Peak_Margin_Ratio": 1.0,
+               "EPV_Per_Share_Yield": 9.0, "Cyclical": False, "Peak_Margin_Ratio": 1.0,
                # The dividend record (Nov 5, 2026: it replaced the 4-year dividend trend), clean unless changed.
                "Dividend_Unbroken_Years": 12.0, "Dividend_Record_Whole": True, "Regular_DPS_Growth_10Y": 3.0,
                "Dividend_Cut_Recent": False, "Recession_Dividend_Fall": 0.0, "Recession_Dividend_Note": None,
@@ -146,8 +146,8 @@ def test_dividend_carry_needs_untaxed_covered_unbroken_dividends_in_the_best_qui
             company("B", 2.0),
             company("A", 1.0, div=(6, 7, 4)),  # yearly payouts no longer judge it: the record does
             company("TAXED", 3.0, Dividend_WHT=15.0),
-            company("LOW_YIELD", 3.0, Dividend_Yield=4.0),
-            company("UNCOVERED", 3.0, Owner_Yield=5.0),
+            company("LOW_YIELD", 3.0, Dividend_Yield=4.8),  # a point above the 3.75% fallback loan, under 5%
+            company("UNCOVERED", 3.0, EPV_Per_Share_Yield=7.0),  # 86% of what a share earns after interest
             company("CUT_SIX_YEARS_AGO", 3.0, Dividend_Unbroken_Years=6.0),
             company("CUT_NOW", 3.0, Dividend_Unbroken_Years=0.0, Dividend_Cut_Recent=True),
             company("NO_RECORD", 3.0, Dividend_Unbroken_Years=float("nan")),
@@ -159,7 +159,7 @@ def test_dividend_carry_needs_untaxed_covered_unbroken_dividends_in_the_best_qui
     )
     out = dividend_carry_list(df)
     assert out.loc[out["Carry_Record"], "Ticker"].tolist() == ["A", "B"]  # the full record first
-    # Filled to 20 (Nov 7, 2026) with the shorter records: no cut now, untaxed, covered, not cyclical, in the best.
+    # Then the shorter records (Nov 7, 2026): no cut now, untaxed, covered, not cyclical, in the best.
     assert set(out.loc[~out["Carry_Record"], "Ticker"]) == {
         "LOW_YIELD",
         "CUT_SIX_YEARS_AGO",
@@ -240,8 +240,9 @@ def test_dividend_growers_need_a_decade_without_a_cut_growth_cover_and_a_lasting
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
         return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
-                      "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "ROIC_Norm": 15.0,
-                      "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0, "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
+                      "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0,
+                      "EPV_Per_Share_Yield": 8.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
+                      "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
 
     df = pd.DataFrame([
         r("B", 2.0),
@@ -251,7 +252,8 @@ def test_dividend_growers_need_a_decade_without_a_cut_growth_cover_and_a_lasting
         r("CUT_NOW", 4.0, Dividend_Cut_Recent=True),
         r("RECESSION_CUT", 4.0, Recession_Dividend_Fall=-30.0),
         r("LOW_YIELD", 4.0, Dividend_Yield=2.4),
-        r("PAYS_IT_ALL", 4.0, Dividend_Yield=7.0),  # above 80% of owner earnings
+        r("PAYS_IT_ALL", 4.0, Dividend_Yield=7.0),  # above 80% of what a share earns after interest
+        r("PAID_FROM_GROWTH", 4.0, EPV_Per_Share_Yield=3.5),  # 86% at zero growth, 38% of the owner yield
         r("FLAT_DIVIDEND", 4.0, Regular_DPS_Growth_10Y=2.9),
         r("LOW_ROIC", 4.0, ROIC_Norm=9.0),
         r("CYCLICAL", 4.0, Cyclical=True),

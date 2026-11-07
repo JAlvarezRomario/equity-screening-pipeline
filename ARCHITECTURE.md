@@ -52,7 +52,7 @@ flowchart TB
         FQ["<b>fq pipeline</b><br/>Python 3.11 · uv"] <--> ST[("Local stores<br/>parquet + JSON<br/>never committed")]
     end
     FQ ---->|"HTTPS pull:<br/>statements, prices"| Y(["Yahoo Finance<br/>via yfinance"])
-    FQ ---->|"page text out,<br/>grades back"| G(["Google Gemini API"])
+    FQ ---->|"statements out,<br/>grades back"| G(["Google Gemini API"])
     FQ ---->|"by hand:<br/>static HTML, no CSV"| CF(["Cloudflare Pages<br/>behind Access"])
     R(["Invited readers"]) -->|"email one-time code"| CF
 
@@ -309,7 +309,7 @@ flowchart TB
   the LLM, the pipeline or the evaluation.
 - The site never imports the command line, the pipeline, the downloads or `evaluate.py`.
 - Only the entry points (`cli.py`, `pipeline.py`) import the pipeline or the command line.
-- `grading.py` reads nothing from the site except the slug function that names its files.
+- `grading.py` reads nothing from the site: it builds its input from the ranked data.
 
 The site and the evaluation read the grade's gate rules (constants and pure functions) from `grading.py`. The
 Gemini SDK is imported only inside the one function that calls it.
@@ -322,7 +322,7 @@ Gemini SDK is imported only inside the one function that calls it.
 
 | Aspect | Design |
 |---|---|
-| Input | The company's own page as markdown, without the system's conclusions (scores, ranks, badges), so they do not influence the grade |
+| Input | The company's description and statements, never its price, yields or the system's conclusions (scores, ranks, badges), so the grade judges the business, not the stock |
 | Process | Two independent grading passes (`gemini-4-argon`) averaged, then a synthesis by a cheaper model (`gemini-3.8-flash`) |
 | Output | Moat and Management, 1 to 5. A gate keeps a company at the top of its list or moves it to the bottom. Scores and ranks are untouched |
 | Caching | One row per company, keyed on `Prompt_Hash` (prompt, models, passes, page format). Redone only when that hash, the latest annual report or the one-year age limit says so |

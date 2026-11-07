@@ -106,22 +106,22 @@
   <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, covered by what the business earns. Few companies have the full record, so the list is filled to 20 with shorter ones, marked.") %}<ul>
+{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, well covered by what one share earns and paying clearly more than the loan costs. Bought partly on borrowed money, so the list shows only the companies that pass, however few: it is not filled to 20.") %}<ul>
   <li>No dividend withholding tax for a foreign individual (statutory rate): the dividend is kept whole.</li>
-  <li>Yield of {{ r.carry_min_yield }}% or more, and above what a euro margin loan costs today, {{ r.carry_borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety, read at each update), so it could service a loan.</li>
-  <li>Covered by the owner yield: what is not paid out stays in the company and keeps growing its value.</li>
+  <li>Yield of {{ r.carry_min_yield }}% or more, and at least {{ r.carry_spread }} point{{ '' if r.carry_spread == '1' else 's' }} above what a euro margin loan costs today, {{ r.carry_borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety, read at each update): the loan's rate floats, and a carry with no spread earns nothing for its risk.</li>
+  <li>Covered: the dividend at most {{ r.grower_payout }}% of what one share earns after interest at zero growth (earnings power per share over the price), so it is paid from today's earnings, not from growth still to come, and the rest stays in the company.</li>
   <li>The dividend record, payment by payment: no cut in the last {{ r.carry_unbroken }} complete years nor in the last twelve months, and the regular dividend per share no lower than ten years ago, in US terms. A dividend bought on a loan needs that evidence: a company without it only fills the list (below).</li>
   <li>Owner earnings per share, in US terms, trended up over at least {{ r.carry_min_years }} annual reports (one dip allowed).</li>
   <li>Little debt inside the company, since a loan to buy it adds leverage on top: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks, insurers and holdings: equity at least {{ r.equity }}% of assets).</li>
   <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking. The companies passing every test come first, in combined-rank order.</li>
-  <li>Then, until there are 20, the companies passing every test but the record, marked <em>shorter record</em>, in combined-rank order: still no cut in the last twelve months and the yield above the loan cost, but fewer than {{ r.carry_unbroken }} unbroken years (or no record), a yield under {{ r.carry_min_yield }}%, a dividend below ten years ago or owner earnings not trending up. Less evidence behind the dividend: weigh that before borrowing for it.</li>
+  <li>Then, up to 20 in all, the companies passing every test but the record, marked <em>shorter record</em>, in combined-rank order: still no cut in the last twelve months, covered and above the loan cost, but fewer than {{ r.carry_unbroken }} unbroken years (or no record), a yield under {{ r.carry_min_yield }}%, a dividend below ten years ago or owner earnings not trending up. Less evidence behind the dividend: weigh that before borrowing for it.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro dividend_growers(r) %}{% call rules("A dividend held for at least a decade and growing faster than inflation, covered by owner earnings, in a lasting business with little debt.") %}<ul>
   <li>No cut in the regular dividend per share for at least {{ r.grower_years }} complete years, nor in the last twelve months (the twelve months below the twelve before, with as many payments in each).</li>
   <li>Judged payment by payment, in the currency the dividend is declared in. A special dividend (a payment at least {{ r.special_ratio }}&times; its season's usual size, higher than the same payment a year before and a year after) is left out, so the year after it is not a cut. A payment that slipped across New Year, or moved earlier when an interim dividend was added, is no cut either. Any other fall of more than {{ r.dividend_held }}% is.</li>
-  <li>Dividend yield of {{ r.grower_yield }}% or more; the regular dividend per share growing {{ r.grower_growth }}% a year or more over 10 years, in US terms; the dividend at most {{ r.grower_payout }}% of owner earnings.</li>
+  <li>Dividend yield of {{ r.grower_yield }}% or more; the regular dividend per share growing {{ r.grower_growth }}% a year or more over 10 years, in US terms; the dividend at most {{ r.grower_payout }}% of what one share earns after interest at zero growth.</li>
   <li>Normal return on capital (on equity for banks and insurers) of {{ r.grower_roic }}% or more.</li>
   <li>Lasting: not cyclical, not at peak margins, past the AI screen, the dividend not cut more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}, and {{ r.downturns }}).</li>
   <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks and insurers: equity at least {{ r.equity }}% of assets).</li>
@@ -137,7 +137,7 @@
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months.</li>
   <li><strong>Stress tests</strong>: no industry naturally fragile or exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash.</li>
   <li><strong>A boring industry</strong>: one that does not attract new capital, so the incumbents face few new competitors: {{ r.boring_industries }}.</li>
-  <li><strong>Price</strong>: an owner yield of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (a business should pay more than a bond), plus how much more than the US the company's home government pays to borrow dollars (its rating-based default spread, from Damodaran's January table, less the US's, in points: {{ r.spreads }}; the country of its headquarters, not of its sales); Value &ge; {{ r.value }}.</li>
+  <li><strong>Price</strong>: earnings power at zero growth (and the owner yield, if lower) of at least {{ r.hurdle }}% of the price, the higher of 6% and the 10-year Treasury (a business should pay more than a bond before any growth; growth is the margin of safety), plus how much more than the US the company's home government pays to borrow dollars (its rating-based default spread, from Damodaran's January table, less the US's, in points: {{ r.spreads }}; the country of its headquarters, not of its sales); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>
 </ul>{% endcall %}{% endmacro %}
@@ -156,8 +156,8 @@
   <li>Many of them are among the Boring businesses too: the same answer, reached from several directions. Banks, insurers, REITs and utilities are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro best_grades(r) %}{% call rules("The companies the other lists show whose moat and management the AI model grades highest, cheapest first.") %}<ul>
-  <li>Drawn from every company graded so far: each was graded because one of the other lists showed it. Companies whose figures need checking and the industries the AI screen leaves out are left out.</li>
+{% macro best_grades(r) %}{% call rules("The best moats and managers the AI model has graded, whatever their price: a reference, not a buy list. Cheapest first, but price is the order, not a test.") %}<ul>
+  <li>Drawn from every company graded so far: each was graded because one of the other lists showed it. Ranked companies only (banks, insurers, holdings, REITs and utilities are in their own lists); companies whose figures need checking and the industries the AI screen leaves out are left out.</li>
   <li>Both grades at least {{ r.grade_best }} and either above {{ r.grade_best }}, on the 1 to 5 scale; ungraded companies are left out.</li>
   <li>Ordered by owner yield above the country's sovereign borrowing spread (the same spread Boring businesses uses), highest first.</li>
 </ul>{% endcall %}{% endmacro %}

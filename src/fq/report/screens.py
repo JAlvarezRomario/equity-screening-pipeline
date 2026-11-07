@@ -402,6 +402,9 @@ def _trending_up(per_share: pd.DataFrame, min_years: int, max_dips: int) -> pd.S
 
 
 CARRY_MIN_UNBROKEN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
+# Points the dividend yield must stand above the loan's cost (user's choice, Nov 7, 2026): a carry with no spread over a
+# floating loan earns nothing for its risk.
+CARRY_MIN_SPREAD = 1.0
 
 
 CARRY_SHORT_PILL = ("A shorter dividend record: it passes every Untaxed dividends test but the full record (no cut in "
@@ -411,15 +414,18 @@ CARRY_SHORT_PILL = ("A shorter dividend record: it passes every Untaxed dividend
 
 
 def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Filled to `n` (user's choice, Nov 7, 2026: the full record left 1 to 3 companies, and the list should hold about
-    20): the companies passing every test below (`Carry_Record` True) first, in combined rank order, then those passing
-    all but the record tests (`Carry_Record` False: no cut in the last 12 months still required, the yield above the
-    loan cost but not `Settings.carry_min_yield`, the unbroken years, the 10-year growth and the owner trend not
-    asked; `CARRY_SHORT_PILL`), in combined rank order, until `n`; `Carry_Order` is the order shown.
+    """The companies passing every test below (`Carry_Record` True) first, in combined rank order, then those passing
+    all but the record tests (`Carry_Record` False: no cut in the last 12 months, the coverage and the loan spread still
+    required; `Settings.carry_min_yield`, the unbroken years, the 10-year growth and the owner trend not asked;
+    `CARRY_SHORT_PILL`), in combined rank order, at most `n`; `Carry_Order` is the order shown. Not filled when fewer
+    pass (user's choice, Nov 7, 2026: bought partly on borrowed money, it shows only what has the evidence).
 
-    Dividend payers a non-resident keeps whole (`Dividend_WHT` 0): yield at least `Settings.carry_min_yield` and above
-    the cost of a euro margin loan (`Borrow_Rate`, set by `highlights.Highlights.compute` from `fx.get_borrow_rate`;
-    `fx.FALLBACK_BORROW_RATE` without it), covered by the owner yield (what is left is retained and grows the value), the dividend
+    Dividend payers a non-resident keeps whole (`Dividend_WHT` 0): yield at least `Settings.carry_min_yield` and
+    `CARRY_MIN_SPREAD` points above the cost of a euro margin loan (`Borrow_Rate`, set by
+    `highlights.Highlights.compute` from `fx.get_borrow_rate`; `fx.FALLBACK_BORROW_RATE` without it), the dividend at
+    most `GROWER_MAX_PAYOUT` of the earnings power one share keeps after interest (`EPV_Per_Share_Yield`: zero growth,
+    today's interest charged, per share over the price; Nov 7, 2026: `Owner_Yield` is before interest, on the whole
+    business and 3 years ahead, so a dividend at 2.4 times what a share earns passed; a blank fails), the dividend
     record (`dividend_record`, user's choice, Nov 5, 2026: the list is bought partly on borrowed money, so a cut is the
     risk that matters): no cut in the last `CARRY_MIN_UNBROKEN_YEARS` complete years nor in the last 12 months, the
     regular dividend not lower than 10 years ago in US terms (`dividend_growth_us`), and no record means no evidence
@@ -438,8 +444,8 @@ def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     loan = num("Borrow_Rate").fillna(FALLBACK_BORROW_RATE)
     core = (
         (num("Dividend_WHT") == 0)
-        & (yield_ >= loan)
-        & (num("Owner_Yield") > yield_)
+        & (yield_ >= loan + CARRY_MIN_SPREAD)
+        & (yield_ <= GROWER_MAX_PAYOUT * num("EPV_Per_Share_Yield"))
         & ~_flag(df, "Dividend_Cut_Recent")
         & in_best_fraction(df)
         & (df["Cyclical"] != True if "Cyclical" in df.columns else True)  # noqa: E712 - handles NaN / numpy bool
@@ -787,7 +793,9 @@ GROWER_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (
 GROWER_MIN_YIELD = 2.5  # dividend yield, %
 GROWER_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years in US terms: about US inflation
 GROWER_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
-GROWER_MAX_PAYOUT = 0.8  # the dividend at most this share of owner earnings: the rest grows the next dividend
+# The dividend at most this share of what a share earns after interest at zero growth (`EPV_Per_Share_Yield`; Nov 7,
+# 2026: was `Owner_Yield`, before interest and 3 years ahead): the rest grows the next dividend.
+GROWER_MAX_PAYOUT = 0.8
 DIVIDEND_GROWER_COLUMNS = [
     ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
     ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
@@ -824,9 +832,9 @@ def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """No dividend cut in the last `GROWER_MIN_YEARS` complete years nor in the last 12 months (`dividend_record`:
     specials and payment timing judged payment by payment, in the declared currency), dividend yield >=
     `GROWER_MIN_YIELD`, the regular dividend growing >= `GROWER_MIN_GROWTH` %/yr over 10 years in US terms
-    (`dividend_growth_us`, Nov 6, 2026), normalised ROIC (ROE
-    for financials) >= `GROWER_MIN_ROIC`, the dividend at most `GROWER_MAX_PAYOUT` of owner earnings, a lasting business
-    (`_lasting_business`: its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession) and a sound
+    (`dividend_growth_us`, Nov 6, 2026), normalised ROIC (ROE for financials) >= `GROWER_MIN_ROIC`, the dividend at
+    most `GROWER_MAX_PAYOUT` of the earnings power a share keeps after interest (`EPV_Per_Share_Yield`), a lasting
+    business (`_lasting_business`: its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession) and a sound
     balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer (ranked apart, no `Rank`) the
     best fraction of its own kind (`kind_order`). Ordered by position as a share of the ranking (`Rank` among the
     ranked, `Kind_Rank` within the kind), trusted as `ranking.top_n`. Display only."""
@@ -846,7 +854,7 @@ def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & (yield_ >= GROWER_MIN_YIELD)
         & (_num(df, "Regular_DPS_Growth_10Y_US") >= GROWER_MIN_GROWTH)
         & (_num(df, "ROIC_Norm") >= GROWER_MIN_ROIC)
-        & ~(yield_ > GROWER_MAX_PAYOUT * _num(df, "Owner_Yield"))
+        & ~(yield_ > GROWER_MAX_PAYOUT * _num(df, "EPV_Per_Share_Yield"))
         & _lasting_business(df)
         & _sound_balance_sheet(df)
         & (in_best_fraction(df) | (financial & kind_best))
@@ -924,6 +932,23 @@ def _sound_balance_sheet(df: pd.DataFrame) -> pd.Series:
     return _debt_bounded(df) & (_net_debt_within_equity(df) | _flag(df, "Financial_Mode"))
 
 
+# Figures whose blank lets a test pass untested (user's choice, Nov 7, 2026: shown, not capped): data holes, not
+# blanks by design (`Incremental_ROIC` when capital barely grew, `EPS_Rev_90d` for a company no analyst follows).
+UNTESTED_FIGURES = {
+    "Beneish_M": "Beneish M-score",
+    "Accruals": "accruals",
+    "FCF_Positive_Share": "years with positive free cash flow",
+    "Gross_Margin_Held": "gross margin since the inflation peak",
+}
+UNTESTED_TABS = ("shortlist", "trouble", "compounders")  # `Tab.key`s whose rows carry the "untested" pill
+
+
+def untested(row: pd.Series) -> list[str]:
+    """The names of the `UNTESTED_FIGURES` missing for one company: the clean-accounts, cash and pricing-power tests
+    it passed because the figure is blank (a blank passes, as in every list)."""
+    return [name for col, name in UNTESTED_FIGURES.items() if pd.isna(pd.to_numeric(row.get(col), errors="coerce"))]
+
+
 def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> list[tuple[str, pd.Series]]:
     """The Shortlist's conditions in funnel order, each (label, mask). A blank figure passes, as in every list: the
     operating tests are blank for banks, insurers and holdings, which get the equity / assets floor instead. `hurdle`
@@ -964,9 +989,12 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),
         ("net debt within half of equity", net_debt_ok | financial),
         ("kept its margin through inflation", _margin_held(df)),
-        # The owner yield beats the Treasury and what more the company's own government pays to borrow dollars
-        # (`Sovereign_Spread`, `universe.sovereign_spread`; user's choice, Nov 7, 2026); a frame without it: the US's.
-        ("beats the bond", ~(num("Owner_Yield") < hurdle + num("Sovereign_Spread").fillna(0.0))),
+        # Earnings power at zero growth beats the Treasury and what more the company's own government pays to borrow
+        # dollars (`Sovereign_Spread`, `universe.sovereign_spread`; user's choice, Nov 7, 2026; a frame without it: the
+        # US's): the lower of `Owner_Yield` (3 years of trend credited) and `EPV_Yield` (none), so growth is the margin
+        # of safety, not part of the hurdle (Graham, Greenwald; Nov 7, 2026, as Temporary trouble already asked).
+        ("beats the bond",
+         ~(np.fmin(num("Owner_Yield"), num("EPV_Yield")) < hurdle + num("Sovereign_Spread").fillna(0.0))),
         ("durable returns",
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
          & (num("Quality_Score") >= SHORTLIST_MIN_QUALITY)),
@@ -976,13 +1004,11 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
 def trouble_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:
     """Temporary trouble (user's choice, Nov 7, 2026; Lynch's "temporary trouble"): every test of `_shortlist_gates`
     but `NOTHING_BREAKING`, which it must fail: a boring, cheap, good business whose sales, profit or estimates are
-    falling right now (3255.KL, Ambev, Tsingtao). Zero-growth owner earnings (EPV) must beat the bond as well.
-    `in_best_fraction`, trusted as `ranking.top_n`, in combined rank order. Display only."""
+    falling right now (3255.KL, Ambev, Tsingtao). `in_best_fraction`, trusted as `ranking.top_n`, in combined rank
+    order. Display only."""
     keep = in_best_fraction(df)
     for label, mask in _shortlist_gates(df, hurdle):
         keep &= ~mask if label == NOTHING_BREAKING else mask
-    spread = _num(df, "Sovereign_Spread").fillna(0.0)
-    keep &= ~(np.minimum(_num(df, "Owner_Yield"), _num(df, "EPV_Yield")) < hurdle + spread)
     return top_n(df[keep], "Rank", n)
 
 
@@ -990,8 +1016,8 @@ def shortlist_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_
     """The companies worth researching in depth: `in_best_fraction` of the combined ranking and every condition of
     `_shortlist_gates` (per-share growth without dilution, owner earnings not shrinking, cash-backed and clean
     earnings, growth that earns its keep, a sound balance sheet, nothing breaking now, not fragile to AI, recession
-    leaders only, net debt within half of equity, the gross margin kept through inflation, an owner yield above the
-    bond `hurdle`, durable returns); trusted
+    leaders only, net debt within half of equity, the gross margin kept through inflation, earnings power at zero
+    growth above the bond `hurdle`, durable returns); trusted
     as `ranking.top_n`, in combined rank order. Display only."""
     keep = in_best_fraction(df)
     for _, mask in _shortlist_gates(df, hurdle):

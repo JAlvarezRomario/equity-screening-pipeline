@@ -8,14 +8,16 @@ Your goal is NOT just to describe the company. Your **MAIN** goal is to **accura
 ---
 
 ### **WHAT YOU KNOW, AND WHERE IT STOPS:**
-Today's date is **{execution_date}**. You have no search tool and no documents: this grading rests on your own knowledge of the company and its industry, and on the company's page from our screening system, given below. Your knowledge ends at your training cutoff, and the gap between that cutoff and {execution_date} is real.
+Today's date is **{execution_date}**. You have no search tool and no documents: this grading rests on your own knowledge of the company and its industry, and on the company's figures from our screening system, given below. Your knowledge ends at your training cutoff, and the gap between that cutoff and {execution_date} is real.
 
-**The page is context, not the verdict.** Its figures come from Yahoo Finance statements, normalised by the system: they are reliable for what the numbers were in the periods they cover, and where they disagree with your memory on those numbers, the figures win. But figures cannot show the structure of the business: who pays, for what, under what bargaining power, and what could take the revenue away. Much of what decides a moat and a management grade is not in the figures, and your grade must rest on it as much as on the numbers. A high return on capital earned on a fragile revenue base is not a wide moat. Use the page to check and anchor the numbers, then grade the business.
+**The figures are context, not the verdict.** They come from Yahoo Finance statements, normalised by the system: they are reliable for what the numbers were in the periods they cover, and where they disagree with your memory on those numbers, the figures win. But figures cannot show the structure of the business: who pays, for what, under what bargaining power, and what could take the revenue away. Much of what decides a moat and a management grade is not in the figures, and your grade must rest on it as much as on the numbers. A high return on capital earned on a fragile revenue base is not a wide moat. Use the figures to check and anchor the numbers, then grade the business.
+
+**No price, on purpose.** You are given no share price, market value, valuation multiple, yield or price history, and none should enter the grade: grade the business and the people running it, not the stock. Whether it is cheap or dear today, and how its shares have moved, are not evidence of a moat or of good management.
 
 Weigh, from what you know:
 1.  Regulation and antitrust exposure.
 2.  Disruptive technology threats (specifically GenAI).
-3.  Management tenure, departures, succession, and insider ownership and dealings (our page does not show holders: use what you know).
+3.  Management tenure, departures, succession, and insider ownership and dealings (our figures do not show holders: use what you know).
 4.  Capital allocation: dividends, acquisitions, issuance, repurchases.
 5.  Revenue dependency: on a customer, a platform, a product, a supplier, a licence or a government (Section II.B).
 
@@ -25,10 +27,10 @@ We are not concerned with the short term; the grade is about the long-term MOAT 
 
 ---
 
-### **THE COMPANY'S PAGE IN OUR SCREENING SYSTEM**
-Everything our system shows about the company, as markdown: the business description, key figures with their definitions in brackets, data notes, and each chart's data as a table (columns are the periods; yields are % of today's price). It carries no scores, ranks or verdicts of ours.
+### **THE COMPANY'S FIGURES IN OUR SCREENING SYSTEM**
+The business description, the statements by period (columns are the periods, oldest first; money in millions), returns and margins by period, figures computed from the statements, and the long dividend and share record. No price, and no scores, ranks or verdicts of ours.
 
-{company_page}
+{company_figures}
 
 ---
 
@@ -57,7 +59,7 @@ Your output will be displayed directly on a website investor dashboard. You must
 3.  **Network Effects:** Does the value of the service increase as more users join?
 4.  **Cost Advantage:** Do they have a structural lower cost basis (scale, location, unique assets) that competitors cannot replicate?
 5.  **Engineering Leadership:** (If applicable) Is there evidence of "constant leadership in engineering" rather than just static patent protection?
-6.  **Durability vs. Disruption:** specifically address threats from **AI disruption**. Does AI commoditize their product?
+6.  **Durability vs. Disruption:** specifically address threats from **AI disruption**. Does AI commoditize their product, or remove the customer's need for it? State whether the **AI substitution cap** in the rubric applies, and why.
 7.  **What the figures cannot show:** brand and customer habit, licences and concessions, distribution access, culture. Name what holds the moat up that no statement records.
 
 ## II.B Revenue Dependency & Concentration (MANDATORY checklist)
@@ -88,7 +90,7 @@ State plainly whether the **dependency cap** in the rubric applies, and why.
 * What specific external event would invalidate your scores?
 
 ## IV.B Value Trap Pre-Mortem (MANDATORY checklist)
-*A cheap-looking business is most dangerous when its cheapness is rational. The mission is to avoid permanent capital loss; this checklist forces an explicit answer to each value-trap dimension. Every prompt must be answered — "no concern" is a valid answer when supported by evidence; an unanswered prompt is a failure of the analysis.*
+*A business that looks sound on its figures is most dangerous when the figures are about to stop holding. The mission is to avoid permanent capital loss; this checklist forces an explicit answer to each value-trap dimension. Every prompt must be answered — "no concern" is a valid answer when supported by evidence; an unanswered prompt is a failure of the analysis.*
 
 1.  **Moat trajectory (5y look-back):** Is the moat measurably **narrower** than 5 years ago? Look for: market-share trend in core segments, gross-margin trend, whether the dependencies of Section II.B are growing or shrinking, switching-cost erosion (e.g., new substitute available), pricing-power evidence (price increases stuck or rolled back). State **widening / stable / narrowing** with one piece of concrete evidence.
 2.  **Capital allocation drift:** Is management deploying retained earnings into the legacy core, into adjacent businesses with proven economics, or into **new low-ROIC adjacencies, vanity M&A, or "diworsification"**? List the last 3 material capital deployments and your judgment of each. A clean record is a positive signal; one suspect deployment is a yellow flag; two or more is a red flag.
@@ -102,6 +104,7 @@ State plainly whether the **dependency cap** in the rubric applies, and why.
 *This is the most important section for the user. Show your work.*
 * "I initially considered a [X] for the Moat, but downgraded/upgraded to [Y] because..."
 * Say whether the dependency cap applied, to which counterparty, and why (or why the mutual lock-in exception holds).
+* Say whether the AI substitution cap applied, and why (or why AI strengthens rather than replaces the business).
 * Explicitly weigh the pros and cons to finalize the number.
 
 ---
@@ -148,6 +151,11 @@ You must adhere to a **Normal Distribution (Bell Curve)**. If you were to grade 
 * The **Moat Score is at most 2.5** when that counterparty has an in-house or ready alternative, or has already cut or renegotiated terms.
 * The only exception is a **mutual lock-in** argued with evidence: the counterparty would itself bear a large, specific cost to switch (a sole qualified supplier of a critical part, say).
 * When the concentration is unknown to you, no cap applies, but Section II.B must say it is unknown.
+
+**AI substitution cap (binding, for every company):**
+* When AI can already do, or within about five years is likely to do, most of what customers pay the company for, or remove their need for it, at a fraction of the cost: the **Moat Score is at most 3.0**, whatever the returns and margins show.
+* The **Moat Score is at most 2.5** when that substitution is already visible: customers moving to AI tools, prices cut to keep them, or a competitor built on AI winning share.
+* Not a cap: AI that the company itself uses to lower its costs, or that strengthens what it owns (proprietary data, a regulated licence, a physical network, a brand customers trust). Argue which side the company is on.
 
 **Management Quality Scoring:**
 * **5.0 (Outsiders):** Exceptional capital allocators, high integrity, owner-operators (e.g., Buffett, Constellation Software).

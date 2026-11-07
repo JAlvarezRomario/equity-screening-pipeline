@@ -638,7 +638,8 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
              "Revenue_Change_Recent": 2.0, "EBIT_Change_Recent": 2.0, "ROIC_Norm": 20.0, "Value_Score": 80.0,
              "Quality_Score": 80.0, "Financial_Mode": False, "industry": "Packaged Foods",
              "Business_Model": "operating", "Cyclical": False, "Industry_Leader": False, "Net_Debt": -100.0,
-             "Common Stock Equity_TTM": 1000.0, "Common Stock Equity_Y0": 1000.0, "Owner_Yield": 8.0}  # fmt: skip
+             "Common Stock Equity_TTM": 1000.0, "Common Stock Equity_Y0": 1000.0, "Owner_Yield": 8.0,
+             "EPV_Yield": 8.0}  # fmt: skip
     for col, value in clean.items():
         df[col] = value
     df["In_Best_Fraction"] = True
@@ -672,6 +673,8 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     picked = shortlist_list(df, len(df))
     assert set(picked["Ticker"]) == set(df.loc[[rows[0], rows[11], rows[16], rows[20]], "Ticker"])
     assert shortlist_list(df, len(df), hurdle=9.0).empty  # a Treasury above 6% raises the bar
+    on_growth = df.assign(EPV_Yield=np.where(df.index == rows[0], 5.0, df["EPV_Yield"]))  # 8% only with growth
+    assert df.at[rows[0], "Ticker"] not in set(shortlist_list(on_growth, len(df))["Ticker"])  # zero growth beats it
     exciting = df.assign(industry=np.where(df.index == rows[0], "Telecom Services", df["industry"]))
     assert df.at[rows[0], "Ticker"] not in set(shortlist_list(exciting, len(df))["Ticker"])  # not a boring industry
     assert list(picked["Rank"]) == sorted(picked["Rank"])  # combined rank order

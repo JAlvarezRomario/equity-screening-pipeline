@@ -98,8 +98,8 @@ def test_reits_and_energy_leave_out_a_downturn_fall_over_a_quarter_but_keep_a_bl
 
 def test_untaxed_dividends_needs_ten_years_without_a_cut_and_a_record():
     n = 5
-    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=6.0, Owner_Yield=9.0, Rank=np.arange(1.0, n + 1),
-                In_Best_Fraction=True, **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
+    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=6.0, Owner_Yield=9.0, EPV_Per_Share_Yield=9.0,
+                Rank=np.arange(1.0, n + 1), In_Best_Fraction=True, **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
                 **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
     df = _record(df, Dividend_Unbroken_Years=[15.0, 6.0, 0.0, np.nan, 12.0],
                  Dividend_Cut_Recent=[False, False, True, False, False])  # fmt: skip
@@ -131,17 +131,29 @@ def test_the_borrowing_cost_is_obtained_from_the_ecb_with_a_stored_and_a_built_i
     assert fx.get_borrow_rate(tmp_path / "none.json") == fx.FALLBACK_BORROW_RATE
 
 
-def test_untaxed_dividends_yield_must_beat_the_obtained_borrowing_cost():
+def test_untaxed_dividends_yield_must_beat_the_obtained_borrowing_cost_by_a_point():
     n = 2
-    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=[6.0, 5.5], Owner_Yield=9.0, Rank=[1.0, 2.0],
-                In_Best_Fraction=True, Borrow_Rate=5.8,
+    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=[6.0, 5.5], Owner_Yield=9.0, EPV_Per_Share_Yield=9.0,
+                Rank=[1.0, 2.0], In_Best_Fraction=True, Borrow_Rate=4.8,
                 **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
                 **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
-    assert sc.dividend_carry_list(_record(df))["Ticker"].tolist() == ["T0"]  # 5.5% does not pay a 5.8% loan
+    assert sc.dividend_carry_list(_record(df))["Ticker"].tolist() == ["T0"]  # 5.5% is under a 4.8% loan plus a point
     out = sc.dividend_carry_list(
-        _record(df.assign(Borrow_Rate=4.44, Dividend_Yield=[6.0, 4.6]))
-    )  # 4.6%: above the loan, under the 5% floor
+        _record(df.assign(Borrow_Rate=3.5, Dividend_Yield=[6.0, 4.8]))
+    )  # 4.8%: a point above the loan, under the 5% floor
     assert out["Ticker"].tolist() == ["T0", "T1"] and out["Carry_Record"].tolist() == [True, False]
+
+
+def test_untaxed_dividends_are_covered_by_what_a_share_earns_after_interest_and_never_filled():
+    n = 3
+    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=6.0, Owner_Yield=12.0, EPV_Per_Share_Yield=[9.0, 7.0, np.nan],
+                Rank=[1.0, 2.0, 3.0], In_Best_Fraction=True,
+                **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
+                **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
+    # T1 pays 86% of its earnings power after interest though its owner yield (before interest, 3 years ahead) is
+    # twice the dividend; T2 has no figure to cover it with: on borrowed money, a blank is no evidence.
+    out = sc.dividend_carry_list(_record(df), 20)
+    assert out["Ticker"].tolist() == ["T0"]  # one passes, one is shown: the list is not filled
 
 
 def test_a_young_company_in_a_hard_hit_industry_needs_to_lead_it_with_net_cash():

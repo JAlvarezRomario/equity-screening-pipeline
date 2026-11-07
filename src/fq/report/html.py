@@ -133,6 +133,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
         "energy_value": g(sc.ENERGY_MIN_VALUE), "energy_quality": g(sc.ENERGY_MIN_QUALITY),
         "energy_roic": g(sc.ENERGY_MIN_ROIC), "carry_unbroken": sc.CARRY_MIN_UNBROKEN_YEARS,
+        "carry_spread": g(sc.CARRY_MIN_SPREAD),
     }  # fmt: skip
 
 
@@ -151,6 +152,11 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["pills"].append(grade_pill(row))
         if tab.key == "carry" and row.get("Carry_Record") == False:  # noqa: E712 - numpy bool
             r["pills"].append({"label": "shorter record", "why": sc.CARRY_SHORT_PILL, "cls": ""})
+        missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
+        if missing:
+            r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",
+                               "why": f"No figure for: {', '.join(missing)}. The test that reads it was passed "
+                                      "untested (a missing figure passes); check it in the filings."})  # fmt: skip
     if tab.name == REPEATERS:  # the Lists cell names the lists on hover
         every = h.candidates()
         names = dict(zip(every["Ticker"], every["Repeat_Lists"], strict=True))

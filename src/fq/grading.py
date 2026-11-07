@@ -3,22 +3,20 @@
 The only module that calls an LLM (user's choice, Oct 31, 2026). A grade never enters a score, a rank or a flag; it
 only decides where a company sits inside a highlight list it already made (`passes`). The procedure: a first pass; a
 second, independent one only when the first clears the gate, the two then averaged (user's rule, Nov 6, 2026: a
-company failing on the first pass could make no list); then a synthesis that justifies the grade. The company's page in
-this system is passed in as markdown (`page_markdown`) as context, not the verdict: the prompt also asks what the
-figures cannot show (revenue dependency on one customer, platform, product or licence, with a cap on the moat; user's
+company failing on the first pass could make no list); then a synthesis that justifies the grade. The company's
+statements and description are passed in (`grade_input`; never its price, user's point, Nov 7, 2026) as context, not
+the verdict: the prompt also asks what the figures cannot show (revenue dependency on one customer, platform, product or licence, with a cap on the moat; user's
 rule, Nov 6, 2026). No search tool: the model's own knowledge and our figures. Grades are kept in `data/grades.parquet` (`load`, `save`) and redone only when due
 (`due`: a new annual report or a year old). The google-genai client is imported only when a grading runs.
 """
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import logging
 import os
 import re
-import struct
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -117,121 +115,177 @@ def score_after(label: str, text: str) -> float | None:
     return float(found[-1].group(1)) if found else None
 
 
-# --- The company page as markdown -------------------------------------------------------------------------------
+# --- The grading input: the business, not the stock ---------------------------------------------------------------
+# What `grade_input` carries; bump it when that changes, so every grade is redone (`prompt_hash`, `due`).
+# 2 (Oct 31, 2026): this system's conclusions taken out of the page. 3 (Nov 7, 2026, user's point): the statements
+# and the description from the ranked row instead of the rendered page, with no price at all: the page carried the
+# price, P/E, 6-month momentum, the 52-week low and some fifteen yields over today's price, and over 516 graded ranked
+# companies, Quality held fixed, management grades rose with momentum (Spearman +0.24) and both grades fell with Value
+# (-0.34, -0.36). A grade is a gate on lists that already test price, so it must judge the business alone.
+INPUT_VERSION = 3
+
+# Money lines, per period, in millions (label, column concept); cash out is negative, as reported.
+STATEMENT_LINES = (
+    ("Revenue", "Total Revenue"),
+    ("Gross profit", "Gross Profit"),
+    ("Operating income (EBIT)", "EBIT"),
+    ("Net income, one-offs out", "Net_Income_Clean"),
+    ("Operating cash flow", "Operating Cash Flow"),
+    ("Capital expenditure", "Capital Expenditure"),
+    ("Stock-based compensation", "Stock Based Compensation"),
+    ("Free cash flow (all capex, stock pay, leases and interest charged)", "FCF_Reported"),
+    (
+        "Owner earnings (free cash flow after interest, with the capex and working capital that bought growth added "
+        "back; lenders and insurers: clean net income less the capital kept against inflation)",
+        "Owner_Earnings",
+    ),
+    ("Acquisitions, net", "Net Business Purchase And Sale"),
+    ("Dividends paid", "Cash Dividends Paid"),
+    ("Shares bought back", "Repurchase Of Capital Stock"),
+    ("Shares issued", "Issuance Of Capital Stock"),
+    ("Cash and short-term investments", "Cash Cash Equivalents And Short Term Investments"),
+    ("Total debt", "Total Debt"),
+    ("Common equity", "Common Stock Equity"),
+    ("Goodwill and intangibles", "Goodwill And Other Intangible Assets"),
+    ("Total assets", "Total Assets"),
+)
+# Per-period ratios and counts (label, column concept, format), as stored (percentages already x 100).
+RATIO_LINES = (
+    ("Shares outstanding (millions)", "Ordinary Shares Number", "shares"),
+    ("Return on invested capital, % (on equity for financials; in US terms)", "ROIC", ".1f"),
+    ("Return on capital without goodwill and intangibles, %", "ROIC_Ex_Goodwill", ".1f"),
+    ("Operating margin, %", "operatingMargins", ".1f"),
+)
+# One figure each (label, column, format, unit): computed from the statements, never from a price.
+FACTS = (
+    ("Normalised return on invested capital (on equity for financials)", "ROIC_Norm", ".1f", "%"),
+    ("Return earned on the capital added since the oldest report", "Incremental_ROIC", ".0f", "%"),
+    ("Gross profit / operating assets", "Gross_Profitability_Avg", ".1f", "%"),
+    ("Gross margin now less in the year of the highest inflation", "Gross_Margin_Held", "+.1f", " pp"),
+    ("Free cash flow / net income, median", "FCF_Conversion", ".2f", "x"),
+    ("Years with positive free cash flow", "FCF_Positive_Share", ".0f", "%"),
+    ("Stock-based pay / revenue, median", "SBC_to_Revenue", ".1f", "%"),
+    ("Accruals (net income less operating cash flow) / assets", "Accruals", ".1f", "%"),
+    ("Beneish M-score (above -1.78 is the usual manipulation warning)", "Beneish_M", ".2f", ""),
+    ("Net debt / EBIT (0 = net cash)", "NetDebt_to_EBIT", ".1f", "x"),
+    ("Interest cover", "Interest_Coverage", ".1f", "x"),
+    ("Equity / assets", "Equity_to_Assets", ".1f", "%"),
+    ("Altman Z''", "Altman_Z", ".2f", ""),
+    ("Revenue per share, real growth trend a year (x its R²)", "Per_Share_Compounding", "+.1f", "%"),
+    ("Share count change a year, up to 10 years (negative = bought back)", "Shares_Change_10Y", "+.1f", "%"),
+    ("Years of dividends without a cut", "Dividend_Years_No_Cut", ".0f", ""),
+    ("Revenue, latest twelve months against the year before", "Revenue_Change_Recent", "+.1f", "%"),
+    ("EBIT, latest twelve months against the year before", "EBIT_Change_Recent", "+.1f", "%"),
+)
+LENDER_LINES = (("Net interest income", "Net Interest Income"),)  # financial mode only: elsewhere it is interest paid
+LONG_HISTORY_YEARS = 25  # calendar years of the dividend and share record shown
 
 
-def _array(v):
-    """A Plotly array, plain or binary-encoded (`{"dtype", "bdata"}`, little-endian)."""
-    if isinstance(v, dict) and "bdata" in v:
-        code = {"i1": "b", "u1": "B", "i2": "h", "u2": "H", "i4": "i", "u4": "I", "f4": "f", "f8": "d"}[v["dtype"]]
-        raw = base64.b64decode(v["bdata"])
-        return list(struct.unpack("<" + code * (len(raw) // struct.calcsize(code)), raw))
-    return v
+def _num(v) -> float:
+    out = pd.to_numeric(v, errors="coerce")
+    return float(out) if pd.notna(out) else float("nan")
 
 
-def _number(v) -> str:
-    if v is None or (isinstance(v, float) and v != v):
-        return "–"
-    return f"{v:.4g}" if isinstance(v, float) else str(v)
+def _present(v) -> bool:
+    return pd.notna(_num(v))
 
 
-def _chart_tables(soup) -> list[str]:
-    """Each Plotly figure on the page as one markdown table: a row per series, a column per period, labelled with the
-    axis' tick text (Dec-24, TTM Jun-26) where the figure has one."""
-    tables, decoder = [], json.JSONDecoder()
-    for script in soup.find_all("script"):
-        src = script.string or ""
-        found = re.search(r'Plotly\.newPlot\(\s*"([^"]+)",\s*', src)
-        if not found:
-            continue
+def _period_label(row: pd.Series, period: str) -> str:
+    end = pd.to_datetime(row.get(f"PeriodEnd_{period}"), errors="coerce")
+    label = f"{end:%b-%y}" if pd.notna(end) else period
+    return f"TTM {label}" if period == "TTM" else label
+
+
+def _table(title: str, columns: list[str], rows: list[tuple[str, list[str]]]) -> str:
+    lines = [f"### {title}", "| | " + " | ".join(columns) + " |", "|" + "---|" * (len(columns) + 1)]
+    lines += ["| " + name + " | " + " | ".join(cells) + " |" for name, cells in rows]
+    return "\n".join(lines)
+
+
+def _cells(values: list[float], spec: str) -> list[str]:
+    return [format(v, spec) if pd.notna(v) else "–" for v in values]
+
+
+def _long_history(row: pd.Series) -> str | None:
+    """Dividends per share (quote currency) and the share count by calendar year, the last `LONG_HISTORY_YEARS`."""
+    series = {}
+    specs = (("Dividend per share", "DPS_Hist", 1.0, ".4g"), ("Shares (millions)", "Shares_Hist", 1e-6, ",.1f"))
+    for name, col, scale, spec in specs:
+        raw = row.get(col)
         try:
-            traces, end = decoder.raw_decode(src, found.end())
-            layout, _ = decoder.raw_decode(src, re.compile(r"\s*,\s*").match(src, end).end())
-        except (json.JSONDecodeError, AttributeError):
-            continue
-        axis = layout.get("xaxis", {})
-        ticks = dict(zip(map(str, axis.get("tickvals") or []), axis.get("ticktext") or [], strict=False))
-        series = []
-        for trace in traces:
-            y = _array(trace.get("y"))
-            if not isinstance(y, list) or not y or all(v is None for v in y):
-                continue
-            x = _array(trace.get("x")) or list(range(len(y)))
-            series.append((trace.get("name") or "series", dict(zip(map(str, x), y, strict=False))))
-        if not series:
-            continue
-        periods = list(dict.fromkeys(p for _, values in series for p in values))
-        lines = [f"### Chart data: {found.group(1).replace('_', ' ')}",
-                 "| series | " + " | ".join(ticks.get(p, p) for p in periods) + " |",
-                 "|" + "---|" * (len(periods) + 1)]  # fmt: skip
-        lines += ["| " + name + " | " + " | ".join(_number(values.get(p)) for p in periods) + " |"
-                  for name, values in series]  # fmt: skip
-        tables.append("\n".join(lines))
-    return tables
+            values = json.loads(raw) if isinstance(raw, str) else {}
+        except json.JSONDecodeError:
+            values = {}
+        if values:
+            series[name] = ({str(k): _num(v) * scale for k, v in values.items()}, spec)
+    if not series:
+        return None
+    years = sorted({y for v, _ in series.values() for y in v})[-LONG_HISTORY_YEARS:]
+    rows = [(name, _cells([v.get(y, float("nan")) for y in years], spec)) for name, (v, spec) in series.items()]
+    return _table("The long record, by calendar year (dividend per share in the quote currency)", years, rows)
 
 
-# What `page_markdown` carries; bump it when that changes, so every grade is redone (`prompt_hash`, `due`).
-# 2 (Oct 31, 2026): this system's conclusions taken out (badges, scores, ranks, percentiles, the cheapness verdict).
-PAGE_VERSION = 2
-# Data notes that are this system's verdicts, not data (`ranking.dislocation`'s Mood_Check).
-CONCLUSION_NOTES = ("Cheap (Value",)
-_PERCENTILE = re.compile(r" p\d+ · w[\d.]+")  # a criterion's percentile and weight, `p82 · w0.2`
-_SCORING = re.compile(r"\s*(?:Higher|Lower) is better\.|\s*Scored: [^)]*?\.(?=\)|$)|\s*Shown[^.]*?never scored\.")
+def grade_input(row: pd.Series, cfg=None) -> str:
+    """What the grader reads about one company (`INPUT_VERSION` 3, user's point, Nov 7, 2026): who it is (the business
+    description, country, industry, employees, insiders, the measuring model), its statements per period in millions,
+    ratios computed from them, and the long dividend and share record. Never a price or anything divided by one
+    (price, market cap, P/E, yields, momentum, the 52-week low, traded value), nor the market's mood (analysts,
+    estimate revisions), withholding, or anything this system scores or concludes: the grade judges the business and
+    its managers, not the stock. Built from the ranked row, not from the site, so the site's layout never moves a
+    grade."""
+    from fq.settings import Settings
 
+    cfg = cfg or Settings()
+    get = row.get
+    name = get("shortName") if isinstance(get("shortName"), str) else get("Ticker")
+    out = [f"## {name} ({get('Ticker')})"]
+    who = " · ".join(v for v in (get("country"), get("sector"), get("industry")) if isinstance(v, str))
+    if who:
+        out.append(who)
+    model = get("Business_Model")
+    financial = get("Financial_Mode") == True  # noqa: E712 - numpy bool
+    if isinstance(model, str):
+        out.append(f"Measured as: {model.replace('_', ' ')} business"
+                   + (" (net income, return on equity and book value)" if financial else ""))  # fmt: skip
+    if isinstance(get("longBusinessSummary"), str):
+        out.append(get("longBusinessSummary"))
+    if _present(get("fullTimeEmployees")):
+        out.append(f"- Employees: {_num(get('fullTimeEmployees')):,.0f}")
+    if _present(get("heldPercentInsiders")):
+        out.append(f"- Held by insiders: {_num(get('heldPercentInsiders')) * 100:.1f}%")
 
-def _neutral(line: str) -> str:
-    """A page line without the scoring: percentiles, weights, better-direction and "Scored / never scored" clauses."""
-    line = _SCORING.sub("", _PERCENTILE.sub("", line))
-    line = re.sub(
-        r"(#+ )[0-9]+ data notes?$", lambda m: m.group(1) + "Data notes", line
-    )  # the count is stale once notes are cut
-    return line.replace(" ()", "")
-
-
-def page_markdown(html: str) -> str:
-    """A company page (`company.html.j2`) as compact markdown: headings, the summary and notes, every figure as
-    `label: value (definition)` and each chart's data as a table. Navigation, links, the footer and the grade card
-    itself are left out, so a grade never reads an earlier grade; so is every conclusion of this system (user's rule,
-    Oct 31, 2026: hard data only, nothing to anchor the grade): badges (Compounder, ...), the score panel (scores,
-    ranks, its sentence), the portfolio tag, the "Cheap (Value ...)" note, each criterion's percentile and weight,
-    and the scoring clauses of the definitions."""
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(html, "html.parser")
-    tables = _chart_tables(soup)
-    for tag in soup(["script", "style", "nav", "footer", "header"]):
-        tag.decompose()
-    for tag in soup.select(".grade-card, .external-links, .page-nav, .company-website, .chart-instruction, "
-                           ".badges, .score-panel, .tag, .why-here, .tile-pct, .holders-card"):  # fmt: skip
-        tag.decompose()
-    for li in soup.select(".notes li"):
-        if li.get_text(" ", strip=True).startswith(CONCLUSION_NOTES):
-            li.decompose()
-    main = soup.find("main") or soup.body or soup
-    lines, seen = [], set()
-    for el in main.find_all(["h1", "h2", "h3", "p", "dt", "li", "div"]):
-        classes = el.get("class") or []
-        text = el.get_text(" ", strip=True)
-        if el.name in ("h1", "h2", "h3"):
-            lines.append(f"\n{'#' * (int(el.name[1]) + 1)} {text}")
-        elif el.name == "p" and not el.find_parent(["dd", "li"]):
-            lines.append(text)
-        elif el.name == "dt":
-            dd = el.find_next_sibling("dd")
-            why = el.parent.get("data-help") if el.parent is not None else None
-            lines.append(f"- {text}: {dd.get_text(' ', strip=True) if dd else ''}" + (f" ({why})" if why else ""))
-        elif el.name == "li":
-            why = el.get("data-help")
-            lines.append(f"- {text}" + (f" ({why})" if why else ""))
-        elif el.name == "div" and "tile" in classes:
-            value, label = el.find(class_="tile-value"), el.find(class_="tile-label")
-            if value and label:
-                why = el.get("data-help")
-                lines.append(f"- {label.get_text(' ', strip=True)}: {value.get_text(' ', strip=True)}"
-                             + (f" ({why})" if why else ""))  # fmt: skip
-    lines = [_neutral(line) for line in lines]
-    body = "\n".join(line for line in lines if line.strip() and not (line in seen or seen.add(line)))
-    return body.strip() + ("\n\n" + "\n\n".join(tables) if tables else "")
+    periods = list(cfg.chronological)
+    if get("TTM_Identical_To_Latest") == True:  # noqa: E712 - TTM repeats the latest annual report
+        periods.remove("TTM")
+    # A period with neither revenue nor clean net income is only a dividend from an older year: left out.
+    periods = [p for p in periods if _present(get(f"Total Revenue_{p}")) or _present(get(f"Net_Income_Clean_{p}"))]
+    if periods:
+        heads = [_period_label(row, p) for p in periods]
+        money = []
+        lines = (*STATEMENT_LINES[:3], *(LENDER_LINES if financial else ()), *STATEMENT_LINES[3:])
+        for label, concept in lines:
+            values = [_num(get(f"{concept}_{p}")) / 1e6 for p in periods]
+            if any(pd.notna(v) for v in values):
+                money.append((label, _cells(values, ",.0f")))
+        out += ["", _table("The statements, millions of US dollars at today's exchange rate (one constant rate, so "
+                           "the trend is the company's own currency's); cash out is negative", heads, money)]  # fmt: skip
+        ratios = []
+        for label, concept, spec in RATIO_LINES:
+            values = [_num(get(f"{concept}_{p}")) for p in periods]
+            if spec == "shares":
+                values, spec = [v / 1e6 for v in values], ",.1f"
+            if any(pd.notna(v) for v in values):
+                ratios.append((label, _cells(values, spec)))
+        if ratios:
+            out += ["", _table("Returns, margins and shares", heads, ratios)]
+    figures = [f"- {label}: {format(_num(get(col)), spec)}{unit}" for label, col, spec, unit in FACTS
+               if _present(get(col))]  # fmt: skip
+    if figures:
+        out += ["", "### Figures computed from the statements", *figures]
+    history = _long_history(row)
+    if history:
+        out += ["", history]
+    return "\n".join(out).strip()
 
 
 # --- Prompts and calls --------------------------------------------------------------------------------------------
@@ -245,7 +299,7 @@ def prompt_hash() -> str:
     """What the grades were produced with: the grading prompt, model, passes and page (stored; another hash makes a
     grade due). The synthesis has its own (`synthesis_hash`), so rewording it never redoes the costly passes."""
     digest = hashlib.sha1(_prompt("grade_prompt.md").encode())
-    digest.update(repr((GRADE_MODEL, THINKING, PASSES, SECOND_PASS_ONLY_IF_GATE, PAGE_VERSION)).encode())
+    digest.update(repr((GRADE_MODEL, THINKING, PASSES, SECOND_PASS_ONLY_IF_GATE, INPUT_VERSION)).encode())
     return digest.hexdigest()[:12]
 
 
@@ -266,7 +320,7 @@ def _synthesis_prompt(company: str, ticker: str, moat: float, mgmt: float, repor
 
 def grade_prompt(company: str, ticker: str, page: str, today: pd.Timestamp) -> str:
     return _prompt("grade_prompt.md").format(company_name=f"{company} ({ticker})",
-                                             execution_date=f"{today:%Y-%m-%d}", company_page=page)  # fmt: skip
+                                             execution_date=f"{today:%Y-%m-%d}", company_figures=page)  # fmt: skip
 
 
 def cost_usd(model: str, tokens_in: int, cached: int, tokens_out: int, when: pd.Timestamp) -> float:
@@ -467,24 +521,22 @@ def resynthesize(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: 
 # --- A grading run ------------------------------------------------------------------------------------------------
 
 
-def run(tickers: list[str], ranked: pd.DataFrame, pages_dir: Path, path: Path, workers: int = WORKERS) -> pd.DataFrame:
-    """Grade `tickers` from their pages in `pages_dir` (as the last report wrote them), saving each grade as it comes
-    so an interrupted run keeps what it paid for. Returns the new grades; a company that fails is logged and skipped."""
-    from fq.report.links import slug
-
+def run(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WORKERS) -> pd.DataFrame:
+    """Grade `tickers` from their rows in `ranked` (`grade_input`: the business, never the price), saving each grade
+    as it comes so an interrupted run keeps what it paid for. Returns the new grades; a company that fails is logged
+    and skipped."""
     client = _client()
     today = pd.Timestamp.now().normalize()
-    rows = ranked.set_index("Ticker")
+    rows = ranked.drop_duplicates("Ticker").set_index("Ticker", drop=False)
     lock, new = threading.Lock(), []
 
     def one(ticker: str) -> dict | None:
-        page_file = pages_dir / f"{slug(ticker)}.html"
-        if not page_file.exists():
-            log.warning("%s: no company page at %s, not graded", ticker, page_file)
+        if ticker not in rows.index:
+            log.warning("%s: not in the ranked run, not graded", ticker)
             return None
-        row = rows.loc[ticker] if ticker in rows.index else pd.Series(dtype=object)
+        row = rows.loc[ticker]
         name = row.get("shortName") if isinstance(row.get("shortName"), str) else ticker
-        result = grade_company(client, ticker, name, page_markdown(page_file.read_text(encoding="utf-8")), today)
+        result = grade_company(client, ticker, name, grade_input(row), today)
         result["Y0_End"] = pd.to_datetime(row.get("PeriodEnd_Y0"), errors="coerce")
         with lock:  # save as we go
             new.append(result)

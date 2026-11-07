@@ -6,7 +6,7 @@ import pandas as pd
 
 from conftest import make_raw
 from fq.fetch import parse_splits, top_holders
-from fq.grading import page_markdown
+from fq.grading import grade_input
 from fq.metrics import calculate_metrics
 from fq.ranking import apply_dual_ranking
 from fq.report.cards import holders_card
@@ -105,7 +105,8 @@ def test_company_page_shows_the_card_escaped_and_the_grader_never_reads_it(cfg):
     pages = index.parent / "companies"
     page = (pages / f"{slug(first)}.html").read_text(encoding="utf-8")
     assert "Who owns it" in page and "&lt;b&gt;Evil&lt;/b&gt; Holdings" in page and "12.5%" in page
-    assert "Who owns it" not in page_markdown(page)
+    row = df[df["Ticker"] == first].iloc[0]
+    assert "Evil" not in grade_input(row) and "Who owns it" not in grade_input(row)
     assert "Yahoo has no holder records" in (pages / f"{slug(second)}.html").read_text(encoding="utf-8")
     third = df["Ticker"].iloc[2]
     assert "Who owns it" not in (pages / f"{slug(third)}.html").read_text(encoding="utf-8")
