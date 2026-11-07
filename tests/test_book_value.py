@@ -103,26 +103,26 @@ def _asset_df() -> pd.DataFrame:
     return pd.DataFrame([base.copy() for _ in range(6)], index=range(6))
 
 
-def test_asset_play_qualifies_above_100_percent_or_growing_into_it(cfg):
+def test_asset_play_qualifies_only_below_tangible_book_with_a_book_that_earns(cfg):
+    """Nov 7, 2026: below tangible book now, book and tangible book positive, ROIC at least 8%; no "growing into it"."""
     from fq.ranking import asset_play
 
     df = _asset_df()
-    # Row 0: NAV/Price = 115%, BV/Price = 120%, compounding 1% -> qualifies now
+    # Row 0: NAV/Price = 115%, BV/Price = 120%, compounding 1% -> qualifies
     df.loc[0, ["NAV_to_Price", "BV_to_Price", "Book_Per_Share_Compounding"]] = [115.0, 120.0, 1.0]
-    # Row 1: NAV/Price = 82%, compounding 9%/yr -> 106% in 3 years: qualifies (growing into it)
+    # Row 1: NAV/Price = 82%, compounding 9%/yr: once "growing into it", now rejected (not below book)
     df.loc[1, ["NAV_to_Price", "Book_Per_Share_Compounding"]] = [82.0, 9.0]
-    # Row 2: NAV/Price = 72%, compounding 6%/yr -> 86% in 3 years: rejected
-    df.loc[2, ["NAV_to_Price", "Book_Per_Share_Compounding"]] = [72.0, 6.0]
+    # Row 2: below book, but the book earns 7% (under the 8% floor) -> rejected
+    df.loc[2, ["NAV_to_Price", "ROIC_Norm"]] = [130.0, 7.0]
     # Row 3: NAV/Price = 120%, but shrinking book (-2%/yr) -> rejected
     df.loc[3, ["NAV_to_Price", "Book_Per_Share_Compounding"]] = [120.0, -2.0]
     # Row 4: NAV/Price = 115%, but BV/Price = 85% -> rejected (BV under 100%)
     df.loc[4, ["NAV_to_Price", "BV_to_Price", "Book_Per_Share_Compounding"]] = [115.0, 85.0, 1.0]
-    # Row 5: NAV/Price = 60%, compounding 25%/yr -> under the 70% floor: rejected
-    df.loc[5, ["NAV_to_Price", "Book_Per_Share_Compounding"]] = [60.0, 25.0]
+    # Row 5: below book, the book earning 9% -> qualifies
+    df.loc[5, ["NAV_to_Price", "ROIC_Norm"]] = [130.0, 9.0]
 
-    flags, scores = asset_play(df, cfg)
-    assert list(flags) == [True, True, False, False, False, False]
-    assert scores.iloc[0] > 0 and scores.iloc[1] > 0 and pd.isna(scores.iloc[2])
+    flags = asset_play(df, cfg)
+    assert list(flags) == [True, False, False, False, False, True]
 
 
 def test_asset_play_strips_goodwill_and_delevers_net_debt(cfg):
@@ -138,7 +138,7 @@ def test_asset_play_strips_goodwill_and_delevers_net_debt(cfg):
     # Row 3: High NetDebt/EBIT (> 3x) -> rejected
     df.loc[3, ["NAV_to_Price", "NetDebt_to_EBIT"]] = [130.0, 4.2]
 
-    flags, _ = asset_play(df, cfg)
+    flags = asset_play(df, cfg)
     assert list(flags.iloc[:4]) == [False, False, True, False]
 
 
@@ -151,31 +151,26 @@ def test_asset_play_accepts_high_debt_when_interest_well_covered(cfg):
     # High NetDebt/EBIT (5.0 > 3.0) and poor interest coverage (1.8 < 2.5) -> rejected
     df.loc[1, ["NAV_to_Price", "NetDebt_to_EBIT", "Interest_Coverage", "Net_Cash_to_Cap"]] = [120.0, 5.0, 1.8, -25.0]
 
-    flags, _ = asset_play(df, cfg)
+    flags = asset_play(df, cfg)
     assert flags.iloc[0] and not flags.iloc[1]
 
 
-def test_asset_play_favours_net_cash_and_buybacks_and_renders_in_html(cfg):
+def test_below_book_orders_by_the_discount_and_renders_in_html(cfg):
     from fq.ranking import apply_dual_ranking, asset_play
     from fq.report.html import build_site
     from fq.report.screens import asset_play_list
 
     df = _asset_df()
     df["Ticker"] = [f"T{i}" for i in range(len(df))]
-    # Row 0: moderate net cash & buybacks
+    # Row 0: strong net cash & heavy buybacks, a small discount (tangible book 110% of the price)
     df.loc[0, ["NAV_to_Price", "Net_Cash_to_Cap", "Share_Reduction_Rate", "Book_Per_Share_Compounding"]] = [
-        110.0,
-        5.0,
-        0.5,
-        6.0,
-    ]
-    # Row 1: same NAV & book compounding, but strong net cash (45%) & heavy buybacks (6%/yr)
-    df.loc[1, ["NAV_to_Price", "Net_Cash_to_Cap", "Share_Reduction_Rate", "Book_Per_Share_Compounding"]] = [
         110.0,
         45.0,
         6.0,
         6.0,
     ]
+    # Row 1: a deeper discount (tangible book 150% of the price): first, whatever the cash and buybacks
+    df.loc[1, ["NAV_to_Price", "BV_to_Price", "Net_Cash_to_Cap", "Share_Reduction_Rate"]] = [150.0, 155.0, 5.0, 0.5]
     # Row 2: passive bank (0% share reduction) -> excluded
     df.loc[2, ["Financial_Mode", "Business_Model", "Equity_to_Assets", "Share_Reduction_Rate"]] = [
         True,
@@ -201,11 +196,11 @@ def test_asset_play_favours_net_cash_and_buybacks_and_renders_in_html(cfg):
     ]
     df.loc[4, "Book_Per_Share_Compounding"] = 1.0
 
-    flags, scores = asset_play(df, cfg)
+    flags = asset_play(df, cfg)
     assert bool(flags.loc[0]) and bool(flags.loc[1]) and not bool(flags.loc[2]) and not bool(flags.loc[3])
     assert bool(flags.loc[4])
-    assert scores.loc[1] > scores.loc[0]
-    df["Asset_Play"], df["Asset_Play_Score"] = flags, scores
+    df["Asset_Play"] = flags
+    df["Effective_NAV_to_Price"] = df["NAV_to_Price"].where(df["Business_Model"] != "holding", df["BV_to_Price"])
     ordered = asset_play_list(df)
     assert list(ordered["Ticker"]).index("T1") < list(ordered["Ticker"]).index("T0")
 

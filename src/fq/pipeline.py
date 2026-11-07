@@ -243,7 +243,7 @@ def grade_companies(
     resynthesize_only: bool = False,
     new_only: bool = False,
 ) -> int:
-    """Grade the companies the highlight lists show and every Repeaters candidate (`Highlights.grade_pool`), and
+    """Grade the companies the highlight lists show (`Highlights.grade_pool`), and
     the holdings whose grade is missing or due
     (`grading.due`), at most `max_grades` (0 = no cap), from their rows (`grading.grade_input`, no price); then rewrite
     every synthesis written with an older synthesis prompt (`grading.resynthesize`, the cheap model only).
@@ -312,7 +312,7 @@ def write_report(
     grade = (cfg.label == DEFAULT_BENCHMARK and not offline and not companies_only and tickers is None
              and bool(os.environ.get("GEMINI_API_KEY")))  # fmt: skip
     if grade and grade_companies(cfg, ranked, h, max_grades=grading.MAX_PER_RUN):
-        h = Highlights.compute(ranked, cfg, bench)  # the new grades move rows below the bar and into Repeaters
+        h = Highlights.compute(ranked, cfg, bench)  # the new grades move rows below the bar and fill the graded walks
         index = build_site(ranked, cfg, bench=bench, held=portfolio(),
                            forward=forward_link, highlights=h)  # fmt: skip
     if fw is not None:
@@ -471,7 +471,7 @@ def load_benchmark_run(cfg: Settings) -> tuple[pd.DataFrame, pd.DataFrame | None
 def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynthesize_only: bool = False,
                report: bool = True, new_only: bool = False) -> None:  # fmt: skip
     """`fq grade`: grades (or syntheses) alone, then the site again from the cache when something changed. Without a
-    cap it grades in waves: new grades move companies onto the lists filled from graded names (Cheapest, Repeaters),
+    cap it grades in waves: new grades move companies onto the lists filled from graded names (Cheapest, Best businesses),
     which are then due themselves, so the lists are recomputed and graded again until a wave changes nothing, at most
     `GRADE_WAVES`. A cap (`max_grades`) or `dry_run` is one wave."""
     ranked, bench = load_benchmark_run(cfg)

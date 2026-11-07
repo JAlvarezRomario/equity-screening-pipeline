@@ -34,8 +34,8 @@ def tags(row: pd.Series) -> list[dict]:
             "pill-cannibal")  # fmt: skip
     if flag("Asset_Play"):
         add("below book", "Tangible book per share (net debt counted against it; a holding's book with its "
-            "goodwill) at or above the share price, or growing fast enough to pass it within 3 years, with positive "
-            "owner earnings and ROIC, bounded debt and no dilution: the Below book list's test.")  # fmt: skip
+            f"goodwill) at or above the share price, the book earning at least {s.asset_play_min_roic:g}% (normalised "
+            "ROIC), with positive owner earnings, bounded debt and no dilution: the Below book list's test.")  # fmt: skip
     ncav = pd.to_numeric(row.get("NCAV_to_Price"), errors="coerce")
     industry = row.get("industry")
     land_inventory = isinstance(industry, str) and industry_key(industry) in NCAV_EXCLUDED_INDUSTRIES

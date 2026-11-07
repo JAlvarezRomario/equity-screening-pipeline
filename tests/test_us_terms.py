@@ -174,18 +174,20 @@ def test_dividend_growth_is_judged_in_us_terms():
     assert with_dividend_record(df)["Regular_DPS_Growth_10Y_US"].iloc[0] < 0  # +20% in lira at 25% excess: a fall
 
 
-def test_a_rupee_dividend_growing_slower_than_its_inflation_is_no_dividend_grower():
-    from fq.report.screens import dividend_grower_list
+def test_a_rupee_dividend_growing_slower_than_its_inflation_counts_its_growth_in_us_terms():
+    from fq.report.screens import income_list
     from test_compounder import _twenty_year_row
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
         return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
                       "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "ROIC_Norm": 15.0,
+                      "EPV_Per_Share_Yield": 8.0, "Dividend_WHT": 0.0,
                       "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0, "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
 
     df = pd.DataFrame([r("USD", 1.0), r("INR", 2.0, Excess_Inflation_10Y=0.03)])  # 5% nominal, 2% in US terms
-    assert dividend_grower_list(df)["Ticker"].tolist() == ["USD"]
+    growth = income_list(df).set_index("Ticker")["Income_Growth"]
+    assert growth["USD"] == pytest.approx(5.0) and growth["INR"] == pytest.approx(1.05 / 1.03 * 100 - 100)
 
 
 def test_the_ten_year_excess_inflation_spans_the_dividend_records_years(cfg):

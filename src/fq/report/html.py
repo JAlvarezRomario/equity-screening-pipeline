@@ -17,7 +17,7 @@ from fq.report import screens as sc
 from fq.report.cards import grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
-from fq.report.highlights import GROUPS, RANKED_TABS, REPEATERS, SHORTLIST, TABS, Highlights, Tab, fails
+from fq.report.highlights import GROUPS, SHORTLIST, TABS, Highlights, Tab, fails
 from fq.report.links import slug
 from fq.settings import Settings
 from fq.universe import _read_lines, sovereign_spread
@@ -68,12 +68,12 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "publishing, education, business services, internet content, gaming, health information, entertainment "
                  "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings; the other "
                  "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists; "
-                 "Energy, Repeaters and Best grades say how they pick). Each company a "
+                 "Energy says how it picks). Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
-                 "{one} (Boring businesses, Temporary trouble, Cheapest and Best grades set bars of their own), are the "
-                 "list; the others stay on it, folded away under the table, and none is replaced (Cheapest takes the "
-                 "next one down instead). A grade changes no score and no rank.")  # fmt: skip
+                 "{one} (Boring businesses, Temporary trouble, Cheapest and Best businesses set bars of their own), are the "
+                 "list; the others stay on it, folded away under the table, and none is replaced (Cheapest and Best "
+                 "businesses take the next one down instead). A grade changes no score and no rank.")  # fmt: skip
 
 
 # Countries the Boring businesses rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
@@ -99,25 +99,20 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
-        "cannibal_min_reduction": g(cfg.cannibal_min_share_reduction), "cannibal_min_value": g(cfg.cannibal_min_value),
-        "cannibal_min_quality": g(cfg.cannibal_min_quality),
-        "asset_min_nav": g(cfg.asset_play_min_nav_compounding), "asset_horizon": g(cfg.asset_play_horizon_years),
+        "asset_min_roic": g(cfg.asset_play_min_roic),
         "net_cash_min": g(cfg.net_cash_min_pct), "net_cash_min_fcf": g(cfg.net_cash_min_fcf_pos_share),
-        "radar_max_cap": g(cfg.off_radar_max_cap), "radar_max_analysts": cfg.off_radar_max_analysts,
-        "radar_min_value": g(cfg.off_radar_min_value), "radar_min_quality": g(cfg.off_radar_min_quality),
-        "radar_min_roic": g(cfg.off_radar_min_roic), "radar_min_compounding": g(cfg.off_radar_min_compounding),
         "min_years": cfg.improver_min_years,
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),
         "operating_max_dip": g(sc.OPERATING_MAX_DIP * 100),
         "fast_min_growth": g(sc.FAST_MIN_OE_GROWTH), "fast_min_yield": g(sc.FAST_MIN_YIELD),
         "fast_min_revenue": g(sc.FAST_MIN_REVENUE_GROWTH),
         "list_min_incremental": g(sc.LIST_MIN_INCREMENTAL_ROIC), "max_margin_loss": g(sc.MAX_MARGIN_LOSS),
-        "carry_min_yield": g(cfg.carry_min_yield), "carry_borrow_rate": f"{borrow_rate:.2f}",
-        "carry_min_years": cfg.carry_min_years,
+        "borrow_rate": f"{borrow_rate:.2f}",
         "boring_industries": ", ".join(_read_lines(sc.BORING_INDUSTRIES)).lower(),
-        "grower_years": sc.GROWER_MIN_YEARS, "grower_yield": g(sc.GROWER_MIN_YIELD),
-        "grower_growth": g(sc.GROWER_MIN_GROWTH), "grower_roic": g(sc.GROWER_MIN_ROIC),
-        "grower_payout": g(sc.GROWER_MAX_PAYOUT * 100), "special_ratio": g(dividend_record.SPECIAL_RATIO),
+        "income_wht": g(sc.INCOME_MAX_WHT), "income_years": sc.INCOME_MIN_YEARS,
+        "income_yield": g(sc.INCOME_MIN_YIELD), "income_roic": g(sc.INCOME_MIN_ROIC),
+        "income_payout": g(sc.INCOME_MAX_PAYOUT * 100), "income_growth_cap": g(sc.INCOME_GROWTH_CAP),
+        "special_ratio": g(dividend_record.SPECIAL_RATIO),
         "dividend_held": g(round((1 - dividend_record.HELD) * 100)),
         "recession_fall": g(sc.RECESSION_MAX_FALL),
         "recessions": " and ".join(str(y) for y, _, only in dividend_record.recessions() if not only),
@@ -128,12 +123,10 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "downturns": "; ".join(
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
-        "repeater_ranked": ", ".join(RANKED_TABS),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
         "energy_value": g(sc.ENERGY_MIN_VALUE), "energy_quality": g(sc.ENERGY_MIN_QUALITY),
-        "energy_roic": g(sc.ENERGY_MIN_ROIC), "carry_unbroken": sc.CARRY_MIN_UNBROKEN_YEARS,
-        "carry_spread": g(sc.CARRY_MIN_SPREAD),
+        "energy_roic": g(sc.ENERGY_MIN_ROIC),
     }  # fmt: skip
 
 
@@ -150,18 +143,11 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["extra"] = r["ticker"] in extras
         r["fails"] = bool(row["_fails"])
         r["pills"].append(grade_pill(row))
-        if tab.key == "carry" and row.get("Carry_Record") == False:  # noqa: E712 - numpy bool
-            r["pills"].append({"label": "shorter record", "why": sc.CARRY_SHORT_PILL, "cls": ""})
         missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
         if missing:
             r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",
                                "why": f"No figure for: {', '.join(missing)}. The test that reads it was passed "
                                       "untested (a missing figure passes); check it in the filings."})  # fmt: skip
-    if tab.name == REPEATERS:  # the Lists cell names the lists on hover
-        every = h.candidates()
-        names = dict(zip(every["Ticker"], every["Repeat_Lists"], strict=True))
-        for r in rows:
-            r["cells"][0]["title"] = names.get(r["ticker"], "")
     return rows
 
 

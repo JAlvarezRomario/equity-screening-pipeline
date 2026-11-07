@@ -17,10 +17,11 @@
   <li>The Quality score is not considered.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, whatever their price.") %}<ul>
-  <li>The 20 highest Quality scores: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt.</li>
-  <li>Plus how much one share of the business grew and whether the share count shrank.</li>
-  <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Below book). Price is not considered.</li>
+{% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, among those whose moat and management are graded among the best, whatever their price.") %}<ul>
+  <li>Down the Quality ranking until 20 companies whose moat and management are both graded at least {{ r.grade_best }}, one of them above it: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
+  <li>The Quality score: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt; plus how much one share of the business grew and whether the share count shrank.</li>
+  <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Below book).</li>
+  <li>Price is not considered: a great business can still be too dear. Cheap and good is where price and quality meet.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro compounders(r) %}{% call rules("Businesses with high returns that grow smoothly without issuing shares, at a price that already pays: companies to hold for twenty years. Two routes in, one list.") %}<ul>
@@ -35,22 +36,16 @@
 </ul>
 <details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
 
-{% macro cannibals(r) %}{% call rules("Companies buying back a large part of their own shares each year, paid from the cash they make.") %}<ul>
-  <li>Retiring more than {{ r.cannibal_min_reduction }}% of their shares a year, actually bought back (not a share consolidation).</li>
-  <li>Paid from their own money: the buybacks of the stored years within their free cash flow plus the spare cash they hold.</li>
-  <li>Value &ge; {{ r.cannibal_min_value }}, Quality &ge; {{ r.cannibal_min_quality }}, positive return on capital.</li>
-  <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times;.</li>
-  <li>Not cyclical: an upswing pays for buybacks at the top.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
-</ul>{% endcall %}{% endmacro %}
-
-{% macro below_book(r) %}{% call rules("Companies better valued on their balance sheet: priced at or below what their assets are worth, or growing into it within a few years. Operating companies and holdings.") %}<ul>
-  <li>Operating companies: tangible book per share (net debt counted against it) at or above the share price, book not shrinking; or at least {{ r.asset_min_nav }}% of it and growing fast enough to pass it within {{ r.asset_horizon }} years. Bounded debt, free cash flow positive in most years, Quality &ge; 35. In the best {{ r.top }} of the combined ranking.</li>
+{% macro below_book(r) %}{% call rules("Companies priced below their tangible book value per share, net debt counted, whose book earns its keep; ordered by the size of the discount. Operating companies and holdings.") %}<ul>
+  <li>Book value and tangible book value (book less goodwill and other intangibles) per share both positive.</li>
+  <li>Tangible book per share, with net debt counted against it, at or above the share price; book per share not shrinking.</li>
+  <li>The book earns its keep: normal return on capital (ROIC) of {{ r.asset_min_roic }}% or more. A book is worth about what it earns, so a company earning 3% on its assets at 70% of book is no bargain.</li>
+  <li>Operating companies: bounded debt, free cash flow positive in most years, Quality &ge; 35. In the best {{ r.top }} of the combined ranking.</li>
   <li>Holdings: their book per share with its goodwill, since leaving goodwill out would value the companies a holding bought at zero. Equity at least 6% of assets, Quality &ge; 50 (too few holdings for a best fifth of their own).</li>
-  <li>Both: Value &ge; 50, positive returns and earnings power, no dilution.</li>
-  <li>Ordered by a balance-sheet score: the discount to book (35%), net cash (25%), shares bought back (20%) and book growth (20%).</li>
+  <li>Both: Value &ge; 50, positive earnings power, no dilution.</li>
+  <li>Ordered by the discount: tangible book (net debt counted) as a share of the price, largest first.</li>
   <li>Not here: banks and insurers (their own lists) and REITs (the Real estate list: a REIT's book is cost under US accounting, fair value under international rules, so book does not compare).</li>
-</ul><p>Net current assets (current assets less every liability) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets), and marked with a <strong>net-net</strong> pill when they cover the whole share price.</p>{% endcall %}{% endmacro %}
+</ul><p>Net current assets (current assets less every liability; Graham's net-net test) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets), and marked with a <strong>net-net</strong> pill when they cover the whole share price.</p>{% endcall %}{% endmacro %}
 
 {% macro banks(r) %}{% call rules("Banks and lenders judged against other banks and lenders only: return on equity, book and capital.") %}<ul>
   <li>Banks, credit card and consumer lenders, brokers, mortgage lenders and mortgage REITs. Not in the rankings: a lender's earnings rest on borrowed money, so its yield and returns do not compare with an operating company's.</li>
@@ -98,34 +93,17 @@
   <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro off_radar(r) %}{% call rules("Small, little-followed companies outside the US that score well on both Value and Quality.") %}<ul>
-  <li>Outside the US, under ${{ r.radar_max_cap }}B of market value, followed by {{ r.radar_max_analysts }} analyst{{ '' if r.radar_max_analysts == 1 else 's' }} at most.</li>
-  <li>Value &ge; {{ r.radar_min_value }}, Quality &ge; {{ r.radar_min_quality }}, return on capital &ge; {{ r.radar_min_roic }}%.</li>
-  <li>Revenue per share compounding at {{ r.radar_min_compounding }}%/yr or more, owner earnings not falling, no dilution, recent numbers held.</li>
-  <li>No financial services or real estate, nothing cyclical or at peak margins.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
-</ul>{% endcall %}{% endmacro %}
-
-{% macro carry(r) %}{% call rules("High, growing dividends with no tax withheld for foreign investors, well covered by what one share earns and paying clearly more than the loan costs. Bought partly on borrowed money, so the list shows only the companies that pass, however few: it is not filled to 20.") %}<ul>
-  <li>No dividend withholding tax for a foreign individual (statutory rate): the dividend is kept whole.</li>
-  <li>Yield of {{ r.carry_min_yield }}% or more, and at least {{ r.carry_spread }} point{{ '' if r.carry_spread == '1' else 's' }} above what a euro margin loan costs today, {{ r.carry_borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety, read at each update): the loan's rate floats, and a carry with no spread earns nothing for its risk.</li>
-  <li>Covered: the dividend at most {{ r.grower_payout }}% of what one share earns after interest at zero growth (earnings power per share over the price), so it is paid from today's earnings, not from growth still to come, and the rest stays in the company.</li>
-  <li>The dividend record, payment by payment: no cut in the last {{ r.carry_unbroken }} complete years nor in the last twelve months, and the regular dividend per share no lower than ten years ago, in US terms. A dividend bought on a loan needs that evidence: a company without it only fills the list (below).</li>
-  <li>Owner earnings per share, in US terms, trended up over at least {{ r.carry_min_years }} annual reports (one dip allowed).</li>
-  <li>Little debt inside the company, since a loan to buy it adds leverage on top: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks, insurers and holdings: equity at least {{ r.equity }}% of assets).</li>
-  <li>Not cyclical, not at peak margins. Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking. The companies passing every test come first, in combined-rank order.</li>
-  <li>Then, up to 20 in all, the companies passing every test but the record, marked <em>shorter record</em>, in combined-rank order: still no cut in the last twelve months, covered and above the loan cost, but fewer than {{ r.carry_unbroken }} unbroken years (or no record), a yield under {{ r.carry_min_yield }}%, a dividend below ten years ago or owner earnings not trending up. Less evidence behind the dividend: weigh that before borrowing for it.</li>
-</ul>{% endcall %}{% endmacro %}
-
-{% macro dividend_growers(r) %}{% call rules("A dividend held for at least a decade and growing faster than inflation, covered by owner earnings, in a lasting business with little debt.") %}<ul>
-  <li>No cut in the regular dividend per share for at least {{ r.grower_years }} complete years, nor in the last twelve months (the twelve months below the twelve before, with as many payments in each).</li>
+{% macro income(r) %}{% call rules("Dividends a foreign investor keeps (statutory withholding at most " ~ r.income_wht ~ "%), paid for at least a decade without a cut, ordered by what they pay now plus how fast they can grow.") %}<ul>
+  <li>Withholding tax on dividends for a foreign individual of {{ r.income_wht }}% or less, at the statutory rate before any treaty (one yardstick for every reader).</li>
+  <li>No cut in the regular dividend per share for at least {{ r.income_years }} complete years, nor in the last twelve months (the twelve months below the twelve before, with as many payments in each), and the dividend no lower than ten years ago, in US terms.</li>
   <li>Judged payment by payment, in the currency the dividend is declared in. A special dividend (a payment at least {{ r.special_ratio }}&times; its season's usual size, higher than the same payment a year before and a year after) is left out, so the year after it is not a cut. A payment that slipped across New Year, or moved earlier when an interim dividend was added, is no cut either. Any other fall of more than {{ r.dividend_held }}% is.</li>
-  <li>Dividend yield of {{ r.grower_yield }}% or more; the regular dividend per share growing {{ r.grower_growth }}% a year or more over 10 years, in US terms; the dividend at most {{ r.grower_payout }}% of what one share earns after interest at zero growth.</li>
-  <li>Normal return on capital (on equity for banks and insurers) of {{ r.grower_roic }}% or more.</li>
+  <li>Yield after withholding of {{ r.income_yield }}% or more; the dividend at most {{ r.income_payout }}% of what one share earns after interest at zero growth, so it is paid from today's earnings.</li>
+  <li>Normal return on capital (on equity for banks and insurers) of {{ r.income_roic }}% or more.</li>
   <li>Lasting: not cyclical, not at peak margins, past the AI screen, the dividend not cut more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}, and {{ r.downturns }}).</li>
   <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity (banks and insurers: equity at least {{ r.equity }}% of assets).</li>
   <li>It keeps only the best {{ r.top }} of the combined ranking; a bank or an insurer, ranked apart, the best {{ r.top }} of its own kind.</li>
+  <li><strong>Order</strong>: the income return, yield after withholding plus the dividend's growth, the dividend's own expected return. The growth counted is the regular dividend's 10-year growth in US terms, but no faster than the business can fund from the earnings it keeps (return on capital &times; the share not paid out), and at most {{ r.income_growth_cap }}% a year: past that a company is a growth stock with a dividend.</li>
+  <li><strong>Spread over loan</strong> (shown, not tested): the yield after withholding less what a euro margin loan costs today, {{ r.borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety). Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro shortlist(r) %}{% call rules("Boring businesses worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
@@ -149,15 +127,3 @@
   <li>In combined-rank order. Read why the numbers fall before buying: a temporary trouble and a broken business look alike at first.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro repeaters(r) %}{% call rules("Companies that several screened lists pick at once across distinct styles, and that pass the moat and management grade.") %}<ul>
-  <li>On two or more of the screened lists across at least two distinct styles (two lists of one idea count once: Net cash and Below book, Untaxed dividends and Dividend growers, Banks and lenders and Insurers), ordered by how many distinct styles (most first), then by how many lists, then by the combined rank. Hover the Lists number to see which.</li>
-  <li>Each screened list counts every company that qualifies and meets that list's own moat and management grade bar; the pure score rankings ({{ r.repeater_ranked }}) and Best grades are left out.</li>
-  <li>Only companies whose moat and management grade passes the bar (both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}); ungraded ones are graded before they can enter.</li>
-  <li>Many of them are among the Boring businesses too: the same answer, reached from several directions. Banks, insurers, REITs and utilities are judged apart, on one list of their own each, so a repeater is in practice an operating company.</li>
-</ul>{% endcall %}{% endmacro %}
-
-{% macro best_grades(r) %}{% call rules("The best moats and managers the AI model has graded, whatever their price: a reference, not a buy list. Cheapest first, but price is the order, not a test.") %}<ul>
-  <li>Drawn from every company graded so far: each was graded because one of the other lists showed it. Ranked companies only (banks, insurers, holdings, REITs and utilities are in their own lists); companies whose figures need checking and the industries the AI screen leaves out are left out.</li>
-  <li>Both grades at least {{ r.grade_best }} and either above {{ r.grade_best }}, on the 1 to 5 scale; ungraded companies are left out.</li>
-  <li>Ordered by owner yield above the country's sovereign borrowing spread (the same spread Boring businesses uses), highest first.</li>
-</ul>{% endcall %}{% endmacro %}

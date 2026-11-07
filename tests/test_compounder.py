@@ -92,85 +92,6 @@ def test_the_flag_changes_no_score_or_rank(cfg):
         assert ranked[col].to_numpy() == pytest.approx(again[col].to_numpy(), nan_ok=True)
 
 
-def test_off_the_radar_keeps_small_little_followed_steady_growers_in_rank_order():
-    from fq.report.screens import off_radar_list
-
-    base = {"country": "Spain", "sector": "Industrials", "Cyclical": False, "Peak_Margin_Ratio": 1.1,
-            "numberOfAnalystOpinions": 1.0, "Market Cap": 1.5, "Per_Share_Compounding": 9.0,
-            "Owner_Earnings_Compounding": 8.0, "Share_Reduction_Rate": 0.5, "ROIC_Norm": 18.0,
-            "Value_Score": 70.0, "Quality_Score": 65.0}  # fmt: skip
-    changes = {
-        "B": {"Rank": 2.0},
-        "A": {"Rank": 1.0, "Share_Reduction_Rate": -0.2},
-        "NO_ANALYSTS": {"Rank": 3.0, "numberOfAnalystOpinions": np.nan},
-        "US": {"country": "United States"},
-        "BANK": {"sector": "Financial Services"},
-        "REIT": {"sector": "Real Estate"},
-        "CYCLE": {"Cyclical": True},
-        "OVEREARNER": {"Peak_Margin_Ratio": 1.8},
-        "FOLLOWED": {"numberOfAnalystOpinions": 3.0},
-        "OUTSIDE_QUINTILE": {"Rank": 20.0},
-        "BIG": {"Market Cap": 12.0},
-        "DEAR": {"Value_Score": 55.0},
-        "WEAK": {"Quality_Score": 55.0},
-        "LOW_ROIC": {"ROIC_Norm": 8.0},
-        "SLOW": {"Per_Share_Compounding": 2.0},
-        "OE_FALLING": {"Owner_Earnings_Compounding": -3.0},
-        "DILUTING": {"Share_Reduction_Rate": -1.0},
-        "RECENT_DROP": {"EBIT_Change_Recent": -25.0},
-        "SUSPECT": {"Data_Suspect": True},
-    }
-    df = pd.DataFrame([{"Ticker": t, "Rank": 1.0, **base, **c} for t, c in changes.items()])
-    # 19 rows in all: the best quintile is the first ceil(0.2 x 19) = 4 ranks; "OUTSIDE_QUINTILE" ranks 20th.
-    assert len(df) == 19
-    assert off_radar_list(df)["Ticker"].tolist() == ["A", "B", "NO_ANALYSTS"]
-
-
-def test_dividend_carry_needs_untaxed_covered_unbroken_dividends_in_the_best_quintile():
-    from fq.report.screens import dividend_carry_list
-
-    def company(ticker, rank, div=(6, 5, 4), oe=(9, 8, 7), **changes):
-        row = {"Ticker": ticker, "Rank": rank, "Dividend_WHT": 0.0, "Dividend_Yield": 6.0, "Owner_Yield": 9.0,
-               "EPV_Per_Share_Yield": 9.0, "Cyclical": False, "Peak_Margin_Ratio": 1.0,
-               # The dividend record (Nov 5, 2026: it replaced the 4-year dividend trend), clean unless changed.
-               "Dividend_Unbroken_Years": 12.0, "Dividend_Record_Whole": True, "Regular_DPS_Growth_10Y": 3.0,
-               "Dividend_Cut_Recent": False, "Recession_Dividend_Fall": 0.0, "Recession_Dividend_Note": None,
-               "Recessions_Covered": 2.0, "Recessions_Due": 2.0}  # fmt: skip
-        for i in range(3):
-            row |= {f"Cash Dividends Paid_Y{i}": -div[i], f"Owner_Earnings_Y{i}": oe[i],
-                    f"Ordinary Shares Number_Y{i}": 1.0}  # fmt: skip
-        return row | changes
-
-    df = pd.DataFrame(
-        [
-            company("B", 2.0),
-            company("A", 1.0, div=(6, 7, 4)),  # yearly payouts no longer judge it: the record does
-            company("TAXED", 3.0, Dividend_WHT=15.0),
-            company("LOW_YIELD", 3.0, Dividend_Yield=4.8),  # a point above the 3.75% fallback loan, under 5%
-            company("UNCOVERED", 3.0, EPV_Per_Share_Yield=7.0),  # 86% of what a share earns after interest
-            company("CUT_SIX_YEARS_AGO", 3.0, Dividend_Unbroken_Years=6.0),
-            company("CUT_NOW", 3.0, Dividend_Unbroken_Years=0.0, Dividend_Cut_Recent=True),
-            company("NO_RECORD", 3.0, Dividend_Unbroken_Years=float("nan")),
-            company("LOWER_THAN_TEN_YEARS_AGO", 3.0, Regular_DPS_Growth_10Y=-1.0),
-            company("OE_FALLING", 3.0, oe=(7, 8, 9)),
-            company("CYCLE", 3.0, Cyclical=True),
-            company("OUTSIDE", 30.0),
-        ]
-    )
-    out = dividend_carry_list(df)
-    assert out.loc[out["Carry_Record"], "Ticker"].tolist() == ["A", "B"]  # the full record first
-    # Then the shorter records (Nov 7, 2026): no cut now, untaxed, covered, not cyclical, in the best.
-    assert set(out.loc[~out["Carry_Record"], "Ticker"]) == {
-        "LOW_YIELD",
-        "CUT_SIX_YEARS_AGO",
-        "NO_RECORD",
-        "LOWER_THAN_TEN_YEARS_AGO",
-        "OE_FALLING",
-    }
-    assert out["Ticker"].tolist()[:2] == ["A", "B"] and out["Carry_Order"].is_monotonic_increasing
-    assert dividend_carry_list(df, 3)["Ticker"].tolist()[:2] == ["A", "B"] and len(dividend_carry_list(df, 3)) == 3
-
-
 def _twenty_year_row(ticker, rank, owner=(130, 120, 110, 100), revenue=(400, 300, 200, 100), shares=(10, 10, 10, 11),
                      roic=(20, 19, 18, 17), margin=(0.22, 0.21, 0.20, 0.19), **over):  # fmt: skip
     """A company both 20-year lists admit, before `over`."""
@@ -234,27 +155,28 @@ def test_operating_companies_need_high_returns_a_yield_and_smooth_growth_on_ever
     ]
 
 
-def test_dividend_growers_need_a_decade_without_a_cut_growth_cover_and_a_lasting_business():
-    from fq.report.screens import dividend_grower_list
+def test_income_needs_a_decade_without_a_cut_cover_little_tax_and_a_lasting_business():
+    from fq.report.screens import income_list
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
         return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
-                      "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0,
+                      "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "Dividend_WHT": 0.0,
                       "EPV_Per_Share_Yield": 8.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
                       "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
 
     df = pd.DataFrame([
-        r("B", 2.0),
-        r("A", 1.0),
+        r("B", 2.0, Dividend_Yield=3.2),
+        r("A", 1.0, Dividend_Yield=3.5),  # the higher yield at the same growth: first
         r("BANK", 3.0, Financial_Mode=True, Equity_to_Assets=9.0),  # ROE stands for ROIC
+        r("TAXED", 4.0, Dividend_WHT=15.0),
         r("YOUNG", 4.0, Dividend_Unbroken_Years=9.0),
         r("CUT_NOW", 4.0, Dividend_Cut_Recent=True),
         r("RECESSION_CUT", 4.0, Recession_Dividend_Fall=-30.0),
         r("LOW_YIELD", 4.0, Dividend_Yield=2.4),
         r("PAYS_IT_ALL", 4.0, Dividend_Yield=7.0),  # above 80% of what a share earns after interest
         r("PAID_FROM_GROWTH", 4.0, EPV_Per_Share_Yield=3.5),  # 86% at zero growth, 38% of the owner yield
-        r("FLAT_DIVIDEND", 4.0, Regular_DPS_Growth_10Y=2.9),
+        r("SHRUNK_DIVIDEND", 4.0, Regular_DPS_Growth_10Y=-1.0),  # lower than ten years ago
         r("LOW_ROIC", 4.0, ROIC_Norm=9.0),
         r("CYCLICAL", 4.0, Cyclical=True),
         r("AI_RISK", 4.0, industry="Consulting Services"),
@@ -263,16 +185,16 @@ def test_dividend_growers_need_a_decade_without_a_cut_growth_cover_and_a_lasting
         r("LOW_RANK", 4.0, In_Best_Fraction=False),
         r("NO_RECORD", 4.0, Dividend_Unbroken_Years=np.nan),
     ])  # fmt: skip
-    assert dividend_grower_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
+    assert income_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
 
 
-def test_dividend_growers_take_a_bank_ranked_apart_on_its_own_kinds_best():
-    from fq.report.screens import dividend_grower_list
+def test_income_takes_a_bank_ranked_apart_on_its_own_kinds_best():
+    from fq.report.screens import income_list
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
         return row | {"Dividend_Unbroken_Years": 12.0, "Regular_DPS_Growth_10Y": 5.0, "Dividend_Yield": 3.0,
-                      "Owner_Yield": 8.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
+                      "Owner_Yield": 8.0, "EPV_Per_Share_Yield": 8.0, "Dividend_WHT": 0.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
                       "Common Stock Equity_Y0": 100.0, "Rank_Group": "ranked", "In_Best_Fraction": True,
                       "Kind_Rank": np.nan, "In_Kind_Best": False} | over  # fmt: skip
 
@@ -280,12 +202,13 @@ def test_dividend_growers_take_a_bank_ranked_apart_on_its_own_kinds_best():
              "Financial_Mode": True, "Equity_to_Assets": 9.0}  # fmt: skip
     df = pd.DataFrame([
         r("A", 1.0),
-        r("B", 9.0),  # ninth of ten ranked: after a bank first among its kind
+        r("B", 2.0, Dividend_Yield=2.8),  # the lowest yield: last, whatever its rank
         r("BANK", 4.0, Kind_Rank=1.0, In_Kind_Best=True, **apart),
         r("BANK_LOW", 4.0, Kind_Rank=2.0, In_Kind_Best=False, **apart),  # not in its kind's best fraction
     ])  # fmt: skip
     df = pd.concat([df, pd.DataFrame({"Ticker": [f"X{i}" for i in range(8)], "Rank": np.arange(2.0, 10.0)})])
-    assert dividend_grower_list(df.reset_index(drop=True))["Ticker"].tolist() == ["A", "BANK", "B"]
+    df.loc[df["Ticker"] == "BANK", "Dividend_Yield"] = 3.1  # the bank yields most: first
+    assert income_list(df.reset_index(drop=True))["Ticker"].tolist() == ["BANK", "A", "B"]
 
 
 def test_compounders_take_either_route_once_in_rank_order():

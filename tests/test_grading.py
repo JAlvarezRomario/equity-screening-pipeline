@@ -322,30 +322,27 @@ def test_the_client_has_a_call_timeout(monkeypatch):
     assert client._api_client._http_options.timeout == grading.CALL_TIMEOUT_MS
 
 
-def test_best_grades_take_both_at_least_four_and_one_above_by_owner_yield():
+def test_best_businesses_walk_down_quality_keeping_both_grades_four_and_one_above():
+    """Best businesses (Nov 7, 2026: it absorbed Best grades): down the Quality ranking, both grades at least 4 and
+    either above, a lower grade skipped, the ungraded held marked; the order is Quality's, price plays no part."""
     import numpy as np
 
-    from fq.report.highlights import best_grade_list
-
-    assert grading.passes_best(4.0, 4.25) and grading.passes_best(5.0, 4.0)
-    assert not grading.passes_best(4.0, 4.0) and not grading.passes_best(3.75, 5.0)
-    assert not grading.passes_best(np.nan, 5.0)
-    df = pd.DataFrame({
-        "Ticker": ["LOW_YIELD", "HIGH_YIELD", "FOURS", "WEAK_MGMT", "UNGRADED"],
-        "Grade_Moat": [4.5, 4.0, 4.0, 5.0, np.nan],
-        "Grade_Mgmt": [4.5, 4.25, 4.0, 3.75, np.nan],
-        "Owner_Yield": [3.0, 8.0, 9.0, 10.0, 11.0],
-    })  # fmt: skip
-    assert best_grade_list(df, 20)["Ticker"].tolist() == ["HIGH_YIELD", "LOW_YIELD"]
-
-
-def test_best_grades_holds_ranked_companies_and_sits_with_the_raw_scores():
     from fq.report import highlights as hl
 
-    df = pd.DataFrame({"Ticker": ["MOAT", "BANK"], "Grade_Moat": [4.5, 4.5], "Grade_Mgmt": [4.5, 4.5],
-                       "Owner_Yield": [4.0, 10.0], "Rank_Group": ["ranked", "financial"]})  # fmt: skip
-    assert hl.best_grade_list(df, 20)["Ticker"].tolist() == ["MOAT"]  # a bank's yield does not compare
-    assert hl.TAB[hl.BEST_GRADES].group == "raw"
+    assert grading.passes_best_walk(4.0, 4.25) and grading.passes_best_walk(5.0, 4.0)
+    assert grading.passes_best_walk(4.0, 4.0) is False and grading.passes_best_walk(3.75, 5.0) is False
+    assert grading.passes_best_walk(np.nan, 5.0) is None
+    df = pd.DataFrame({
+        "Ticker": ["FOURS", "BEST", "NEW", "WEAK_MGMT", "GOOD", "LATE"],
+        "Quality_Rank": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "Grade_Moat": [4.0, 4.5, np.nan, 5.0, 4.0, 5.0],
+        "Grade_Mgmt": [4.0, 4.5, np.nan, 3.75, 4.25, 5.0],
+        "Owner_Yield": [9.0, 1.0, 9.0, 9.0, 2.0, 20.0],
+    })  # fmt: skip
+    out = hl.best_business_list(df, 2)
+    assert out["Ticker"].tolist() == ["BEST", "NEW", "GOOD"]  # LATE, the cheapest, is never reached
+    assert out["Grade_Pass"].tolist() == [True, None, True]
+    assert hl.TAB["Best businesses"].group == "raw"
 
 
 def test_the_untested_pill_counts_data_holes_not_blanks_by_design():
@@ -395,26 +392,3 @@ def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded(
     assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # LOW skipped, NEW waits for its grade
     assert out["Grade_Pass"].tolist() == [True, None, True]
     assert grading.passes_cheapest(np.nan, 3.0) is None and grading.passes_cheapest(3.0, 2.75) is False
-
-
-def test_best_grades_deducts_sovereign_spread_from_owner_yield():
-    from fq.report import highlights as hl
-
-    df = pd.DataFrame(
-        {
-            "Ticker": ["EM_BANK", "US_GROWER"],
-            "Grade_Moat": [4.5, 4.0],
-            "Grade_Mgmt": [4.5, 4.25],
-            "Owner_Yield": [10.0, 8.5],
-            "Sovereign_Spread": [2.0, 0.0],  # EM_BANK net: 8.0%, US_GROWER net: 8.5%
-            "Distress": [False, False],
-            "Peak_Margin": [False, False],
-            "Cyclical": [False, False],
-            "Data_Suspect": [False, False],
-            "Revenue_Decline": [False, False],
-            "Accounting_Flag": [False, False],
-            "Earnings_Collapse": [False, False],
-        }
-    )
-    out = hl.best_grade_list(df, 2)
-    assert out["Ticker"].tolist() == ["US_GROWER", "EM_BANK"]

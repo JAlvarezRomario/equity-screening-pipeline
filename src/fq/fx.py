@@ -202,7 +202,7 @@ def _estr() -> float | None:
 
 
 def get_borrow_rate(cache_path: Path | None = None) -> float:
-    """What a euro margin loan costs (%), the Untaxed dividends list's hurdle (user's choice, Nov 5, 2026: obtained,
+    """What a euro margin loan costs (%), the Income list's spread over the loan (user's choice, Nov 5, 2026: obtained,
     not hardcoded): €STR from the ECB (`ESTR_URL`) + `BROKER_SPREAD` + `BORROW_BUFFER`. The rate is stored in
     `cache_path` with its date; when the ECB cannot be reached, the stored rate is used, else `FALLBACK_BORROW_RATE`."""
     key = str(cache_path or "default")

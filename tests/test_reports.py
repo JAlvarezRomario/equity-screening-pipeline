@@ -276,19 +276,20 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Three top lists, Shortlist, Repeaters, Compounders, Cannibals, Net cash, Off the radar, Dividend carry, Dividend
-    # growers; by kind: Banks and lenders, Insurers, Below book, Real estate, Utilities, Energy (Nov 6, 2026).
-    assert len(panels) == 19  # and Best grades, Temporary trouble (Nov 7, 2026)
+    # Nov 7, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
+    # Net cash, Below book), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
+    # (Cheapest, Best businesses).
+    assert len(panels) == 14
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
-    # Six rows of tabs by idea (Nov 6, 2026); some shown by their plain label, stored under their frozen name.
-    groups = ("Start here", "Growth", "Income", "Balance sheet", "By kind", "Raw scores")
+    # Four rows of tabs by idea (Nov 7, 2026); some shown by their plain label, stored under their frozen name.
+    groups = ("Start here", "By style", "By kind", "Raw scores")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
-    assert "Untaxed dividends" in html and ">Dividend carry<" not in html
-    assert "Boring businesses" in html
-    assert "Compounders" in html and "Dividend growers" in html and "Steady growers, net cash" not in html
+    assert "Boring businesses" in html and 'id="hl-income"' in html
+    for gone in ("hl-repeaters", "hl-cannibals", "hl-radar", "hl-carry", "hl-dividend-growers", "hl-best-grades"):
+        assert gone not in html
 
 
 def test_revenue_and_shares_axes_start_at_zero(cfg):
@@ -501,33 +502,24 @@ def _cannibal_ready(df, cfg, rows):
     return df
 
 
-def test_cannibals_screen_and_list(cfg):
+def test_cannibal_flag_needs_seven_percent_a_year_bought_back(cfg):
+    """The cannibal pill (its tab retired Nov 7, 2026): more than 7%/yr of the shares retired, actually bought."""
     from fq.ranking import cannibal
-    from fq.report.html import build_site
-    from fq.report.screens import cannibal_list
 
-    df = _cannibal_ready(_ranked(cfg).copy(), cfg, range(5))
-    df.loc[1, "Share_Reduction_Rate"] = 2.0  # below 7%
+    df = _cannibal_ready(_ranked(cfg).copy(), cfg, range(6))
+    df.loc[1, "Share_Reduction_Rate"] = 6.0  # under 7%: no longer a cannibal
     df.loc[2, "Cyclical"] = True  # an upswing pays for buybacks at the top
     df.loc[3, "Quality_Score"] = 40.0  # a buyback in a poor business only shrinks it
     df.loc[4, ["Ordinary Shares Number_TTM", f"Ordinary Shares Number_{cfg.latest}"]] = 1e8 / 6  # sixfold fewer
     df.loc[4, "Market Cap"] = 1.0  # B$: nothing bought, so a consolidation
     for y in cfg.annual_years:
         df.loc[4, f"Repurchase Of Capital Stock_{y}"] = 0.0
+    df.loc[5, "Share_Reduction_Rate"] = 8.0
 
     flagged = cannibal(df, cfg)
-    assert list(flagged.iloc[:5]) == [True, False, False, False, False]
+    assert list(flagged.iloc[:6]) == [True, False, False, False, False, True]
     df.loc[4, [f"Repurchase Of Capital Stock_{y}" for y in cfg.annual_years]] = np.nan
     assert bool(cannibal(df, cfg).iloc[4])  # no buyback figure at all: missing is not bad
-
-    df["Cannibal"] = flagged
-    clist = cannibal_list(df)
-    assert len(clist) >= 1
-    assert clist.iloc[0]["Ticker"] == df.loc[0, "Ticker"]
-
-    html = build_site(df, cfg).read_text(encoding="utf-8")
-    assert "hl-cannibals" in html
-    assert "The Cannibals" in html
 
 
 def test_company_charts_responsiveness_and_axes(cfg):
@@ -708,21 +700,23 @@ def test_industry_leader_is_the_top_tenth_and_always_the_top_three():
 
 
 def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
-    from fq.ranking import trusted
+    from fq.ranking import top_n, trusted
     from fq.report.highlights import highlight_picks
-    from fq.report.screens import cannibal_list, in_best_fraction
+    from fq.report.screens import asset_play_list, in_best_fraction
     from fq.settings import Settings
 
     df = _ranked(cfg).copy()
     best = in_best_fraction(df)
     assert best.sum() == np.ceil(Settings().highlight_top_fraction * df["Rank"].notna().sum())
-    df["Cannibal"] = True
-    assert set(cannibal_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
+    df["Asset_Play"] = True
+    assert set(asset_play_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
     picks = highlight_picks(6.0)
     total = {name: len(pick(df, len(df))) for name, (pick, _) in picks.items()}
-    assert best.sum() < total["Best businesses"] <= trusted(df).sum()
-    # Cheapest walks down Value waiting for grades (Nov 7, 2026): ungraded, it holds its batch of 20 only.
-    assert total["Cheapest"] == min(20, total["Best businesses"])
+    assert best.sum() < total["Cheap and good"] <= trusted(df).sum()
+    # Cheapest and Best businesses walk down their score waiting for grades (Nov 7, 2026): ungraded, each holds its
+    # batch of 20 only.
+    assert total["Cheapest"] == min(20, len(top_n(df, "Value_Rank", len(df))))
+    assert total["Best businesses"] == min(20, len(top_n(df, "Quality_Rank", len(df))))
 
 
 def test_highlight_lists_leave_out_models_to_confirm(cfg):
@@ -780,41 +774,6 @@ def test_published_lists_follow_the_tabs_and_the_liquidity_floor(cfg):
     assert first not in set(listable(df, cfg)["Ticker"]) and len(listable(df, cfg)) == len(df) - 1
     assert first not in set(published_lists(df, cfg)["Ticker"])
     assert first in set(df["Ticker"])  # still in the full ranking
-
-
-def test_repeaters_count_lists_order_by_count_then_rank_and_need_a_pass():
-    """Repeaters: on two or more screened lists across distinct styles (`_REPEAT_FAMILIES`), each list requiring its
-    own grade gate (`~fails`); pure score rankings (`RANKED_TABS`) left out; most lists first, then the combined rank."""
-    from fq.report import highlights as hl
-
-    df = pd.DataFrame({"Ticker": list("ABCDEFG"), "Rank": [5.0, 1.0, 2.0, 3.0, 4.0, 6.0, 7.0],
-                       "Grade_Pass": [True, True, True, None, False, True, True]})  # fmt: skip
-    head = lambda tickers: lambda d, n: d[d["Ticker"].isin(list(tickers))].head(n)  # noqa: E731
-    # Shortlist has its own stricter grade bar: B passes the regular bar (4/4) but fails Shortlist's bar.
-    shortlist_pick = lambda d, n: d[d["Ticker"].isin(["B"])].assign(Grade_Pass=False).head(n)  # noqa: E731
-    picks = {
-        "Cheap and good": (head("BCDE"), 1),  # a pure ranking (`RANKED_TABS`): ignored by Repeaters
-        "Shortlist": (shortlist_pick, 20),  # B fails Shortlist's stricter grade bar, so Shortlist does not count for B
-        "Dividend carry": (head("AF"), 20),  # income family
-        "Dividend growers": (head("ABCDEF"), 1),  # income family: F is on both income lists only (1 family)
-        "Below book": (head("G"), 20),  # balance-sheet family
-        "Net cash": (head("ABDG"), 20),  # balance-sheet family: G is on both balance-sheet lists only (1 family)
-        "Cannibals": (head("AE"), 20),
-    }
-    every = hl.repeater_candidates(df, picks)
-    # A qualifies on 4 lists across 3 families; B and D on 2 across 2 families; C on 1 list; E fails Grade_Pass;
-    # F (Dividend carry + Dividend growers) and G (Below book + Net cash) only qualify within a single thesis family.
-    assert list(every["Ticker"]) == ["A", "B", "D"]
-    assert every.set_index("Ticker").at["A", "Repeat_Lists"] == (
-        "Cannibals, Dividend growers, Untaxed dividends, Net cash"
-    )
-    assert every.set_index("Ticker").at["A", "Repeat_Count"] == 4.0
-    shown = hl.repeater_list(df, 20, picks)
-    assert list(shown["Ticker"]) == [
-        "A",
-        "B",
-    ]  # D is ungraded, so it is in `repeater_candidates` (for grading) but not shown
-    assert tuple(hl.highlight_picks(6.0)) == hl.TAB_ORDER and hl.REPEATERS in hl.TAB_ORDER
 
 
 def test_momentum_chip_coloured_and_plain_tiles():
@@ -913,7 +872,7 @@ def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_ranking
 
     df = _ranked(cfg).copy()
     df["industry"] = "Packaged Foods"
-    df["Cannibal"] = True
+    df["Asset_Play"] = True
     good = df.index[df["Rank"].notna() & trusted(df)]
     fragile, software = good[0], good[1]
     df.loc[fragile, "industry"] = "Consulting Services"
@@ -927,6 +886,6 @@ def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_ranking
     assert df.loc[software, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])
     assert df.loc[fragile, "Ticker"] in set(h.shown("Cheapest")["Ticker"])
     # Every screened list excludes both Consulting Services and Software - Application.
-    assert df.loc[fragile, "Ticker"] not in set(h.shown("Cannibals")["Ticker"])
-    assert df.loc[software, "Ticker"] not in set(h.shown("Cannibals")["Ticker"])
+    assert df.loc[fragile, "Ticker"] not in set(h.shown("Below book")["Ticker"])
+    assert df.loc[software, "Ticker"] not in set(h.shown("Below book")["Ticker"])
     assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted

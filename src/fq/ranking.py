@@ -440,14 +440,13 @@ def apply_dual_ranking(
     ranked = rankable(out) & ~out["Insufficient_Data"]
     out["Rank"] = pd.Series(np.arange(1, len(out) + 1), index=out.index).where(ranked)
     themes = reference[rankable(reference)] if benchmarked else out[rankable(out)]  # industry-wide discounts
-    scored = themes  # the asset plays' yardstick: the ranked companies, holdings judged on the same scale
     out["Dislocation"], out["Mood_Check"] = dislocation(out, cfg, themes, benchmark if benchmarked else None)
     if out["Dislocation"].any():
         log.info("Possible mood mispricings: %s", ", ".join(out.loc[out["Dislocation"], "Ticker"]))
     out["Compounder"] = compounder(out, cfg)
     if out["Compounder"].any():
         log.info("Compounders: %s", ", ".join(out.loc[out["Compounder"], "Ticker"]))
-    out["Asset_Play"], out["Asset_Play_Score"] = asset_play(out, cfg, scored)
+    out["Asset_Play"] = asset_play(out, cfg)
     if out["Asset_Play"].any():
         log.info("Asset plays: %s", ", ".join(out.loc[out["Asset_Play"], "Ticker"]))
     out["Cannibal"] = cannibal(out, cfg)
@@ -626,19 +625,19 @@ def _buybacks_paid(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     return ~reported | ~(bought < cfg.cannibal_min_paid_share * retired * cap)
 
 
-def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None = None) -> tuple[pd.Series, pd.Series]:
-    """`Asset_Play` flag and `Asset_Play_Score` (0-100) for tangible-NAV bargains with balance-sheet and capital
-    discipline.
+def asset_play(df: pd.DataFrame, cfg: Settings) -> pd.Series:
+    """`Asset_Play` flag: priced below tangible book, with a book that earns its keep (the Below book list; user's
+    choice, Nov 7, 2026: the "growing into book" route and the blended score retired, the list ordered by the
+    discount, `screens.asset_play_list`).
 
     Qualifies trusted companies ranked or ranked apart as holdings (Nov 5, 2026: banks and insurers have lists of their
     own, and an equity REIT's book is depreciated cost under US GAAP but fair value under IFRS, so it is never asked)
-    where enterprise-de-levered tangible book per share (`Effective_NAV_to_Price`, minority-adjusted tangible book
-    `NAV_to_Price` with fallback to common book only when intangibles are unreported; a holding's book with its
-    goodwill, `BV_to_Price`: stripping it values the subsidiaries it bought at zero)
-    either already exceeds the share price (`>= asset_play_min_nav_price` with non-negative `Book_Per_Share_Compounding`)
-    or is at least `asset_play_min_nav_compounding` and compounding smoothly enough (`>= asset_play_min_book_growth`,
-    capped at `asset_play_max_book_growth_cap`) to reach the share price within `asset_play_horizon_years`. Requires
-    positive normalised ROIC and owner earnings, `Value_Score >= asset_play_min_value`, no meaningful dilution, bounded
+    whose book and tangible book per share are positive and whose enterprise-de-levered tangible book per share
+    (`Effective_NAV_to_Price`, minority-adjusted tangible book `NAV_to_Price` with fallback to common book only when
+    intangibles are unreported; a holding's book with its goodwill, `BV_to_Price`: stripping it values the
+    subsidiaries it bought at zero) is at least `asset_play_min_nav_price` of the price, book per share not shrinking
+    (`Book_Per_Share_Compounding` >= 0). Requires normalised ROIC at least `asset_play_min_roic` (book is worth about
+    what it earns), positive owner earnings, `Value_Score >= asset_play_min_value`, no meaningful dilution, bounded
     debt and recurring positive FCF for non-financials, and capital adequacy plus active buybacks for banks/insurers.
     """
     fin = _flag(df, "Financial_Mode")
@@ -647,7 +646,9 @@ def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None =
     # Its own earnings tests below decide profitability; the kinds judged elsewhere stay out.
     fit = comparable(df) & trusted(df) & ~group.isin({"financial", "real_estate", "apart"})
 
-    raw_nav = _num(df, "NAV_to_Price").fillna(_num(df, "BV_to_Price")).where(~holding, _num(df, "BV_to_Price"))
+    raw_bv = _num(df, "BV_to_Price")
+    tangible = _num(df, "NAV_to_Price")
+    raw_nav = tangible.fillna(raw_bv).where(~holding, raw_bv)
     net_cash = _num(df, "Net_Cash_to_Cap")
     net_debt_pct = (-net_cash).clip(lower=0.0).fillna(0.0)
     delevered = (raw_nav + net_debt_pct) / (100.0 + net_debt_pct) * 100.0
@@ -656,16 +657,8 @@ def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None =
     bv_comp = _num(df, "Book_Per_Share_Compounding").fillna(_num(df, "Book_Compounding"))
     share_red = _num(df, "Share_Reduction_Rate")
 
-    raw_bv = _num(df, "BV_to_Price")
-    exceeds_now = (eff_nav >= cfg.asset_play_min_nav_price) & (raw_bv.fillna(eff_nav) >= 100.0) & (bv_comp >= 0.0)
-    # Or a real discount that book growth closes within the horizon (growth capped: a burst is not a pace).
-    growth = bv_comp.clip(upper=cfg.asset_play_max_book_growth_cap)
-    growing_into = (
-        (eff_nav >= cfg.asset_play_min_nav_compounding)
-        & (raw_bv.fillna(eff_nav) >= cfg.asset_play_min_nav_compounding)
-        & (growth >= cfg.asset_play_min_book_growth)
-        & (eff_nav * (1 + growth / 100.0) ** cfg.asset_play_horizon_years >= cfg.asset_play_min_nav_price)
-    )
+    positive_book = (raw_bv > 0) & (holding | ~(tangible <= 0))  # tangible book unreported: the common book stands in
+    below_book = (eff_nav >= cfg.asset_play_min_nav_price) & (raw_bv >= 100.0) & (bv_comp >= 0.0)
 
     interest_cover = _num(df, "Interest_Coverage").fillna(0.0)
     debt_ok = ~(_num(df, "NetDebt_to_EBIT") > cfg.asset_play_max_netdebt_ebit) | (
@@ -686,43 +679,16 @@ def asset_play(df: pd.DataFrame, cfg: Settings, reference: pd.DataFrame | None =
         & (_num(df, "Quality_Score") >= cfg.asset_play_min_fin_quality)
         & (~bank_or_insurer | (share_red >= cfg.asset_play_min_fin_share_reduction))
     )
-    qualifies = (
+    return (
         fit
-        & (exceeds_now | growing_into)
+        & positive_book
+        & below_book
         & (non_fin_ok | fin_ok)
         & (_num(df, "Value_Score") >= cfg.asset_play_min_value)
         & ~(_num(df, "EPV_Per_Share_Yield") <= 0.0)
-        & ~(_num(df, "ROIC_Norm") <= 0.0)
+        & (_num(df, "ROIC_Norm") >= cfg.asset_play_min_roic)
         & (share_red >= cfg.asset_play_min_share_reduction)
     ).astype(bool)
-
-    work = df.assign(
-        Effective_NAV_to_Price=eff_nav,
-        Net_Cash_to_Cap=net_cash.fillna(0.0).where(~fin, 0.0),
-        Book_Per_Share_Compounding=bv_comp,
-        Share_Reduction_Rate=share_red,
-    )
-    if reference is None:
-        ref = work[comparable(work)]
-    else:
-        ref_fin = _flag(reference, "Financial_Mode")
-        ref_raw_nav = _num(reference, "NAV_to_Price").fillna(_num(reference, "BV_to_Price"))
-        ref = reference.assign(
-            Effective_NAV_to_Price=_num(reference, "Effective_NAV_to_Price").fillna(ref_raw_nav),
-            Net_Cash_to_Cap=_num(reference, "Net_Cash_to_Cap").fillna(0.0).where(~ref_fin, 0.0),
-            Book_Per_Share_Compounding=_num(reference, "Book_Per_Share_Compounding").fillna(
-                _num(reference, "Book_Compounding")
-            ),
-            Share_Reduction_Rate=_num(reference, "Share_Reduction_Rate"),
-        )
-    pct = lambda col: criterion_percentile(work[col], "top", cfg.winsor_pct, ref[col]).fillna(0.5)  # noqa: E731
-    score = (
-        0.35 * pct("Effective_NAV_to_Price")
-        + 0.25 * pct("Net_Cash_to_Cap")
-        + 0.20 * pct("Share_Reduction_Rate")
-        + 0.20 * pct("Book_Per_Share_Compounding")
-    ) * 100.0
-    return qualifies, score.where(qualifies)
 
 
 def value_quality_correlation(df: pd.DataFrame, profitable_only: bool = True, operating_only: bool = True) -> float:

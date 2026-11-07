@@ -58,11 +58,11 @@ def test_energy_list_wants_mid_cycle_returns_and_a_sound_balance_sheet():
     assert sc.energy_list(df)["Ticker"].tolist() == ["T0"]
 
 
-def test_below_book_takes_holdings_by_their_kind_and_orders_by_its_score():
+def test_below_book_takes_holdings_by_their_kind_and_orders_by_the_discount():
     df = _frame(6, Rank_Group=["ranked"] * 5 + ["holding"], Business_Model=["operating"] * 5 + ["holding"],
                 Rank=[1.0, 2, 3, 4, 5, np.nan], Asset_Play=[True, False, False, False, False, True],
-                Asset_Play_Score=[40.0, np.nan, np.nan, np.nan, np.nan, 80.0])  # fmt: skip
-    assert sc.asset_play_list(df)["Ticker"].tolist() == ["T5", "T0"]  # no rank for the holding: its score orders
+                Effective_NAV_to_Price=[110.0, np.nan, np.nan, np.nan, np.nan, 140.0])  # fmt: skip
+    assert sc.asset_play_list(df)["Ticker"].tolist() == ["T5", "T0"]  # the deeper discount first, rank or not
 
 
 def test_quadrant_draws_ranked_companies_only():
@@ -96,19 +96,6 @@ def test_reits_and_energy_leave_out_a_downturn_fall_over_a_quarter_but_keep_a_bl
     assert sc.energy_list(energy)["Ticker"].tolist() == ["T1"]  # T0 halved its dividend in a downturn; T1 pays none
 
 
-def test_untaxed_dividends_needs_ten_years_without_a_cut_and_a_record():
-    n = 5
-    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=6.0, Owner_Yield=9.0, EPV_Per_Share_Yield=9.0,
-                Rank=np.arange(1.0, n + 1), In_Best_Fraction=True, **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
-                **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
-    df = _record(df, Dividend_Unbroken_Years=[15.0, 6.0, 0.0, np.nan, 12.0],
-                 Dividend_Cut_Recent=[False, False, True, False, False])  # fmt: skip
-    # T1 cut 6 years ago, T2 cut this year, T3 has no record; T0 and T4 have held for 10 years or more.
-    out = sc.dividend_carry_list(df)
-    assert out["Ticker"].tolist() == ["T0", "T4", "T1", "T3"]  # the shorter records fill; a cut now never does
-    assert out["Carry_Record"].tolist() == [True, True, False, False]
-
-
 def test_a_benchmark_ranked_before_the_rank_groups_never_lends_a_bank_its_old_position():
     from fq.ranking import rankable
 
@@ -131,31 +118,6 @@ def test_the_borrowing_cost_is_obtained_from_the_ecb_with_a_stored_and_a_built_i
     assert fx.get_borrow_rate(tmp_path / "none.json") == fx.FALLBACK_BORROW_RATE
 
 
-def test_untaxed_dividends_yield_must_beat_the_obtained_borrowing_cost_by_a_point():
-    n = 2
-    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=[6.0, 5.5], Owner_Yield=9.0, EPV_Per_Share_Yield=9.0,
-                Rank=[1.0, 2.0], In_Best_Fraction=True, Borrow_Rate=4.8,
-                **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
-                **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
-    assert sc.dividend_carry_list(_record(df))["Ticker"].tolist() == ["T0"]  # 5.5% is under a 4.8% loan plus a point
-    out = sc.dividend_carry_list(
-        _record(df.assign(Borrow_Rate=3.5, Dividend_Yield=[6.0, 4.8]))
-    )  # 4.8%: a point above the loan, under the 5% floor
-    assert out["Ticker"].tolist() == ["T0", "T1"] and out["Carry_Record"].tolist() == [True, False]
-
-
-def test_untaxed_dividends_are_covered_by_what_a_share_earns_after_interest_and_never_filled():
-    n = 3
-    df = _frame(n, Dividend_WHT=0.0, Dividend_Yield=6.0, Owner_Yield=12.0, EPV_Per_Share_Yield=[9.0, 7.0, np.nan],
-                Rank=[1.0, 2.0, 3.0], In_Best_Fraction=True,
-                **{f"Ordinary Shares Number_{p}": 100.0 for p in ("Y0", "Y1", "Y2", "Y3")},
-                **{f"Owner_Earnings_{p}": v for p, v in zip(("Y0", "Y1", "Y2", "Y3"), (13.0, 12, 11, 10), strict=True)})  # fmt: skip
-    # T1 pays 86% of its earnings power after interest though its owner yield (before interest, 3 years ahead) is
-    # twice the dividend; T2 has no figure to cover it with: on borrowed money, a blank is no evidence.
-    out = sc.dividend_carry_list(_record(df), 20)
-    assert out["Ticker"].tolist() == ["T0"]  # one passes, one is shown: the list is not filled
-
-
 def test_a_young_company_in_a_hard_hit_industry_needs_to_lead_it_with_net_cash():
     from fq.report.screens import _lasting_business
 
@@ -174,3 +136,43 @@ def test_utilities_list_holds_its_own_kind_with_debt_bounded_and_the_dividend_he
     df.loc[0, "NetDebt_to_EBIT"] = 9.0  # financed beyond the bound
     assert sc.utility_list(df).empty
     assert sc.kind(df).eq("utility").all()
+
+
+def _payers(n: int, **cols) -> pd.DataFrame:
+    """Dividend payers passing every Income gate unless `cols` says: a clean 15-year record growing 4% a year."""
+    base = dict(Dividend_WHT=0.0, Dividend_Yield=5.0, EPV_Per_Share_Yield=9.0, ROIC_Norm=20.0,
+                Rank=np.arange(1.0, n + 1), In_Best_Fraction=True)  # fmt: skip
+    return _record(_frame(n, **(base | cols)))
+
+
+def test_income_keeps_a_withholding_of_ten_percent_at_most():
+    out = sc.income_list(_payers(3, Dividend_WHT=[0.0, 10.0, 15.0]))
+    assert sorted(out["Ticker"]) == ["T0", "T1"]
+    assert out.set_index("Ticker").loc["T1", "Net_Dividend_Yield"] == pytest.approx(4.5)  # what a foreigner keeps
+
+
+def test_income_needs_a_decade_without_a_cut_and_a_covered_dividend():
+    df = _payers(4, EPV_Per_Share_Yield=[9.0, 9.0, 9.0, np.nan])
+    df = df.assign(Dividend_Unbroken_Years=[15.0, 5.0, 15.0, 15.0], Dividend_Cut_Recent=[False, False, True, False])
+    # T1 cut five years ago, T2 cut this year, T3 has no earnings power to cover the dividend with.
+    assert sc.income_list(df)["Ticker"].tolist() == ["T0"]
+
+
+def test_income_orders_by_yield_after_withholding_plus_growth():
+    df = _payers(2, Dividend_Yield=4.0).assign(Regular_DPS_Growth_10Y=[2.0, 6.0])
+    out = sc.income_list(df)
+    assert out["Ticker"].tolist() == ["T1", "T0"]  # same yield, faster growth first, whatever the combined rank
+    assert out["Income_Return"].tolist() == pytest.approx([10.0, 6.0])
+
+
+def test_income_counts_growth_no_faster_than_the_business_funds_it_and_at_most_ten():
+    df = _payers(2, Dividend_Yield=[3.0, 6.0], ROIC_Norm=[20.0, 10.0], EPV_Per_Share_Yield=[9.0, 8.0])
+    df = df.assign(Regular_DPS_Growth_10Y=[15.0, 8.0])
+    grown = sc.income_list(df).set_index("Ticker")["Income_Growth"]
+    assert grown["T0"] == pytest.approx(10.0)  # 15% a year counts as 10: past it, a growth stock
+    assert grown["T1"] == pytest.approx(2.5)  # pays out 75%: 10% ROIC on the quarter kept funds 2.5% a year
+
+
+def test_income_shows_the_spread_over_the_loan_without_testing_it():
+    out = sc.income_list(_payers(1, Dividend_Yield=3.0, Borrow_Rate=4.8))
+    assert out["Ticker"].tolist() == ["T0"] and out["Loan_Spread"].iloc[0] == pytest.approx(-1.8)

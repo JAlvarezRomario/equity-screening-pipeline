@@ -28,19 +28,11 @@ TOP_LIST_COLUMNS = [
     ("Quality Score", "Quality_Score", ".0f", 1, ""),
 ]  # fmt: skip
 
-# Repeaters (`highlights.repeater_list`): how many lists, then the usual facts.
-REPEATER_COLUMNS = [("Lists", "Repeat_Count", ".0f", 1, ""), *TOP_LIST_COLUMNS]
-# Best grades (`highlights.best_grade_list`): both grades and the owner yield it is ordered by, then the usual facts.
-BEST_GRADE_COLUMNS = [
-    ("Moat", "Grade_Moat", ".2f", 1, ""),
-    ("Management", "Grade_Mgmt", ".2f", 1, ""),
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
 VALUE_LIST_COLUMNS = [*TOP_LIST_COLUMNS, ("Owner Yield", "Owner_Yield", ".1f", 1, "%")]
 QUALITY_LIST_COLUMNS = [
+    ("Moat", "Grade_Moat", ".2f", 1, ""),
+    ("Management", "Grade_Mgmt", ".2f", 1, ""),
     *TOP_LIST_COLUMNS,
     ("Return Quality", "Return_Quality", ".1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
@@ -266,100 +258,29 @@ def energy_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
-# The Below book list (`ranking.asset_play`), the balance-sheet list (user's choice, Nov 5, 2026): tangible book
-# bargains among the ranked companies and holdings on their book with goodwill, ordered by `Asset_Play_Score`.
+# The Below book list (`ranking.asset_play`; user's choice, Nov 7, 2026): priced below tangible book, net debt counted
+# (a holding on its book with goodwill), ordered by the discount.
 ASSET_PLAY_COLUMNS = [
     ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
     ("Book / Price", "BV_to_Price", ".0f", 1, "%"),
     ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
-    ("Book Compounding / yr", "Book_Per_Share_Compounding", "+.1f", 1, "%"),
-    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
+    ("Book Compounding / yr", "Book_Per_Share_Compounding", "+.1f", 1, "%"),
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
 
 
 def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """Flagged `Asset_Play` companies in the best fraction of the combined ranking, or holdings (no rank and too few
-    for a best fifth of their own: the asset-play tests alone decide, user's choice, Nov 5, 2026), ordered by
-    `Asset_Play_Score` (`Book_Order`, 1 = best)."""
+    for a best fifth of their own: the asset-play tests alone decide, user's choice, Nov 5, 2026), ordered by the
+    discount to tangible book, net debt counted (`Effective_NAV_to_Price`, largest first; `Book_Order`, 1 = best;
+    user's choice, Nov 7, 2026: the list is named for the discount, so the discount orders it)."""
     if "Asset_Play" not in df.columns:
         return df.head(0)
     d = df[(df["Asset_Play"] == True) & (in_best_fraction(df) | (kind(df) == "holding"))]  # noqa: E712
-    score = _num(d, "Asset_Play_Score").fillna(_num(d, "Value_Score"))
-    d = d.assign(Book_Order=score.rank(method="first", ascending=False))
+    d = d.assign(Book_Order=_num(d, "Effective_NAV_to_Price").rank(method="first", ascending=False))
     return d.sort_values("Book_Order").head(n)
-
-
-# The Cannibals list (`ranking.cannibal`): companies retiring shares (> 5%/yr) from their own free cash flow,
-# ordered by combined rank.
-CANNIBAL_COLUMNS = [
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    ("Cash Return Yield", "DirectCashtoInvestors_Yield_Avg", ".1f", 1, "%"),
-    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]
-
-
-def cannibal_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Flagged `Cannibal` companies in the best fraction of the combined ranking, bounded debt, ordered by combined
-    rank."""
-    if "Cannibal" not in df.columns:
-        return df.head(0)
-    d = df[(df["Cannibal"] == True) & in_best_fraction(df) & _debt_bounded(df)]  # noqa: E712
-    if "Rank" in d.columns:
-        return d.sort_values("Rank", ascending=True).head(n)
-    if "Share_Reduction_Rate" in d.columns:
-        return d.sort_values("Share_Reduction_Rate", ascending=False).head(n)
-    return d.head(n)
-
-
-# The "Off the radar" list: what put a company on it, then the usual facts (user's choice, Oct 21, 2026).
-OFF_RADAR_COLUMNS = [
-    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
-    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
-def off_radar_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Small, little-followed companies outside the US with solid Value, Quality and ROIC, smooth per-share revenue
-    and owner earnings compounding, shares not meaningfully rising, and recent numbers held, in combined rank order
-    (`Settings.off_radar_*`). Leaves out financials and real estate, cyclicals and companies earning well above their
-    usual margin (`Peak_Margin_Ratio` > `peak_margin_ratio`, for every model, not only cyclicals), and keeps only
-    companies `in_best_fraction` of the combined ranking; `ranking.top_n` leaves out suspect, thin or distressed
-    data. Display only."""
-    s = Settings()
-    num = lambda col: (  # noqa: E731
-        pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
-    )
-    text = lambda col: df[col] if col in df.columns else pd.Series(None, index=df.index, dtype=object)  # noqa: E731
-    held = (
-        ~(num("Revenue_Change_Recent") < s.dislocation_revenue_change_min)
-        & ~(num("EBIT_Change_Recent") < s.dislocation_ebit_change_min)
-        & ~(num("EPS_Rev_90d") < s.estimate_cut_pct)
-    )
-    keep = (
-        in_best_fraction(df)
-        & (text("country") != "United States")
-        & ~text("sector").isin(s.off_radar_sectors_out)
-        & (text("Cyclical") != True)  # noqa: E712 - handles NaN / numpy bool
-        & ~(num("Peak_Margin_Ratio") > s.peak_margin_ratio)
-        & (num("numberOfAnalystOpinions").fillna(0) <= s.off_radar_max_analysts)  # unknown: Yahoo seldom covers
-        & (num("Market Cap") < s.off_radar_max_cap)
-        & (num("Value_Score") >= s.off_radar_min_value)
-        & (num("Quality_Score") >= s.off_radar_min_quality)
-        & (num("ROIC_Norm") >= s.off_radar_min_roic)
-        & (num("Per_Share_Compounding") >= s.off_radar_min_compounding)
-        & ~(num("Owner_Earnings_Compounding") < s.off_radar_min_oe_growth)
-        & (num("Share_Reduction_Rate") >= s.off_radar_min_share_reduction)
-        & held
-    )
-    return top_n(df[keep], "Rank", n)
 
 
 def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: int, rising: bool = True) -> pd.Series:
@@ -374,94 +295,6 @@ def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: i
     step = newer > older if rising else newer <= older
     ok = np.where(run[:, 1:], step, True).all(axis=1) & (run.sum(axis=1) >= min_years)
     return pd.Series(ok, index=df.index)
-
-
-# The "Dividend carry" list: what put a company on it, then the usual facts (user's choice, Oct 29, 2026).
-CARRY_COLUMNS = [
-    ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
-    ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
-    ("Dividend Growth / yr", "Regular_DPS_Growth_10Y_US", "+.1f", 1, "%"),
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
-    ("Owner Earnings Compounding", "Owner_Earnings_Compounding", "+.1f", 1, "%"),
-    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
-def _trending_up(per_share: pd.DataFrame, min_years: int, max_dips: int) -> pd.Series:
-    """Over the consecutive annual reports from the first column (Y0) back, every value positive, at least `min_years`
-    of them, the newest above the oldest and at most `max_dips` year-on-year falls (a tendency, not a straight line)."""
-    values = per_share.to_numpy(dtype=float)
-    run = np.cumprod(~np.isnan(values), axis=1).astype(bool)  # present without a gap from Y0
-    n = run.sum(axis=1)
-    clean = np.where(run, values, np.nan)
-    oldest = clean[np.arange(len(values)), np.maximum(n - 1, 0)]
-    dips = np.where(run[:, 1:], clean[:, :-1] < clean[:, 1:], False).sum(axis=1)
-    positive = np.where(run, values > 0, True).all(axis=1)
-    return pd.Series((n >= min_years) & positive & (clean[:, 0] > oldest) & (dips <= max_dips), index=per_share.index)
-
-
-CARRY_MIN_UNBROKEN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
-# Points the dividend yield must stand above the loan's cost (user's choice, Nov 7, 2026): a carry with no spread over a
-# floating loan earns nothing for its risk.
-CARRY_MIN_SPREAD = 1.0
-
-
-CARRY_SHORT_PILL = ("A shorter dividend record: it passes every Untaxed dividends test but the full record (no cut in "
-                    f"{CARRY_MIN_UNBROKEN_YEARS} complete years, the dividend no lower than 10 years ago, owner "
-                    "earnings per share trending up, a yield of at least the list's floor), so it fills the list after "
-                    "the companies that have it.")  # fmt: skip
-
-
-def dividend_carry_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """The companies passing every test below (`Carry_Record` True) first, in combined rank order, then those passing
-    all but the record tests (`Carry_Record` False: no cut in the last 12 months, the coverage and the loan spread still
-    required; `Settings.carry_min_yield`, the unbroken years, the 10-year growth and the owner trend not asked;
-    `CARRY_SHORT_PILL`), in combined rank order, at most `n`; `Carry_Order` is the order shown. Not filled when fewer
-    pass (user's choice, Nov 7, 2026: bought partly on borrowed money, it shows only what has the evidence).
-
-    Dividend payers a non-resident keeps whole (`Dividend_WHT` 0): yield at least `Settings.carry_min_yield` and
-    `CARRY_MIN_SPREAD` points above the cost of a euro margin loan (`Borrow_Rate`, set by
-    `highlights.Highlights.compute` from `fx.get_borrow_rate`; `fx.FALLBACK_BORROW_RATE` without it), the dividend at
-    most `GROWER_MAX_PAYOUT` of the earnings power one share keeps after interest (`EPV_Per_Share_Yield`: zero growth,
-    today's interest charged, per share over the price; Nov 7, 2026: `Owner_Yield` is before interest, on the whole
-    business and 3 years ahead, so a dividend at 2.4 times what a share earns passed; a blank fails), the dividend
-    record (`dividend_record`, user's choice, Nov 5, 2026: the list is bought partly on borrowed money, so a cut is the
-    risk that matters): no cut in the last `CARRY_MIN_UNBROKEN_YEARS` complete years nor in the last 12 months, the
-    regular dividend not lower than 10 years ago in US terms (`dividend_growth_us`), and no record means no evidence
-    (left out); owner earnings per share trending up over the annual reports (in US terms, `_owner_per_share`; Nov 6,
-    2026: a high-inflation currency's nominal figures rose whatever the business did), `in_best_fraction` of the
-    combined ranking, not cyclical and
-    not at peak margins, and the Shortlist's two debt tests (`_sound_balance_sheet`: the company's own debt must stay
-    low under the buyer's loan); trusted as `ranking.top_n`, in combined rank order. Display only."""
-    s = Settings()
-    df = with_dividend_record(df)
-    num = lambda col: (  # noqa: E731
-        pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
-    )
-    owner = _owner_per_share(df, s.annual_years)
-    yield_ = num("Dividend_Yield")
-    loan = num("Borrow_Rate").fillna(FALLBACK_BORROW_RATE)
-    core = (
-        (num("Dividend_WHT") == 0)
-        & (yield_ >= loan + CARRY_MIN_SPREAD)
-        & (yield_ <= GROWER_MAX_PAYOUT * num("EPV_Per_Share_Yield"))
-        & ~_flag(df, "Dividend_Cut_Recent")
-        & in_best_fraction(df)
-        & (df["Cyclical"] != True if "Cyclical" in df.columns else True)  # noqa: E712 - handles NaN / numpy bool
-        & ~(num("Peak_Margin_Ratio") > s.peak_margin_ratio)
-        & _sound_balance_sheet(df)
-    )
-    record = (
-        (yield_ >= s.carry_min_yield)
-        & (num("Dividend_Unbroken_Years") >= CARRY_MIN_UNBROKEN_YEARS)  # 0 when a cut was paid this year
-        & (num("Regular_DPS_Growth_10Y_US") >= 0)
-        & _trending_up(owner, s.carry_min_years, s.carry_max_dips)
-    )
-    full = top_n(df[core & record], "Rank", n)
-    short = top_n(df[core & ~record], "Rank", max(n - len(full), 0))
-    out = pd.concat([full.assign(Carry_Record=True), short.assign(Carry_Record=False)])
-    return out.assign(Carry_Record=out["Carry_Record"].astype(bool), Carry_Order=np.arange(len(out), dtype=float))
 
 
 # The "Net cash" list: what put a company on it, then the usual facts (user's choice, Oct 29, 2026).
@@ -688,7 +521,7 @@ RECESSION_MAX_FALL = 25.0
 def _lasting_business(df: pd.DataFrame) -> pd.Series:
     """Not cyclical, not earning well above its usual margin (`Peak_Margin_Ratio`), past the AI screen
     (`ai_resilient`), its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession: what the 20-year
-    lists (Compounders, Dividend growers) ask before they look at growth. Where a recession
+    lists (Compounders, Income) ask before they look at growth. Where a recession
     hits hard (`lists/shortlist_recession_industries.txt`, `cyclical_industries.txt`) and no dividend record reaches
     one (a young company, or one that pays none), industry evidence decides instead, as on the Shortlist: only an
     industry leader (`industry_leader`) holding net cash (user's choice, Nov 5, 2026)."""
@@ -786,22 +619,26 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(df[keep], "Rank", n)
 
 
-# The "Dividend growers" list (user's choice, Nov 6, 2026; it replaced Unbroken dividends, whose whole-record test left
-# 0 to 4 of the benchmark however its other bars were set): a dividend held for a decade and growing, covered by owner
-# earnings, in a lasting business with little debt. Display only; constants here, as the Shortlist's.
-GROWER_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
-GROWER_MIN_YIELD = 2.5  # dividend yield, %
-GROWER_MIN_GROWTH = 3.0  # regular dividend per share, %/yr over 10 years in US terms: about US inflation
-GROWER_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
+# The "Income" list (user's choice, Nov 7, 2026: Dividend growers and Untaxed dividends merged): dividends a foreign
+# investor keeps, held for a decade, ordered by what they pay now plus how fast they can grow. Stability is a gate,
+# not a score: a dividend either has the record or it does not. Display only; constants here, as the Shortlist's.
+INCOME_MAX_WHT = 10.0  # statutory dividend withholding on a non-resident, % (before treaties: one yardstick)
+INCOME_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
+INCOME_MIN_YIELD = 2.5  # dividend yield after withholding, %
+INCOME_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
 # The dividend at most this share of what a share earns after interest at zero growth (`EPV_Per_Share_Yield`; Nov 7,
 # 2026: was `Owner_Yield`, before interest and 3 years ahead): the rest grows the next dividend.
-GROWER_MAX_PAYOUT = 0.8
-DIVIDEND_GROWER_COLUMNS = [
-    ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
-    ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+INCOME_MAX_PAYOUT = 0.8
+# Growth counted in the order, %/yr at most: past it a company is a growth stock with a dividend, not income.
+INCOME_GROWTH_CAP = 10.0
+INCOME_COLUMNS = [
+    ("Income Return", "Income_Return", ".1f", 1, "%"),
+    ("Yield after WHT", "Net_Dividend_Yield", ".1f", 1, "%"),
+    ("Growth Counted / yr", "Income_Growth", "+.1f", 1, "%"),
     ("Dividend Growth / yr", "Regular_DPS_Growth_10Y_US", "+.1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
+    ("Spread over Loan", "Loan_Spread", "+.1f", 1, "%"),
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     RECESSION_COLUMN,
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
@@ -828,38 +665,57 @@ def dividend_growth_us(df: pd.DataFrame) -> pd.Series:
     return ((1 + g) / (1 + excess) - 1) * 100
 
 
-def dividend_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """No dividend cut in the last `GROWER_MIN_YEARS` complete years nor in the last 12 months (`dividend_record`:
-    specials and payment timing judged payment by payment, in the declared currency), dividend yield >=
-    `GROWER_MIN_YIELD`, the regular dividend growing >= `GROWER_MIN_GROWTH` %/yr over 10 years in US terms
-    (`dividend_growth_us`, Nov 6, 2026), normalised ROIC (ROE for financials) >= `GROWER_MIN_ROIC`, the dividend at
-    most `GROWER_MAX_PAYOUT` of the earnings power a share keeps after interest (`EPV_Per_Share_Yield`), a lasting
-    business (`_lasting_business`: its dividend not cut more than `RECESSION_MAX_FALL` % in a past recession) and a sound
-    balance sheet (`_sound_balance_sheet`); `in_best_fraction`, or for a bank or insurer (ranked apart, no `Rank`) the
-    best fraction of its own kind (`kind_order`). Ordered by position as a share of the ranking (`Rank` among the
-    ranked, `Kind_Rank` within the kind), trusted as `ranking.top_n`. Display only."""
+def income_growth(df: pd.DataFrame) -> pd.Series:
+    """The dividend growth the Income list counts, %/yr: the regular dividend's 10-year growth in US terms
+    (`dividend_growth_us`), no faster than the business can fund from what it keeps (`ROIC_Norm` x (1 - payout),
+    payout = `Dividend_Yield` / `EPV_Per_Share_Yield`; financial review, Nov 7, 2026: past growth is not future
+    growth, and a company paying out 80% of its earnings cannot keep raising its dividend 8% a year), and never above
+    `INCOME_GROWTH_CAP`. A blank anywhere leaves it blank."""
+    payout = _num(df, "Dividend_Yield") / _num(df, "EPV_Per_Share_Yield")
+    fundable = _num(df, "ROIC_Norm") * (1 - payout)
+    past = _num(df, "Regular_DPS_Growth_10Y_US")
+    return pd.concat([past, fundable], axis=1).min(axis=1, skipna=False).clip(upper=INCOME_GROWTH_CAP)
+
+
+def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """The Income list (user's choice, Nov 7, 2026). Gates: statutory withholding at most `INCOME_MAX_WHT`
+    (`Dividend_WHT`); no dividend cut in the last `INCOME_MIN_YEARS` complete years nor in the last 12 months
+    (`dividend_record`: specials and payment timing judged payment by payment, in the declared currency); the regular
+    dividend no lower than 10 years ago in US terms (`dividend_growth_us`); yield after withholding at least
+    `INCOME_MIN_YIELD`; normalised ROIC (ROE for financials) at least `INCOME_MIN_ROIC`; the dividend at most
+    `INCOME_MAX_PAYOUT` of the earnings power a share keeps after interest (`EPV_Per_Share_Yield`; a blank fails); a
+    lasting business (`_lasting_business`: not cyclical, not at peak margins, its dividend not cut more than
+    `RECESSION_MAX_FALL` % in a past recession) and a sound balance sheet (`_sound_balance_sheet`); `in_best_fraction`,
+    or for a bank or insurer (ranked apart, no `Rank`) the best fraction of its own kind (`kind_order`).
+
+    Order (`Income_Order`, 1 = best): `Income_Return`, the dividend's own expected return, yield after withholding
+    (`Net_Dividend_Yield`) plus the growth counted (`income_growth`); one number a reader can check by hand.
+    `Loan_Spread` (that yield less the euro margin loan's cost, `Borrow_Rate`) is shown for readers who borrow for
+    it, never a gate. Trusted as `ranking.top_n`. Display only."""
     df = with_dividend_record(df)
-    kind_rank, kind_best = kind_order(df)
-    kinds = kind(df)
-    financial = kinds.isin(("bank", "insurer"))
-    rank = _num(df, "Rank")
-    order = (rank / max(int(rank.notna().sum()), 1)).where(~financial)
-    for k in ("bank", "insurer"):
-        members = kinds == k
-        order = order.where(~members, kind_rank / max(int(kind_rank[members].notna().sum()), 1))
-    yield_ = _num(df, "Dividend_Yield")
+    kind_best = kind_order(df)[1]
+    financial = kind(df).isin(("bank", "insurer"))
+    net_yield = _num(df, "Dividend_Yield") * (1 - _num(df, "Dividend_WHT") / 100)
+    growth = income_growth(df)
+    total = net_yield + growth
+    loan = _num(df, "Borrow_Rate").fillna(FALLBACK_BORROW_RATE)
     keep = (
-        (_num(df, "Dividend_Unbroken_Years") >= GROWER_MIN_YEARS)  # 0 when a cut was paid this year
+        (_num(df, "Dividend_WHT") <= INCOME_MAX_WHT)
+        & (_num(df, "Dividend_Unbroken_Years") >= INCOME_MIN_YEARS)  # 0 when a cut was paid this year
         & ~_flag(df, "Dividend_Cut_Recent")
-        & (yield_ >= GROWER_MIN_YIELD)
-        & (_num(df, "Regular_DPS_Growth_10Y_US") >= GROWER_MIN_GROWTH)
-        & (_num(df, "ROIC_Norm") >= GROWER_MIN_ROIC)
-        & ~(yield_ > GROWER_MAX_PAYOUT * _num(df, "EPV_Per_Share_Yield"))
+        & (_num(df, "Regular_DPS_Growth_10Y_US") >= 0)
+        & (net_yield >= INCOME_MIN_YIELD)
+        & (_num(df, "ROIC_Norm") >= INCOME_MIN_ROIC)
+        & (_num(df, "Dividend_Yield") <= INCOME_MAX_PAYOUT * _num(df, "EPV_Per_Share_Yield"))
+        & total.notna()
         & _lasting_business(df)
         & _sound_balance_sheet(df)
         & (in_best_fraction(df) | (financial & kind_best))
     )
-    return top_n(df[keep].assign(List_Order=order[keep]), "List_Order", n)
+    out = df[keep].assign(Net_Dividend_Yield=net_yield[keep], Income_Growth=growth[keep], Income_Return=total[keep],
+                          Loan_Spread=(net_yield - loan)[keep])  # fmt: skip
+    out = out.assign(Income_Order=out["Income_Return"].rank(method="first", ascending=False))
+    return top_n(out, "Income_Order", n)
 
 
 def _latest_value(df: pd.DataFrame, concept: str) -> pd.Series:

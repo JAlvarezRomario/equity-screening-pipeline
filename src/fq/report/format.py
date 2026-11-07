@@ -110,7 +110,10 @@ COLUMN_HELP = {
                      "share / share price, %: 100 or more = the fixed assets come at no cost (N/A "
                      "for banks, insurers and holdings).",
     "BV_to_Price": "Common book value per share / share price, %.",
-    "Repeat_Count": "How many highlight lists the company qualifies for (hover the number for which): every company a screened list admits, and the 20 shown by Cheap and good, Cheapest and Best businesses.",
+    "Income_Return": "Yield after withholding + the dividend growth counted, %: the dividend's own expected return, the Income list's order.",
+    "Net_Dividend_Yield": "Dividend yield less the statutory withholding on a foreign individual, %.",
+    "Income_Growth": "The regular dividend's 10-year growth in US terms, no faster than return on capital x the share of earnings not paid out, and at most 10% a year.",
+    "Loan_Spread": "Yield after withholding less what a euro margin loan costs today, points: shown for readers who borrow, never tested.",
     "Net_Cash_to_Cap": "Shareholder-basis net cash (spare cash less debt and preferred stock) / market cap, % "
                        "(negative = net debt; N/A for banks, insurers and holdings).",
     "Book_Per_Share_Compounding": "USD book value per share trend x its R², % a year.",

@@ -539,35 +539,10 @@ class Settings:
     compounder_min_fcf_pos_share: float = 80.0
     compounder_min_fcf_conversion: float = 0.7
     compounder_max_netdebt_ebit: float = 3.0
-    # "Off the radar" list (`format.off_radar_list`, user's choice Oct 21-22, 2026), display only: outside the US, not in
-    # the `off_radar_sectors_out` (Yahoo sector), not cyclical, not overearning (latest operating margin above
-    # `peak_margin_ratio` x its usual level, `Peak_Margin_Ratio`, whatever the model), followed by at most
-    # `off_radar_max_analysts`, market cap below `off_radar_max_cap` (B$), Value at least `off_radar_min_value`,
-    # Quality at least `off_radar_min_quality`, normalised ROIC at least `off_radar_min_roic`, revenue and owner
-    # earnings per share compounding smoothly, shares not meaningfully rising, and recent numbers held (user's choice,
-    # Oct 28, 2026: at most 2 analysts); trusted as `ranking.top_n`, in combined rank order.
-    off_radar_max_analysts: int = 2
-    off_radar_max_cap: float = 10.0
-    off_radar_min_value: float = 60.0
-    off_radar_min_quality: float = 60.0
-    off_radar_min_roic: float = 12.0
-    off_radar_min_compounding: float = 5.0
-    off_radar_min_oe_growth: float = 0.0
-    off_radar_min_share_reduction: float = -0.5
-    off_radar_sectors_out: tuple[str, ...] = ("Financial Services", "Real Estate")
     # The fewest annual reports, consecutive from Y0, over which the "Operating companies" and "Fast growers" lists
     # (`screens.operating_list`, `fast_grower_list`, Nov 4, 2026) test growth year by year; display only. Named after
     # "Better every year" (Oct 28, 2026), which they replaced.
     improver_min_years: int = 3
-    # "Dividend carry" list (`format.dividend_carry_list`, user's choice Oct 29, 2026), display only: no dividend
-    # withholding for a non-resident, `Dividend_Yield` at least `carry_min_yield` (%) and above the cost of a euro
-    # margin loan (`fx.get_borrow_rate`: €STR from the ECB + broker spread + buffer, obtained each report, not set
-    # here; Nov 5, 2026), covered by the owner yield (the remainder is retained and still grows the value), owner
-    # earnings per share trending up over at least `carry_min_years` annual reports (newest above oldest, at most
-    # `carry_max_dips` year-on-year falls), not cyclical, not at peak margins; trusted as `ranking.top_n`.
-    carry_min_yield: float = 5.0
-    carry_min_years: int = 3
-    carry_max_dips: int = 1
     # "Net cash" list (`format.net_cash_list`, user's choice Oct 29, 2026), display only: net cash at least
     # `net_cash_min_pct` (%) of the market cap (`Net_Cash_to_Cap`, shareholder basis; not measured for banks, insurers
     # and holdings), shares not issued (`net_cash_min_share_reduction`), reported FCF positive in at least
@@ -579,14 +554,13 @@ class Settings:
     # (`format.in_best_fraction`; user's choice, Oct 29, 2026: a list is a lens on cheap-and-good companies, not a way
     # around the ranking). "Cheapest" and "Best businesses" are not cut: the top of each score, undiluted.
     highlight_top_fraction: float = 0.2
-    # "Asset plays" list (`ranking.asset_play`, `format.asset_play_list`): tangible book (or clean book when intangibles
-    # are not reported, de-levered when in net debt) >= `asset_play_min_nav_price` (%) now, or >= `asset_play_min_nav_compounding`
-    # (%) and compounding at >= `asset_play_min_book_growth` (%/yr) to reach 100% within `asset_play_horizon_years`.
+    # "Below book" list (`ranking.asset_play`, `screens.asset_play_list`): tangible book (or clean book when intangibles
+    # are not reported, de-levered when in net debt) >= `asset_play_min_nav_price` (%) of the price now (Nov 7, 2026:
+    # the "growing into book" route retired, the list is named for a price below book), the book earning at least
+    # `asset_play_min_roic` (normalised ROIC, %; financial review, Nov 7, 2026: book is worth about what it earns, so a
+    # 3% earner at 0.7x book is no bargain; was > 0).
     asset_play_min_nav_price: float = 100.0
-    asset_play_min_nav_compounding: float = 70.0
-    asset_play_horizon_years: float = 3.0
-    asset_play_min_book_growth: float = 5.0
-    asset_play_max_book_growth_cap: float = 25.0
+    asset_play_min_roic: float = 8.0
     asset_play_min_value: float = 50.0
     asset_play_min_quality: float = 35.0
     asset_play_min_fin_quality: float = 50.0
@@ -597,8 +571,8 @@ class Settings:
     asset_play_min_fcf_pos_share: float = 75.0
     asset_play_min_share_reduction: float = -0.5
     asset_play_min_fin_share_reduction: float = 0.5
-    # "Cannibals" list (`ranking.cannibal`, `format.cannibal_list`): companies aggressively retiring shares:
-    cannibal_min_share_reduction: float = 5.0  # more than 5%/yr net share count reduction (Nov 6, 2026; was 7)
+    # The "cannibal" pill (`ranking.cannibal`; its tab retired Nov 7, 2026): companies aggressively retiring shares:
+    cannibal_min_share_reduction: float = 7.0  # more than 7%/yr net share count reduction (Nov 7, 2026; was 5)
     cannibal_max_share_reduction: float = 50.0  # sanity cap against split / unit shifts
     cannibal_min_value: float = 45.0  # repurchases make sense when shares are cheap or fair
     cannibal_min_roic: float = 0.0  # operating businesses generating positive capital returns
