@@ -327,31 +327,32 @@ def test_returns_figure_financial_mode_has_no_operating_margin(cfg):
     assert "Operating margin" not in trace_names
 
 
-def test_market_cap_histogram_counts_every_company_on_a_log_scale(cfg):
-    import numpy as np
-
-    from fq.report.index_charts import CAP_STEP, histogram_divs, market_cap_bins, market_cap_figure
+def test_market_cap_chart_counts_every_company_by_size_class(cfg):
+    from fq.report.index_charts import CAP_CLASSES, histogram_divs, market_cap_class, market_cap_figure
 
     df = _ranked(cfg)
-    df["Market Cap"] = [0.4, 3.0, 12.0, 85.0, 640.0, 4200.0][: len(df)]
+    df["Market Cap"] = [0.04, 0.3, 12.0, 85.0, 640.0, 4200.0][: len(df)]
     fig = market_cap_figure(df)
     assert abs(sum(fig.data[0].y) - 100) < 1e-9  # percentages summing to 100
-    edges = market_cap_bins(df["Market Cap"])
-    assert np.allclose(np.diff(edges), CAP_STEP) and 10 ** edges[0] <= 0.4 and 10 ** edges[-1] >= 4200
-    assert list(fig.layout.xaxis.ticktext)[:3] == ["0.1", "1", "10"] and fig.layout.yaxis.title.text == "% of companies"
-    assert any("companies" in t for t in fig.data[0].text)  # hover names the range and the count
+    # 40 M$ nano; 300 M$ opens small; 12 and 85 B$ large; 640 B$ mega; 4.2 T$ in the trillion club.
+    assert market_cap_class(df["Market Cap"]).tolist() == [0, 2, 4, 4, 5, 6]
+    assert len(fig.data[0].x) == len(CAP_CLASSES) and fig.layout.yaxis.title.text == "% of companies"
+    ticks = list(fig.layout.xaxis.ticktext)
+    assert ticks[:3] == ["Nano<br>under 50 M$", "Micro<br>50-300 M$", "Small<br>300 M$-2 B$"]
+    assert ticks[3] == "Mid<br>2-10 B$" and ticks[-1] == "Trillion+<br>over 1 T$"
+    assert any("companies" in t for t in fig.data[0].text)  # hover names the class, its range and the count
 
     # With a benchmark: both in the same bins, as percentages of their own companies.
     bench = df.copy()
     bench["Market Cap"] = bench["Market Cap"] * 3
     both = market_cap_figure(df, bench)
     assert len(both.data) == 2 and abs(sum(both.data[0].y) - 100) < 1e-9 and abs(sum(both.data[1].y) - 100) < 1e-9
-    assert both.data[0].x.tolist() == both.data[1].x.tolist()
+    assert list(both.data[0].x) == list(both.data[1].x)
     assert market_cap_figure(df.drop(columns="Market Cap")) is None
 
     divs = histogram_divs(df)
     titles = [t for t, _ in divs]
-    assert titles[-1] == "Market cap (B$, log scale)"
+    assert titles[-1] == "Market cap (USD, by size class)"
     caps = int((pd.to_numeric(df["Market Cap"], errors="coerce") > 0).sum())
     assert f"n = {caps:,}" in divs[-1][1] and all("n = " in div for _, div in divs)  # every chart says its count
     html = build_site(df, cfg).read_text(encoding="utf-8")

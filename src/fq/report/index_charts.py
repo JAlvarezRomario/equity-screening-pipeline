@@ -322,9 +322,19 @@ def histogram_divs(
     return out
 
 
-CAP_TITLE = "Market cap (B$, log scale)"
+CAP_TITLE = "Market cap (USD, by size class)"
 RUN_COLOR = "#636efa"  # the colour the other histograms get from the chart template
-CAP_STEP = 0.25  # log10 width of a bin: each bin spans a factor of 1.78
+# Size classes by market cap in B$ (user's choice, Nov 8, 2026; replaced a log scale): the usual US bands
+# (micro under 300 M$, small to 2 B$, mid to 10 B$, large to 200 B$), with nano below and the trillion club above.
+CAP_CLASSES: tuple[tuple[str, float, float], ...] = (
+    ("Nano", 0.0, 0.05),
+    ("Micro", 0.05, 0.3),
+    ("Small", 0.3, 2.0),
+    ("Mid", 2.0, 10.0),
+    ("Large", 10.0, 200.0),
+    ("Mega", 200.0, 1000.0),
+    ("Trillion+", 1000.0, np.inf),
+)
 
 
 def _money(value: float) -> str:
@@ -332,13 +342,35 @@ def _money(value: float) -> str:
     return f"{value:,.2f}" if value < 1 else f"{value:,.1f}" if value < 10 else f"{value:,.0f}"
 
 
-def market_cap_bins(caps: pd.Series, reference: pd.Series | None = None) -> np.ndarray:
-    """Bin edges (log10 of B$, `CAP_STEP` apart) covering `caps` and `reference`, so both are counted in the same bins."""
-    values = pd.concat([caps, reference]) if reference is not None else caps
-    values = pd.to_numeric(values, errors="coerce")
-    logs = np.log10(values[values > 0])
-    low, high = np.floor(logs.min() / CAP_STEP) * CAP_STEP, np.ceil(logs.max() / CAP_STEP) * CAP_STEP
-    return np.arange(low, high + CAP_STEP / 2, CAP_STEP)
+def _band(lo: float, hi: float) -> str:
+    """A size class's range in M$ / B$ / T$: "50-300 M$", "300 M$-2 B$", "over 1 T$"."""
+
+    def amount(b: float) -> tuple[str, str]:
+        return (f"{b * 1000:,.0f}", "M") if b < 1 else (f"{b:,.0f}", "B") if b < 1000 else (f"{b / 1000:,.0f}", "T")
+
+    if lo <= 0:
+        return "under {} {}$".format(*amount(hi))
+    if np.isinf(hi):
+        return "over {} {}$".format(*amount(lo))
+    (a, ua), (b, ub) = amount(lo), amount(hi)
+    return f"{a}-{b} {ub}$" if ua == ub else f"{a} {ua}$-{b} {ub}$"
+
+
+def market_cap_class(caps: pd.Series) -> pd.Series:
+    """The index of each market cap's size class (`CAP_CLASSES`; a cap equal to a class's lower bound is in it)."""
+    edges = [lo for _, lo, _ in CAP_CLASSES[1:]]
+    values = pd.to_numeric(caps, errors="coerce").to_numpy(dtype=float)
+    return pd.Series(np.searchsorted(edges, values, side="right"), index=caps.index)
+
+
+def _class_position(value: float) -> float:
+    """Where a market cap sits on the class axis: its class's index, plus its log position within the class (open
+    ends read as 10 M$ and 10 T$), so a median line falls inside its bar."""
+    i = int(market_cap_class(pd.Series([value])).iloc[0])
+    _, lo, hi = CAP_CLASSES[i]
+    lo, hi = max(lo, 0.01), min(hi, 10_000.0)
+    frac = (np.log10(value) - np.log10(lo)) / (np.log10(hi) - np.log10(lo))
+    return i - 0.5 + float(np.clip(frac, 0.0, 1.0))
 
 
 def market_cap_figure(
@@ -346,9 +378,10 @@ def market_cap_figure(
     bench: pd.DataFrame | None = None,
     held: frozenset[str] = frozenset(),
 ) -> go.Figure | None:
-    """How the companies spread on market cap (B$): bins of equal ratio on a log scale, since caps run from under
-    1 B$ to thousands. The run in colour; the benchmark in grey (as % of its companies) when given. Hover gives each
-    bin's range and count. Portfolio holdings (orange) can be toggled via the Holdings switch."""
+    """How the companies spread on market cap: one bar per size class (`CAP_CLASSES`, nano to trillion+), each
+    labelled with its USD range. The run in colour; the benchmark in grey (as % of its companies) when given; the
+    medians as lines placed within their class. Hover gives each class's range and count. Portfolio holdings
+    (orange) can be toggled via the Holdings switch."""
     if "Market Cap" not in df.columns:
         return None
     caps = pd.to_numeric(df["Market Cap"], errors="coerce")
@@ -368,23 +401,23 @@ def market_cap_figure(
     held_caps = held_caps[held_caps > 0]
     has_held = not held_caps.empty and len(held_caps) < len(caps)
 
-    edges = market_cap_bins(caps, ref)
-    centers = (edges[:-1] + edges[1:]) / 2
+    positions = list(range(len(CAP_CLASSES)))
+    bands = [_band(lo, hi) for _, lo, hi in CAP_CLASSES]
 
     def bars(
         values: pd.Series, name: str, color: str, percent: bool, opacity: float, visible: bool | None = None
     ) -> go.Bar:
-        counts, _ = np.histogram(np.log10(values), bins=edges)
+        counts = market_cap_class(values).value_counts().reindex(positions, fill_value=0).to_numpy()
         heights = counts / len(values) * 100 if percent else counts
         label = "holdings" if name == "Holdings" else "companies"
-        text = [f"{_money(10 ** lo)} - {_money(10 ** hi)} B$<br>{n:,} {label} ({n / len(values):.0%})"
-                for lo, hi, n in zip(edges[:-1], edges[1:], counts, strict=True)]  # fmt: skip
+        text = [f"{cls} cap, {band}<br>{n:,} {label} ({n / len(values):.0%})"
+                for (cls, _, _), band, n in zip(CAP_CLASSES, bands, counts, strict=True)]  # fmt: skip
         pct_heights = counts / len(values) * 100
         customdata = np.column_stack([counts, pct_heights])
         kwargs = dict(
-            x=centers,
+            x=positions,
             y=heights,
-            width=CAP_STEP,
+            width=0.8,
             name=name,
             marker_color=color,
             opacity=opacity,
@@ -401,24 +434,24 @@ def market_cap_figure(
     fig = go.Figure()
     if ref is not None:
         fig.add_trace(bars(ref, named[0] if named else "Benchmark", BENCH_COLOR, True, 1.0))
-        fig.add_vline(x=np.log10(ref.median()), line_width=1.5, line_dash="dot", line_color="grey",
-                      annotation_text=f"{named[0] if named else 'Benchmark'}: {_money(ref.median())}",
+        fig.add_vline(x=_class_position(ref.median()), line_width=1.5, line_dash="dot", line_color="grey",
+                      annotation_text=f"{named[0] if named else 'Benchmark'}: {_money(ref.median())} B$",
                       annotation_position="top left")  # fmt: skip
     fig.add_trace(bars(caps, "This run", RUN_COLOR, True, 0.75))
-    fig.add_vline(x=np.log10(caps.median()), line_width=2, line_dash="dash", line_color="green",
-                  annotation_text=f"Median: {_money(caps.median())}", annotation_position="top right")  # fmt: skip
+    fig.add_vline(x=_class_position(caps.median()), line_width=2, line_dash="dash", line_color="green",
+                  annotation_text=f"Median: {_money(caps.median())} B$", annotation_position="top right")  # fmt: skip
     if has_held:
         fig.add_trace(bars(held_caps, "Holdings", HOLDINGS_COLOR, True, 0.75, visible=False))
-        fig.add_vline(x=np.log10(held_caps.median()), line_width=2, line_dash="dashdot", line_color=HOLDINGS_COLOR,
-                      annotation_text=f"Holdings: {_money(held_caps.median())}", annotation_position="bottom right",
-                      visible=False, annotation=dict(visible=False))  # fmt: skip
-    ticks = np.arange(np.floor(edges[0]), np.ceil(edges[-1]) + 1)
+        fig.add_vline(x=_class_position(held_caps.median()), line_width=2, line_dash="dashdot",
+                      line_color=HOLDINGS_COLOR, annotation_text=f"Holdings: {_money(held_caps.median())} B$",
+                      annotation_position="bottom right", visible=False, annotation=dict(visible=False))  # fmt: skip
+    ticktext = [f"{cls}<br>{band}" for (cls, _, _), band in zip(CAP_CLASSES, bands, strict=True)]
     fig.update_layout(title=_counted(CAP_TITLE, caps, ref, named[0] if named else "Benchmark"),
-                      xaxis_title="Market cap (B$, USD billions)",
+                      xaxis_title="Size class (market cap in USD)",
                       yaxis_title="% of companies", barmode="overlay", bargap=0.05,
-                      height=350, showlegend=ref is not None, margin=dict(l=20, r=20, t=70, b=20),
-                      legend=dict(orientation="h", y=-0.25))  # fmt: skip
-    fig.update_xaxes(tickvals=list(ticks), ticktext=[f"{10**t:,g}" for t in ticks], range=[edges[0], edges[-1]])
+                      height=370, showlegend=ref is not None, margin=dict(l=20, r=20, t=70, b=20),
+                      legend=dict(orientation="h", y=-0.35))  # fmt: skip
+    fig.update_xaxes(tickvals=positions, ticktext=ticktext, range=[-0.5, len(CAP_CLASSES) - 0.5])
     return fig
 
 
