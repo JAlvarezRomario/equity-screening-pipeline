@@ -45,8 +45,8 @@ def test_the_verdict_is_read_from_the_last_json_block_and_tidied():
     assert topics[1]["status"] == "caution" and out["Why"].startswith("- First fact.")
     failed = grading.parse_check(_answer("fail", "AI risk"), grading.EARNINGS)
     assert failed["Pass"] is False and failed["Tag"] == "AI risk"
-    # A tag outside the vocabulary falls back to the kind's first; a pass carries none.
-    assert grading.parse_check(_answer("fail", "weird"), grading.EARNINGS)["Tag"] == "peak earnings"
+    # A tag outside the vocabulary falls back to the first topic under a caution (here One-offs); a pass carries none.
+    assert grading.parse_check(_answer("fail", "weird"), grading.EARNINGS)["Tag"] == "one-offs"
     assert grading.parse_check(_answer("pass", "AI risk"), grading.EARNINGS)["Tag"] is None
     # No readable verdict: None, so it is asked again and never counts as a pass.
     assert grading.parse_check("No JSON here.", grading.EARNINGS) is None
@@ -67,6 +67,12 @@ def test_a_failing_topic_or_cautions_on_cycle_and_one_offs_fail_whatever_the_mod
     # The pill names the failing topic, not the model's tag (Haidilao: a failing cycle tagged "cash catch").
     cycle = [{"name": "Cycle", "status": "fail", "line": "Rebound and capex freeze"}]
     assert grading.parse_check(_answer("fail", "cash catch", topics=cycle), grading.EARNINGS)["Tag"] == "peak earnings"
+    # Redeia: two cautions, no cash question, the model's "cash catch" refused; the first caution names it.
+    two_tagged = grading.parse_check(_answer("fail", "cash catch", topics=two), grading.EARNINGS)
+    assert two_tagged["Pass"] is False and two_tagged["Tag"] == "peak earnings"
+    asked = [*two[:1], {"name": "One-offs and accounting", "status": "ok", "line": "x"},
+             {"name": "Net cash", "status": "caution", "line": "Hoarded"}]  # fmt: skip
+    assert grading.parse_check(_answer("fail", "cash catch", topics=asked), grading.EARNINGS)["Tag"] == "cash catch"
     book = [{"name": "Assets carried high", "status": "caution", "line": "x"},
             {"name": "Net assets vs book", "status": "ok", "line": "y"}]  # fmt: skip
     assert grading.parse_check(_answer("pass", topics=book), grading.BOOK)["Pass"] is True  # one caution: no fail

@@ -773,13 +773,18 @@ def parse_check(text: str, kind: str) -> dict | None:
         # record (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
         if "fail" in status.values() or (kind == EARNINGS and all(status.get(n) == "caution" for n in TWO_CAUTIONS)):
             failed = True
-        # The pill names the first failing topic (Nov 8, 2026: Haidilao failed on its cycle but was tagged "cash
-        # catch", never asked about cash); the model's tag only when no topic fails, two cautions read as a peak.
-        first_fail = next(
-            (TOPIC_TAGS[t["name"]] for t in topics if t["status"] == "fail" and t["name"] in TOPIC_TAGS), None
-        )
+
+        # The pill names a topic that was asked (Nov 8, 2026: Haidilao failed on its cycle, Redeia on two cautions,
+        # both tagged "cash catch" with no cash question): the first failing topic, else the model's tag when its
+        # topic is in the answer, else the first topic under a caution, else the kind's first tag.
+        def first(status: str, items: list = topics) -> str | None:
+            return next(
+                (TOPIC_TAGS[t["name"]] for t in items if t["status"] == status and t["name"] in TOPIC_TAGS), None
+            )
+
+        asked = {TOPIC_TAGS[t["name"]] for t in topics if t["name"] in TOPIC_TAGS}
         if failed:
-            tag = first_fail or tag or (CHECK_TAGS[kind][0])
+            tag = first("fail") or (tag if tag in asked else None) or first("caution") or CHECK_TAGS[kind][0]
         return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
                 "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
                 "Why": str(why or "").strip()}  # fmt: skip
