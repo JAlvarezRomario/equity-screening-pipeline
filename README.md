@@ -24,7 +24,9 @@ quality. It applies the same written rules to every company and notes the figure
 Each company gets two scores:
 
 - **Value:** what one share earns for its owner in a normal year (*owner earnings*: cash profit after the
-  investment needed to keep the business as it is), against the share price.
+  investment needed to keep the business as it is), before interest, against the price of the business
+  (market cap plus debt, less spare cash), so debt and cash do not change the rank. Each company page leads
+  with the same earnings after interest, over the share price.
 - **Quality:** how much the business earns on the capital it uses, how steadily, and whether each share keeps
   growing.
 

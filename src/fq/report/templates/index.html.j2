@@ -48,7 +48,7 @@
   <h2>How to read this page</h2>
   <p class="meta">{% if data_date %}Data as of {{ data_date }}{% else %}{{ date }}{% endif %} &middot; {{ period }} &middot; {{ "{:,}".format(n_companies) }} companies, {{ "{:,}".format(n_ranked) }} ranked</p>
   <ul class="plain-points">
-    <li><span class="swatch swatch-v"></span><strong>Value</strong>: what one share earns for its owner in a normal year, against the price you pay for it. Higher is cheaper.</li>
+    <li><span class="swatch swatch-v"></span><strong>Value</strong>: what the business earns for its owners in a normal year, before interest, against the price of the business: market cap plus debt, less spare cash, so debt and cash do not change the rank. Higher is cheaper. Each company page leads with the same earnings after interest, over the share price.</li>
     <li><span class="swatch swatch-q"></span><strong>Quality</strong>: how much the business earns on the money it runs on, how steadily, and whether one share of it keeps growing. Higher is better.</li>
     <li><strong>Combined</strong>: a company must be both; the ranking orders them by the weaker of the two. Each score is a percentile: 80 means better than 80% of companies.</li>
     <li><strong>Moat and management grade</strong>: an AI model (Gemini) reads each listed company's page here, with what it knows of the company, and grades its competitive moat and its management from 1 to 5. It only decides who stays on top of a list; it changes no score and no rank.</li>
@@ -66,7 +66,7 @@
   <details class="explain">
   <summary>Precise definitions</summary>
   <dl class="definitions">
-    <div><dt><span class="swatch swatch-v"></span>Value</dt><dd>The normalised owner earnings one share owns, projected 3 years on the steady trend of its free cash flow after all investment (declines charged; no trend for cyclicals, already at mid-cycle), over today's price. Operating companies are compared with the whole market; banks, insurers and holdings with their own kind, as their yield is on equity, after debt.</dd></div>
+    <div><dt><span class="swatch swatch-v"></span>Value</dt><dd>The normalised owner earnings one share owns, before interest, projected 3 years on the steady trend of its free cash flow after all investment (declines charged; no trend for cyclicals, already at mid-cycle), over the price of the business: market cap plus debt, less spare cash. Operating companies are compared with the whole market; banks, insurers and holdings with their own kind, as their yield is on equity, after debt.</dd></div>
     <div><dt><span class="swatch swatch-q"></span>Quality</dt><dd>Mostly return on capital (ROIC; ROE for banks, insurers and holdings, banks' at a standard 8% equity/assets so thinner capital does not look better) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy leverage; also how much one share of the business grew and whether the share count shrank. Compared across the market; banks, insurers and holdings with their own kind.</dd></div>
     <div><dt>Combined</dt><dd>Companies ordered by the worse of their Value and Quality positions{% if has_bench %} among the benchmark's companies{% endif %}, ties by the sum: a company must be both cheap and good, one does not make up for the other.</dd></div>
   </dl>

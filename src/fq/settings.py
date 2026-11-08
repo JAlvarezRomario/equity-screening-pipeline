@@ -308,9 +308,9 @@ Criterion = tuple[str, str, float]
 # `metrics.capital._shareholder_base`), so cash and debt count at face and a company is neither cheaper for borrowing
 # nor dearer for holding cash (Greenwald). Leverage risk is judged once, in Quality. Payout (dividends +
 # buybacks) is shown only: it is a use of the FCF already counted (share reduction is a shown percentile too).
-# Value is a single forward owner-earnings yield per share over today's price (user's rule, Oct 26, 2026):
+# Value is a single forward owner-earnings yield before interest over `Value_Base` (user's rule, Oct 26, 2026):
 # normalised owner earnings at zero real growth, projected 3 years forward on the real trend of all-capex FCF per
-# share (capped at +15%/yr, floored at -10%/yr, both shrunk by R²), divided by current price.
+# share (capped at +15%/yr, floored at -10%/yr, both shrunk by R²), over market cap plus debt, less spare cash.
 VALUE_CRITERIA: tuple[Criterion, ...] = (("Owner_Yield", "top", 1.0),)
 
 # Quality (user's rule, Oct 26, 2026): return on capital, normalised ROIC (operating) or ROE (financials), adjusted

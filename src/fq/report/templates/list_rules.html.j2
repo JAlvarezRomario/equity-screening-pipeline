@@ -10,7 +10,7 @@
   <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro cheapest(r) %}{% call rules("The cheapest companies for what one share earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
+{% macro cheapest(r) %}{% call rules("The cheapest companies for what the business earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
   <li>Down the Value ranking until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
   <li>The Value score: the normalised owner earnings of the business before interest (the cash it earns after everything it needs to stay as it is), projected 3 years on its own steady trend, declines charged, over market cap plus debt, less spare cash, so debt and cash do not change the rank.</li>
   <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: the same earnings after today's interest on debt or cash, over the share price.</li>
