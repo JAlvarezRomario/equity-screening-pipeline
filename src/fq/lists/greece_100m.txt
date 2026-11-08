@@ -1,0 +1,63 @@
+# Greek companies on Euronext Athens (Yahoo `.AT`), market cap >= 100 M USD at that day's rate, net of every other
+# list (the 10 Greek members of `msci_em.txt`). Built Nov 8, 2026 from Yahoo's screener (region gr, exchange ATH),
+# user's choice: the 5% withholding market, Greece the largest gap among the markets withholding 10% or less. One line
+# per company, the home listing: EEE.AT (Coca-Cola HBC, held as CCH.L), MTLN.AT (Metlen, held as MTLN.L) and SB.AT
+# (Safe Bulkers, held as SB) left out; Star Bulk held as its NASDAQ line SBLK (Marshall Islands, 0%, `dividend_wht.txt`).
+# Left out: 8 real estate investment companies (REICs: PRODEA, TRASTOR, NOVAL, TRESTATES, BLEKEDROS, PREMIA, BRIQ,
+# ORILINA), as REITs elsewhere; TELL.AT (the Bank of Greece, a central bank). Foreign-domiciled lines kept with their
+# own rate through Yahoo's country: VIO.AT, CENER.AT, TITC.AT (Belgium), ACAG.AT (Austria), MERKO.AT (North Macedonia).
+# Statutory dividend withholding 5% (`dividend_wht.txt`). Refresh by hand quarterly.
+ELPE.AT
+BOCHGR.AT
+CENER.AT
+VIO.AT
+AIA.AT
+TITC.AT
+OPTIMA.AT
+SBLK
+AKTR.AT
+BYLOT.AT
+CREDIA.AT
+ADMIE.AT
+ELHA.AT
+EYDAP.AT
+KARE.AT
+KRI.AT
+PPA.AT
+LAMPS.AT
+AEGN.AT
+LAMDA.AT
+CMFC.AT
+QUEST.AT
+SAR.AT
+EXAE.AT
+OTOEL.AT
+AVAX.AT
+PLAKR.AT
+ELLAKTOR.AT
+QLCO.AT
+OLTH.AT
+AEM.AT
+ACAG.AT
+ATTICA.AT
+INTEK.AT
+REALCONS.AT
+DIMAND.AT
+INTRK.AT
+PROF.AT
+LAVI.AT
+PLAT.AT
+FOYRK.AT
+ALMY.AT
+ADPS.AT
+EYAPS.AT
+FAIS.AT
+INLIF.AT
+PERF.AT
+MERKO.AT
+MODA.AT
+EKTER.AT
+IATR.AT
+DOTSOFT.AT
+ONYX.AT
+DAIOS.AT

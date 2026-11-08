@@ -28,6 +28,7 @@ Liechtenstein: 0  # coupon tax abolished 2011
 Monaco: 0
 Macau: 0
 Myanmar: 0
+Marshall Islands: 0  # no tax on non-resident companies' dividends; added Nov 8, 2026 (Greek shipowners)
 
 # Up to 10%.
 Saudi Arabia: 5
@@ -42,6 +43,7 @@ Mexico: 10
 Thailand: 10
 Egypt: 10  # non-resident individuals; added Nov 4, 2026 (VALMORE.KW)
 Panama: 10
+Macedonia: 10  # North Macedonia (Yahoo's spelling); added Nov 8, 2026 (MERKO.AT)
 
 # Over 10%.
 France: 12.8  # individuals (25% for companies)
@@ -79,3 +81,6 @@ Finland: 30  # 35% on nominee-registered shares when the owner is not identified
 United States: 30
 Switzerland: 35
 Chile: 35  # less a credit for the first-category corporate tax paid
+
+# Issuers taxed outside Yahoo's headquarters country.
+SBLK 0  # Star Bulk: incorporated in the Marshall Islands, headquartered in Greece; added Nov 8, 2026
