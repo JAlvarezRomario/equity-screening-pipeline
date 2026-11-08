@@ -28,6 +28,8 @@ Liechtenstein: 0  # coupon tax abolished 2011
 Monaco: 0
 Macau: 0
 Myanmar: 0
+Estonia: 0  # 7% only on profits taxed at the old 14% rate (abolished from 2025); added Nov 8, 2026
+Latvia: 0  # 20% only to residents of listed tax havens; added Nov 8, 2026
 Marshall Islands: 0  # no tax on non-resident companies' dividends; added Nov 8, 2026 (Greek shipowners)
 
 # Up to 10%.

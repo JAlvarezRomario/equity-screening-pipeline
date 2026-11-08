@@ -20,7 +20,7 @@ LIST_SELECTORS = ("test", "bist", "india")  # one packaged list file each
 BENCHMARK_SETS = (
     "sp500", "ibex35", "dax", "eurostoxx50", "ftse100", "sti", "hsi_hk", "klci", "obx", "omxs30", "wig20", "asx50", "msci_world", "msci_em",
     "ftse250", "asx_mid_small", "st_smallcap", "spain_continuo", "mdax_sdax", "russell_small", "nasdaq_mid", "nyse_mid",
-    "msci_eafe_small", "msci_europe_small", "omx_smallcap", "ibovespa", "russell_2000_rest", "nasdaq_nextgen", "offshore_leaders", "tsx_composite", "ftse_smallcap", "singapore_smallcap", "spain_100m", "germany_100m", "singapore_100m", "uk_100m", "hk_100m", "saudi_100m", "japan_100m", "hk_smallcap", "spain_smallcap", "germany_smallcap", "bist", "india", "nl_midsmall", "pl_midsmall", "fr_midsmall", "ca_midsmall", "my_midsmall", "vietnam", "cayman_adrs", "thailand_100m", "brazil_100m", "mexico_100m", "gulf_100m", "greece_100m", "csi800", "others",
+    "msci_eafe_small", "msci_europe_small", "omx_smallcap", "ibovespa", "russell_2000_rest", "nasdaq_nextgen", "offshore_leaders", "tsx_composite", "ftse_smallcap", "singapore_smallcap", "spain_100m", "germany_100m", "singapore_100m", "uk_100m", "hk_100m", "saudi_100m", "japan_100m", "hk_smallcap", "spain_smallcap", "germany_smallcap", "bist", "india", "nl_midsmall", "pl_midsmall", "fr_midsmall", "ca_midsmall", "my_midsmall", "vietnam", "cayman_adrs", "thailand_100m", "brazil_100m", "mexico_100m", "gulf_100m", "greece_100m", "baltics_100m", "csi800", "others",
 )  # fmt: skip
 PORTFOLIO_FILE = Path("portfolio.txt")  # resolved against the working directory (the project root)
 

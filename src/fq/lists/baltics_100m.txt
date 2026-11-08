@@ -1,0 +1,17 @@
+# Estonian and Latvian companies on Nasdaq Tallinn (Yahoo `.TL`) and Nasdaq Riga (`.RG`), market cap >= 100 M USD at
+# that day's rate, net of every other list (none held before). Built Nov 8, 2026 from Yahoo's screener (regions ee,
+# lv), user's choice: 0% withholding markets. Left out: EFT1T.TL (EfTEN Real Estate Fund, a fund). Lithuania (Nasdaq
+# Vilnius) left out: 15% withholding. Statutory dividend withholding 0% (`dividend_wht.txt`; Estonia's 7% on profits
+# taxed at the old 14% rate fades out, the rate abolished from 2025); ELEVR.RG (Eleving Group) is a Luxembourg S.A.,
+# 15% through Yahoo's country. Refresh by hand quarterly.
+INF1T.TL
+LHV1T.TL
+TAL1T.TL
+MRK1T.TL
+TKM1T.TL
+TSM1T.TL
+CPA1T.TL
+TVE1T.TL
+HAE1T.TL
+ELEVR.RG
+IDX1R.RG
