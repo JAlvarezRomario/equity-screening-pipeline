@@ -28,6 +28,7 @@ Liechtenstein: 0  # coupon tax abolished 2011
 Monaco: 0
 Macau: 0
 Myanmar: 0
+Jordan: 0  # dividends exempt; added Nov 8, 2026 (IGIC)
 Estonia: 0  # 7% only on profits taxed at the old 14% rate (abolished from 2025); added Nov 8, 2026
 Latvia: 0  # 20% only to residents of listed tax havens; added Nov 8, 2026
 Marshall Islands: 0  # no tax on non-resident companies' dividends; added Nov 8, 2026 (Greek shipowners)
@@ -87,3 +88,9 @@ Chile: 35  # less a credit for the first-category corporate tax paid
 # Issuers taxed outside Yahoo's headquarters country.
 SBLK 0  # Star Bulk: incorporated in the Marshall Islands, headquartered in Greece; added Nov 8, 2026
 BOCHGR.AT 25  # Bank of Cyprus Holdings: an Irish plc, Irish dividend withholding; headquartered in Cyprus; Nov 8, 2026
+ECO 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
+NMM 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
+SHIP 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
+GASS 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
+IMPP 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
+DLNG 0  # Marshall Islands company run from Greece, as SBLK; added Nov 8, 2026
