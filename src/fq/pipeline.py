@@ -21,9 +21,12 @@ from fq import forward, fx, grading, health, history, refresh
 from fq.filters import clean_and_filter
 from fq.metrics import calculate_metrics
 from fq.ranking import apply_dual_ranking
+from fq.report.format import report_periods
 from fq.report.forward_page import build_forward, build_placeholder
 from fq.report.highlights import Highlights
 from fq.report.html import build_site
+from fq.report.notes import data_notes
+from fq.report.pills import tags
 from fq.settings import BENCHMARK_MIN_CACHED, DEFAULT_BENCHMARK, SELF_BENCHMARKED, Settings
 from fq.universe import Selection, resolve_selection
 
@@ -38,7 +41,14 @@ class PipelineError(Exception):
 # What `clean --cache` never deletes (Nov 3, 2026): records that cannot be downloaded again. The forward test is
 # dated as it happened, the grades cost real money, and the score snapshots and raw archives are what `fq
 # evaluate` and `--rescore` follow forward. Delete them by hand if ever needed.
-PROTECTED_DATA = ("forward", "forward_backup_*", "snapshots", "grades*.parquet", "grade_gate*.parquet")
+PROTECTED_DATA = (
+    "forward",
+    "forward_backup_*",
+    "snapshots",
+    "grades*.parquet",
+    "grade_gate*.parquet",
+    "checks*.parquet",
+)  # the checks cost money too (Nov 8, 2026)
 # `fq grade` without a cap: rounds of grading, each on the lists recomputed with the grades before it (Nov 7, 2026:
 # a full re-grade ran 333, then 4, then 0). Later waves are small; the bound keeps a loop that never settles finite.
 GRADE_WAVES = 5
@@ -203,6 +213,12 @@ def gate_grades(cfg: Settings) -> pd.DataFrame:
     )
 
 
+def gate_checks(cfg: Settings) -> pd.DataFrame:
+    """Today's checks (Ticker, Kind, Pass, Checked_At), for the forward test's frozen check gate."""
+    checks = grading.load_checks(cfg.data_dir / "checks.parquet")
+    return checks[[c for c in ("Ticker", "Kind", "Pass", "Checked_At") if c in checks.columns]]
+
+
 def forward_step(cfg: Settings, ranked: pd.DataFrame, h: Highlights, offline: bool = False):
     """The backward and forward test (`fq.forward`) of the benchmark run: (cohort, ledger, today's lists), or None for
     other runs, when nothing is stored offline, or when it fails (the report goes on without it).
@@ -227,7 +243,8 @@ def forward_step(cfg: Settings, ranked: pd.DataFrame, h: Highlights, offline: bo
                 if d.normalize() == when and name in set(frame["List"])}  # fmt: skip
         result = forward.step(cfg.data_dir / "forward", published, ranked, portfolio(), pd.Timestamp.now(),
                               fetch_mod.total_and_price_history, fx._usd_history, method=evaluate_mod.method_fingerprint(),
-                              published_on=published_on, offline=offline, grades=gate_grades(cfg), late=late)  # fmt: skip
+                              published_on=published_on, offline=offline, grades=gate_grades(cfg), late=late,
+                              checks=gate_checks(cfg))  # fmt: skip
     except Exception as exc:  # never lose the report to the forward test
         log.warning("Forward test skipped: %s", exc, exc_info=True)
         return None
@@ -280,6 +297,53 @@ def grade_companies(
     return changed
 
 
+# The warning flags (`pills.tags` words) a check reads: what may make the figures mislead, never a price-based tag
+# (net cash, net-net, 0% WHT) nor a positive verdict of ours (compounder, buyback) that would anchor it.
+CHECK_FLAG_WORDS = frozenset({"cyclical", "peak margin", "distress", "revenue ↓", "accruals", "check data",
+                              "model to confirm", "loss-making", "owner-led"})  # fmt: skip
+
+
+def check_notes(row: pd.Series, cfg: Settings, periods: list[str]) -> list[str]:
+    """What a check reads beside the figures: the company page's data notes and its warning flags (`CHECK_FLAG_WORDS`),
+    before `grading.price_free` takes every priced clause out. The mood line ("Cheap (Value ...)") and the
+    acquisition note (over the market value) are left out here."""
+    mood = row.get("Mood_Check")
+    notes = [n for n in data_notes(row, cfg, periods) if n != mood and not n.startswith("Acquisitions average")]
+    flags = [f"{t['word'][0].upper()}{t['word'][1:]}: {t['why']}" for t in tags(row) if t["word"] in CHECK_FLAG_WORDS]
+    return notes + flags
+
+
+def check_companies(cfg: Settings, ranked: pd.DataFrame, h: Highlights, max_checks: int = 0,
+                    dry_run: bool = False) -> int:  # fmt: skip
+    """Check the companies the lists need (`Highlights.check_pool`: past their tab's moat and management bar, on
+    their book on Balance sheet plays, their earnings elsewhere) and every holding (its book when it is a Balance
+    sheet play, else its earnings), where missing or due (`grading.checks_due`), at most `max_checks` (0 = no cap).
+    Returns how many checks were made; never fails the report (an error is logged)."""
+    path = cfg.data_dir / "checks.parquet"
+    now = pd.Timestamp.now()
+    tickers = set(ranked["Ticker"])
+    on_book = set(h.shown("Below book")["Ticker"]) if "Below book" in h.picks else set()
+    held = [(t, grading.BOOK if t in on_book else grading.EARNINGS) for t in sorted(portfolio()) if t in tickers]
+    candidates = list(dict.fromkeys([*h.check_pool(), *held]))
+    todo = grading.checks_due(candidates, ranked, grading.load_checks(path), now)
+    if max_checks:
+        todo = todo[:max_checks]
+    log.info("Checks of the numbers: %d needed (%d book), %d due, est. $%.2f", len(candidates),
+             sum(k == grading.BOOK for _, k in candidates), len(todo), grading.estimate_checks_usd(len(todo), now))  # fmt: skip
+    if not todo or dry_run:
+        return 0
+    rows = h.frame.drop_duplicates("Ticker").set_index("Ticker", drop=False)
+    periods = report_periods(h.frame, cfg)
+    notes = {t: check_notes(rows.loc[t], cfg, periods) for t in {t for t, _ in todo} if t in rows.index}
+    try:
+        new = grading.run_checks(todo, ranked, notes, path)
+        log.info("Made %d checks for $%.2f", len(new), new["Cost_USD"].sum() if len(new) else 0.0)
+        return len(new)
+    except Exception as exc:  # never lose the report to the checks
+        log.warning("Checks skipped: %s", exc)
+        return 0
+
+
 def write_report(
     cfg: Settings,
     open_after: bool = False,
@@ -311,8 +375,12 @@ def write_report(
     # the index (unchanged pages are skipped by their fingerprint).
     grade = (cfg.label == DEFAULT_BENCHMARK and not offline and not companies_only and tickers is None
              and bool(os.environ.get("GEMINI_API_KEY")))  # fmt: skip
-    if grade and grade_companies(cfg, ranked, h, max_grades=grading.MAX_PER_RUN):
-        h = Highlights.compute(ranked, cfg, bench)  # the new grades move rows below the bar and fill the graded walks
+    graded = grade and grade_companies(cfg, ranked, h, max_grades=grading.MAX_PER_RUN)
+    if graded:
+        h = Highlights.compute(ranked, cfg, bench)  # the new grades decide who is checked
+    checked = grade and check_companies(cfg, ranked, h, max_checks=grading.MAX_PER_RUN)
+    if graded or checked:
+        h = Highlights.compute(ranked, cfg, bench)  # new grades and checks move rows below the bar, fill the walks
         index = build_site(ranked, cfg, bench=bench, held=portfolio(),
                            forward=forward_link, highlights=h)  # fmt: skip
     if fw is not None:
@@ -469,13 +537,14 @@ def load_benchmark_run(cfg: Settings) -> tuple[pd.DataFrame, pd.DataFrame | None
 
 
 def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynthesize_only: bool = False,
-               report: bool = True, new_only: bool = False) -> None:  # fmt: skip
-    """`fq grade`: grades (or syntheses) alone, then the site again from the cache when something changed. Without a
+               report: bool = True, new_only: bool = False, check: bool = True, checks_only: bool = False) -> None:  # fmt: skip
+    """`fq grade`: grades (or syntheses) alone, then the checks of the numbers (`check_companies`, unless `check` is
+    off; `checks_only` skips the grading), then the site again from the cache when something changed. Without a
     cap it grades in waves: new grades move companies onto the lists filled from graded names (Cheapest, Best businesses),
     which are then due themselves, so the lists are recomputed and graded again until a wave changes nothing, at most
-    `GRADE_WAVES`. A cap (`max_grades`) or `dry_run` is one wave."""
+    `GRADE_WAVES`. A cap (`max_grades`, also the checks' cap) or `dry_run` is one wave."""
     ranked, bench = load_benchmark_run(cfg)
-    waves = 1 if (max_grades or dry_run or resynthesize_only) else GRADE_WAVES
+    waves = 0 if checks_only else 1 if (max_grades or dry_run or resynthesize_only) else GRADE_WAVES
     changed = 0
     for _ in range(waves):
         h = Highlights.compute(ranked, cfg, bench)  # reads the grades saved so far
@@ -484,6 +553,9 @@ def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynt
         changed += n
         if not n:
             break
+    if (check or checks_only) and not resynthesize_only:
+        h = Highlights.compute(ranked, cfg, bench)  # who is checked follows the grades just made
+        changed += check_companies(cfg, ranked, h, max_checks=max_grades, dry_run=dry_run)
     if changed and report:
         write_report(cfg, offline=True)
 

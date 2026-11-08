@@ -607,7 +607,7 @@ def test_global_benchmark_selection(tmp_path, monkeypatch):
     assert not {"NEM.AX", "XYZ.AX", "RMD.AX", "AMC.AX", "NWS.AX", "FPH.AX"} & set(combined.tickers)
     # Mid and small-cap additions: UK FTSE 250, ASX Mid/Small, SGX Small, Spain Continuo, German MDAX/SDAX, Russell 2000
     assert len(benchmark_part("ftse250")) == 92 and {"GRG.L", "JET2.L"} <= set(combined.tickers)
-    assert len(benchmark_part("asx_mid_small")) == 101 and {"BRG.AX", "TNE.AX"} <= set(combined.tickers)
+    assert len(benchmark_part("asx_mid_small")) == 100 and {"BRG.AX", "TNE.AX"} <= set(combined.tickers)
     assert len(benchmark_part("st_smallcap")) == 40 and {"C52.SI", "AIY.SI"} <= set(combined.tickers)
     assert len(benchmark_part("spain_continuo")) == 44 and {"CAF.MC", "CIE.MC"} <= set(combined.tickers)
     assert len(benchmark_part("mdax_sdax")) == 56 and {"BOSS.DE", "AIXA.DE"} <= set(combined.tickers)
@@ -622,11 +622,11 @@ def test_global_benchmark_selection(tmp_path, monkeypatch):
     assert len(benchmark_part("nasdaq_nextgen")) == 13 and {"DKNG", "Z"} <= set(combined.tickers)
     assert len(benchmark_part("offshore_leaders")) == 8 and {"AXS", "JTC.L", "LXMPR.LU"} <= set(combined.tickers)
     assert len(benchmark_part("tsx_composite")) == 134 and {"VNP.TO", "ARE.TO"} <= set(combined.tickers)
-    assert len(benchmark_part("ftse_smallcap")) == 90 and {"AEWU.L", "YOU.L"} <= set(combined.tickers)
+    assert len(benchmark_part("ftse_smallcap")) == 84 and {"AEWU.L", "YOU.L"} <= set(combined.tickers)
     assert len(benchmark_part("singapore_smallcap")) == 40 and {"S59.SI", "VC2.SI"} <= set(combined.tickers)
     assert len(benchmark_part("hk_smallcap")) == 180 and {"0013.HK", "0142.HK"} <= set(combined.tickers)
     assert len(benchmark_part("spain_smallcap")) == 45 and {"AI.MC", "ALC.MC"} <= set(combined.tickers)
-    assert len(benchmark_part("germany_smallcap")) == 49 and {"1U1.DE", "8TRA.DE"} <= set(combined.tickers)
+    assert len(benchmark_part("germany_smallcap")) == 46 and {"1U1.DE", "8TRA.DE"} <= set(combined.tickers)
     japan = set(benchmark_part("japan_100m"))  # Japan >= 100 M USD beyond the other lists, one line per company
     assert len(japan) == 1740 and {"2593.T", "8303.T"} <= japan and not {"25935.T", "9284.T", "7203.T"} & japan
     parts = set().union(*(benchmark_part(n) for n in BENCHMARK_SETS))

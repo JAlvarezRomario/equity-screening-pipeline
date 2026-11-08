@@ -1,15 +1,74 @@
-"""The company page's grade pill and cards: moat and management, and who owns it (no markup here)."""
+"""The company page's grade pill and cards: moat and management, the checks of its numbers, and who owns it (no
+markup here)."""
 
 import json
 import re
 
 import pandas as pd
 
-from fq.grading import MIN_BOTH, MIN_ONE, SHORTLIST_MIN_TOP, passes_shortlist
+from fq.grading import BOOK, CHECK_KINDS, EARNINGS, MIN_BOTH, MIN_ONE, SHORTLIST_MIN_TOP, passes_shortlist
 from fq.report.format import DASH
 
 GRADE_PILL = ("Moat and management, 1 to 5, graded by an AI model (Gemini) from its own knowledge and this site's "
               "figures. Shown, never scored.")  # fmt: skip
+CHECK_TITLES = {EARNINGS: "The numbers, checked", BOOK: "The book, checked"}
+CHECK_SUBTITLES = {EARNINGS: "a fair basis for the years ahead?", BOOK: "worth at least what it shows?"}
+CHECK_WHAT = {EARNINGS: "the earnings check (a cyclical peak or windfall, one-offs, AI and robotics, idle cash)",
+              BOOK: "the book check (are the assets less the liabilities worth at least the book?)"}  # fmt: skip
+STATUS_MARKS = {"ok": ("✓", "fine"), "caution": ("!", "a caution"), "fail": ("✗", "fails")}
+
+
+def _flag(v) -> bool | None:
+    return None if v is None or (isinstance(v, float) and pd.isna(v)) else bool(v)
+
+
+def check_pill(row: pd.Series) -> dict | None:
+    """The check tag of a highlight-list row: the reason when the check of the list's kind failed ("peak earnings",
+    "book overstated"...), "not checked" when the moat and management bar is cleared but the check is not made yet;
+    nothing when it passes (the page says so) or when the grade already shades the row."""
+    kind = row.get("Check_Kind")
+    if kind not in CHECK_KINDS or row.get("Grade_Pass") is not True and row.get("Grade_Pass") != True:  # noqa: E712
+        return None
+    verdict = _flag(row.get("Check_Pass"))
+    prefix = f"Check_{kind.capitalize()}_"
+    if verdict is None:
+        return {"label": "not checked", "cls": "pill-grade-none",
+                "why": f"Not yet through {CHECK_WHAT[kind]}; it keeps its place meanwhile."}  # fmt: skip
+    if verdict:
+        return None
+    tag = row.get(f"{prefix}Tag") if isinstance(row.get(f"{prefix}Tag"), str) else "fails the check"
+    head = row.get(f"{prefix}Headline") if isinstance(row.get(f"{prefix}Headline"), str) else ""
+    why = (f"{head} " if head else "") + f"Fails {CHECK_WHAT[kind]}, by an AI model (Gemini): shaded at the bottom."
+    return {"label": f"✗ {tag}", "cls": "pill-check-fail", "why": why}
+
+
+def check_cards(row: pd.Series) -> list[dict]:
+    """The company page's check cards, earnings first then book, for each check made: title, verdict, headline, the
+    topic rows (mark, its spoken name, topic, line) and the reasoning bullets (markdown marks stripped; autoescaped
+    by the template)."""
+    cards = []
+    for kind in CHECK_KINDS:
+        prefix = f"Check_{kind.capitalize()}_"
+        verdict = _flag(row.get(f"{prefix}Pass"))
+        if verdict is None:
+            continue
+        try:
+            topics = json.loads(row.get(f"{prefix}Topics") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            topics = []
+        rows = []
+        for t in topics:
+            mark, spoken = STATUS_MARKS.get(t.get("status"), STATUS_MARKS["caution"])
+            rows.append({"mark": mark, "spoken": spoken, "status": t.get("status", "caution"),
+                         "name": _plain(str(t.get("name", ""))), "line": _plain(str(t.get("line", "")))})  # fmt: skip
+        why = [_plain(line.strip().lstrip("-•* ").strip()) for line in str(row.get(f"{prefix}Why") or "").splitlines()]
+        tag = row.get(f"{prefix}Tag") if isinstance(row.get(f"{prefix}Tag"), str) else "fails"
+        cards.append({"kind": kind, "title": CHECK_TITLES[kind], "subtitle": CHECK_SUBTITLES[kind], "passed": verdict,
+                      "verdict": "✓ Fair basis" if verdict and kind == EARNINGS else
+                                 ("✓ Book holds" if verdict else f"✗ {tag[0].upper()}{tag[1:]}"),
+                      "headline": _plain(str(row.get(f"{prefix}Headline") or "")), "topics": rows,
+                      "why": [w for w in why if w], "date": row.get(f"{prefix}Date") or "N/A"})  # fmt: skip
+    return cards
 
 
 def _grade_text(v) -> str:

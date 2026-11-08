@@ -294,6 +294,7 @@ def test_fq_grade_grades_in_waves_until_nothing_changes(cfg, monkeypatch):
     monkeypatch.setattr(pipeline, "load_benchmark_run", lambda cfg: (pd.DataFrame(), None))
     monkeypatch.setattr(pipeline.Highlights, "compute", classmethod(lambda cls, *a: object()))
     monkeypatch.setattr(pipeline, "grade_companies", lambda *a, **k: calls.append(k) or next(waves))
+    monkeypatch.setattr(pipeline, "check_companies", lambda *a, **k: 0)  # the checks have tests of their own
     monkeypatch.setattr(pipeline, "write_report", lambda *a, **k: calls.append("report"))
     pipeline.grade_only(cfg)
     assert len(calls) == 4 and calls[-1] == "report"  # three waves, the third changing nothing, then the site

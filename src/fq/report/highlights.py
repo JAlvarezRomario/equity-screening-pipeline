@@ -224,12 +224,24 @@ def _memo(pick: Pick) -> Pick:
     return picked
 
 
+def with_check(out: pd.DataFrame, list_name: str) -> pd.DataFrame:
+    """A tab's rows with `Check_Kind` (the check that judges a member of `list_name`, `grading.check_kind`) and
+    `Check_Pass` (that check's verdict: True, False, or None when not made). `Grade_Pass` is left as it is: the moat
+    and management bar and the check are two bars, and only an explicit False of either shades the row (`fails`)."""
+    kind = grading.check_kind(list_name)
+    col = f"Check_{kind.capitalize()}_Pass"
+    values = out[col] if col in out.columns else pd.Series(None, index=out.index, dtype=object)
+    verdict = [None if v is None or (isinstance(v, float) and pd.isna(v)) else bool(v) for v in values]
+    return out.assign(Check_Kind=kind, Check_Pass=pd.Series(verdict, index=out.index, dtype=object))
+
+
 def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     """`tab.screen`, drawn only from companies past the AI screen (`screens.ai_resilient`) unless `tab.ai_screen` is
-    off (the pure score rankings: Cheap and good, Cheapest and Best businesses; user's choice, Nov 4, 2026)."""
+    off (the pure score rankings: Cheap and good, Cheapest and Best businesses; user's choice, Nov 4, 2026); every
+    tab's rows then carry the check of its kind (`with_check`)."""
     if not tab.ai_screen:
-        return tab.screen
-    return lambda df, n, hurdle: tab.screen(df[sc.ai_resilient(df)], n, hurdle)
+        return lambda df, n, hurdle: with_check(tab.screen(df, n, hurdle), tab.name)
+    return lambda df, n, hurdle: with_check(tab.screen(df[sc.ai_resilient(df)], n, hurdle), tab.name)
 
 
 def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
@@ -238,11 +250,16 @@ def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
     return {t.name: (_memo(partial(_screened(t), hurdle=hurdle)), t.n) for t in TABS}
 
 
-def fails(df: pd.DataFrame) -> pd.Series:
-    """True where the moat and management grade is below the bar (`grading.passes`); an ungraded company is not."""
-    if "Grade_Pass" not in df.columns:
+def _false(df: pd.DataFrame, col: str) -> pd.Series:
+    if col not in df.columns:
         return pd.Series(False, index=df.index, dtype=bool)
-    return df["Grade_Pass"].map(lambda v: v is False or v == False).astype(bool)  # noqa: E712
+    return df[col].map(lambda v: v is False or v == False).astype(bool)  # noqa: E712
+
+
+def fails(df: pd.DataFrame) -> pd.Series:
+    """True where the moat and management grade is below the bar (`grading.passes`) or the check of the list's kind
+    failed (`Check_Pass`); an ungraded or unchecked company is not."""
+    return _false(df, "Grade_Pass") | _false(df, "Check_Pass")
 
 
 def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None = None) -> pd.DataFrame:
@@ -251,6 +268,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     (`grading.attach`)."""
     if cfg is not None:
         df = grading.attach(df, cfg.data_dir / "grades.parquet")
+        df = grading.attach_checks(df, cfg.data_dir / "checks.parquet")
     if "NCAV_to_Price" in df.columns and "industry" in df.columns:
         land = df["industry"].map(lambda i: industry_key(i) in NCAV_EXCLUDED_INDUSTRIES)
         df = df.assign(NCAV_to_Price=df["NCAV_to_Price"].where(~land, np.nan))
@@ -324,12 +342,16 @@ class Highlights:
         return {t for name in TAB_ORDER for t in self.shown(name)["Ticker"]}
 
     def published(self) -> pd.DataFrame:
-        """(Ticker, List, Grade_Pass): the companies each tab shows, for `fq evaluate` and the forward test to follow
-        and for the grading (`pipeline.grade_companies`) to grade. `Grade_Pass` is the moat and management gate (`grading.passes`;
-        None ungraded): a company below it stays on the tab, shaded."""
-        rows = [(t, name, g) for name in TAB_ORDER
-                for t, g in zip(self.shown(name)["Ticker"], self.shown(name)["Grade_Pass"], strict=True)]  # fmt: skip
-        return pd.DataFrame(rows, columns=["Ticker", "List", "Grade_Pass"])
+        """(Ticker, List, Grade_Pass, Check_Pass): the companies each tab shows, for `fq evaluate` and the forward test
+        to follow and for the grading (`pipeline.grade_companies`) to grade. `Grade_Pass` is the moat and management
+        gate (`grading.passes`; None ungraded), `Check_Pass` the check of the tab's kind (None unchecked): a company
+        failing either stays on the tab, shaded."""
+        rows = []
+        for name in TAB_ORDER:
+            shown = self.shown(name)
+            checks = shown["Check_Pass"] if "Check_Pass" in shown.columns else [None] * len(shown)
+            rows += list(zip(shown["Ticker"], [name] * len(shown), shown["Grade_Pass"], checks, strict=True))
+        return pd.DataFrame(rows, columns=["Ticker", "List", "Grade_Pass", "Check_Pass"])
 
     def places(self) -> dict[str, str]:
         """Ticker -> "Cheap and good #4 · Compounders #2": every tab that shows the company and its row there, as the
@@ -345,6 +367,17 @@ class Highlights:
     def grade_pool(self) -> list[str]:
         """The companies the grading must grade: every one a tab shows."""
         return list(dict.fromkeys(self.published()["Ticker"]))
+
+    def check_pool(self) -> list[tuple[str, str]]:
+        """The (ticker, kind) checks the lists need: every company a tab shows that clears that tab's moat and
+        management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere."""
+        pub = self.published()
+        passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True)]  # noqa: E712
+        return list(
+            dict.fromkeys(
+                (t, grading.check_kind(name)) for t, name in zip(passed["Ticker"], passed["List"], strict=True)
+            )
+        )
 
 
 def published_lists(df: pd.DataFrame, cfg: Settings, bench: pd.DataFrame | None = None) -> pd.DataFrame:

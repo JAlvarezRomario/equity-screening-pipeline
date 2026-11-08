@@ -14,7 +14,7 @@ import pandas as pd
 from fq import grading
 from fq.report import dividend_record, index_charts
 from fq.report import screens as sc
-from fq.report.cards import grade_pill
+from fq.report.cards import check_pill, grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
 from fq.report.highlights import GROUPS, SHORTLIST, TABS, Highlights, Tab, fails
@@ -146,6 +146,8 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["extra"] = r["ticker"] in extras
         r["fails"] = bool(row["_fails"])
         r["pills"].append(grade_pill(row))
+        if (check := check_pill(row)) is not None:
+            r["pills"].append(check)
         missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
         if missing:
             r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",

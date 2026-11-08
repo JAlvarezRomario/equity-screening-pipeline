@@ -17,7 +17,7 @@ from plotly.offline import get_plotlyjs_version
 
 from fq.metrics.long_history import parse_history
 from fq.report import charts
-from fq.report.cards import grade_card, holders_card
+from fq.report.cards import check_cards, grade_card, holders_card
 from fq.report.format import fmt
 from fq.report.links import external_links, slug
 from fq.report.notes import data_notes, owner_earnings_caption
@@ -153,6 +153,7 @@ def _render_company_batch(args: tuple) -> None:
             website=row.get("website") if pd.notna(row.get("website")) and str(row.get("website")).strip() else None,
             net_cash_pill=net_cash_pill(row),
             grade=grade_card(row),
+            checks=check_cards(row),
             holders=holders,
             is_financial=is_financial(row),
             held=is_held,

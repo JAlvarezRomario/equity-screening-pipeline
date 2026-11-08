@@ -249,14 +249,19 @@ def grade_cmd(
     new_only: Annotated[
         bool, typer.Option(help="Only companies never graded: no re-grade and no synthesis rewrite is spent.")
     ] = False,
+    check: Annotated[
+        bool, typer.Option(help="Then check the numbers of the listed companies past the grade bar (earnings, book).")
+    ] = True,
+    checks_only: Annotated[bool, typer.Option(help="Only the checks of the numbers, no grading.")] = False,
     data_dir: DataDirOpt = Path("data"),
     output_dir: OutDirOpt = Path("output"),
 ) -> None:
     """Moat and management grades (Gemini) for the companies the benchmark's highlight lists show, where missing or
-    due (a new annual report, or a year old); `fq run -u benchmark` does this too, within `max_grades`."""
+    due (a new annual report, or a year old), then the checks of their numbers (a cyclical peak, one-offs, AI and
+    robotics, idle cash; the book on Balance sheet plays); `fq run -u benchmark` does this too, within `max_grades`."""
     _setup_logging()
     cfg = Settings(data_dir=data_dir, output_dir=output_dir, label=DEFAULT_BENCHMARK)
-    pipeline.grade_only(cfg, max_grades, dry_run, resynthesize, report, new_only)
+    pipeline.grade_only(cfg, max_grades, dry_run, resynthesize, report, new_only, check, checks_only)
 
 
 @app.command("holders")

@@ -44,7 +44,7 @@ import pandas as pd
 
 from fq.fetch import PRICE_BREAK
 from fq.fx import MINOR_UNITS
-from fq.grading import passes_shortlist
+from fq.grading import check_kind, passes_shortlist
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +62,9 @@ BACK_MONTHS = 6  # the backward test's span (user's choice), month-end to month-
 CHUNK = 400  # tickers per price request
 LOOKBACK_DAYS = 10  # the download starts this long before the first mark, so a holiday still has a close
 GATE_FILE = "grade_gate.parquet"  # the moat and management gate, frozen once (`freeze_gate`)
+# The checks of the numbers (Nov 8, 2026), frozen once with the grade gate (`freeze_check_gate`): a member whose check
+# of its list's kind failed is left out of that list (`apply_check_gate`).
+CHECK_GATE_FILE = "check_gate.parquet"
 ADDED_FILE = "cohort_added.parquet"  # the lists added after the freeze, written once (`freeze_late_lists`)
 ADDED_GLOB = "cohort_added_*.parquet"  # later additions, one file per publication date, each written once
 # List -> the date of its saved tabs. Repeaters (born Oct 31) was first saved on Sunday Nov 1, before any main market
@@ -155,6 +158,30 @@ def apply_gate(cohort: pd.DataFrame, gate: pd.DataFrame) -> pd.DataFrame:
     out = cohort.loc[~out_rows].reset_index(drop=True)
     out.attrs["gated_out"] = cohort.loc[out_rows, "Ticker"].nunique()
     out.attrs["gate_date"] = pd.to_datetime(gate["Graded_At"]).max()
+    return out
+
+
+def freeze_check_gate(checks: pd.DataFrame, path: Path) -> Path:
+    """Write the check gate once (Ticker, Kind, Pass, Checked_At): a later check never moves the test's membership."""
+    if path.exists():
+        raise FileExistsError(f"{path} exists: the forward test's check gate is frozen and is never rewritten")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    checks[["Ticker", "Kind", "Pass", "Checked_At"]].to_parquet(path, index=False)
+    return path
+
+
+def apply_check_gate(cohort: pd.DataFrame, gate: pd.DataFrame) -> pd.DataFrame:
+    """The cohort less the list members whose check of that list's kind failed (`grading.check_kind`: the book on
+    Below book, the earnings elsewhere); unchecked members and the portfolio stay. `attrs["checked_out"]` counts the
+    companies left out; the grade gate's `attrs` are kept."""
+    rows = zip(gate["Ticker"], gate["Kind"], gate["Pass"], strict=True)
+    failed = {(t, k) for t, k, p in rows if p is False or p == False}  # noqa: E712 - numpy bool
+    kinds = cohort["List"].map(check_kind)
+    out_rows = cohort["List"].ne(PORTFOLIO_LIST) & pd.Series(
+        [(t, k) in failed for t, k in zip(cohort["Ticker"], kinds, strict=True)], index=cohort.index
+    )
+    out = cohort.loc[~out_rows].reset_index(drop=True)
+    out.attrs = {**cohort.attrs, "checked_out": cohort.loc[out_rows, "Ticker"].nunique()}
     return out
 
 
@@ -610,6 +637,7 @@ def step(
     offline: bool = False,
     grades: pd.DataFrame | None = None,
     late: dict[str, pd.DataFrame] | None = None,
+    checks: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame] | None:
     """The test's work for one benchmark report: (cohort, ledger), None when there is nothing to show (offline
     before any data).
@@ -618,7 +646,8 @@ def step(
     caller has them, `published_on` their date), then the month-ends passed are added. `offline` reads what is
     stored and downloads nothing. `grades` (with `Passes`) freezes the grade gate when none is stored; the cohort
     returned is gated (`apply_gate`), the ledger covers every member. `late` (the saved tabs of `LATE_LISTS`) adds
-    those lists once."""
+    those lists once. `checks` (Ticker, Kind, Pass, Checked_At) is frozen with the grade gate, only then, and gates
+    the cohort too (`apply_check_gate`)."""
     cohort_path = folder / "cohort.parquet"
     if not cohort_path.exists():
         if offline:
@@ -638,9 +667,15 @@ def step(
     else:
         ledger = update(folder, today, fetch, fx_history)
     gate_path = folder / GATE_FILE
+    check_path = folder / CHECK_GATE_FILE
     if not gate_path.exists() and grades is not None and len(grades):
         freeze_gate(grades, gate_path)
         log.info("Forward test grade gate frozen: %s", gate_path)
+        if checks is not None and len(checks) and not check_path.exists():  # frozen the same day, never later
+            freeze_check_gate(checks, check_path)
+            log.info("Forward test check gate frozen: %s", check_path)
     if gate_path.exists():
         cohort = apply_gate(cohort, pd.read_parquet(gate_path))
+    if check_path.exists():
+        cohort = apply_check_gate(cohort, pd.read_parquet(check_path))
     return cohort, ledger

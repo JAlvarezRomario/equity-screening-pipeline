@@ -115,6 +115,28 @@
   </div>
 </section>
 
+{% for c in checks %}
+<section class="card check-card{% if not c.passed %} check-low{% endif %}" aria-label="{{ c.title }}">
+  <div class="check-head">
+    <h2 class="chart-title">{{ c.title }} <span>{{ c.subtitle }}</span></h2>
+    <span class="check-verdict{% if not c.passed %} check-verdict-fail{% endif %}">{{ c.verdict }}</span>
+  </div>
+  {% if c.headline %}<p class="check-headline">{{ c.headline }}</p>{% endif %}
+  {% if c.topics %}
+  <dl class="check-topics">
+    {% for t in c.topics %}<div class="check-topic check-{{ t.status }}"><dt><span class="check-mark" role="img" aria-label="{{ t.spoken }}">{{ t.mark }}</span> {{ t.name }}</dt><dd>{{ t.line }}</dd></div>{% endfor %}
+  </dl>
+  {% endif %}
+  {% if c.why %}
+  <details class="explain">
+    <summary>Why</summary>
+    <ul class="check-why">{% for w in c.why %}<li>{{ w }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  <p class="muted grade-detail">Checked {{ c.date }} by an AI model (Gemini) from its own knowledge and this page's figures, without the price; it can be wrong or out of date. A failed check shades the company on its lists; shown, never scored.</p>
+</section>
+{% endfor %}
+
 <section class="card chart-card">
   <h2 class="chart-title">What a share earns <span>% of today's price, each year</span></h2>
   <div class="company-chart">{{ charts.earnings | safe }}</div>

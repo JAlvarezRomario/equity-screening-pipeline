@@ -567,3 +567,295 @@ def run(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WOR
                      len(tickers), result["Moat"], result["Management"],
                      "passes" if passes(result["Moat"], result["Management"]) else "fails", result["Cost_USD"], spent)  # fmt: skip
     return pd.DataFrame(new, columns=COLUMNS)
+
+
+# --- The checks: are the numbers a fair basis? ---------------------------------------------------------------------
+# User's design, Nov 8, 2026: after the moat and management grade, a second bar on the companies a list shows. The
+# earnings check asks whether the figures that made a company selectable mislead (a cyclical peak or windfall,
+# one-off or accounting oddities, AI and robotics disruption, and, with net cash of at least `CASH_QUESTION_MIN_PCT`
+# of the market value, why the cash sits idle); the book check, for the Balance sheet plays list only, whether the
+# book is at most what the assets less the liabilities are really worth. One Argon pass each; a verdict (pass / fail)
+# that shades the company on its lists as a grade fail does, and a short summary for its page. Never a score.
+
+CHECK_MODEL = GRADE_MODEL
+CHECK_OUTPUT_TOKENS = 32768
+# What `check_input` carries; bump it when that changes, so every check is redone (`check_hash`).
+CHECK_INPUT_VERSION = 1
+CASH_QUESTION_MIN_PCT = 20.0  # net cash / market cap, %, from which the earnings check asks about the cash (user)
+EARNINGS, BOOK = "earnings", "book"
+CHECK_KINDS = (EARNINGS, BOOK)
+BOOK_LISTS = frozenset({"Below book"})  # the stored tab names judged on their book (shown as Balance sheet plays)
+CHECK_TAGS = {EARNINGS: ("peak earnings", "one-offs", "AI risk", "cash catch"), BOOK: ("book overstated",)}
+CHECK_TOPICS = {
+    EARNINGS: ("Cycle", "One-offs and accounting", "AI and robotics", "Net cash"),
+    BOOK: ("Assets carried high", "Hidden liabilities", "Assets carried low", "Net assets vs book"),
+}
+CHECK_STATUSES = ("ok", "caution", "fail")
+EST_CHECK_USD = 0.06  # one check, one Argon pass, at the introductory rates (estimate, before measuring)
+CHECK_COLUMNS = ["Ticker", "Kind", "Pass", "Headline", "Tag", "Topics", "Why", "Report", "Checked_At", "Y0_End",
+                 "Model", "Check_Hash", "Tokens_In", "Tokens_Out", "Cost_USD"]  # fmt: skip
+# The book check's balance sheet, per period (label, column concept), millions of US dollars.
+BOOK_LINES = (
+    ("Current assets", "Current Assets"),
+    ("Receivables", "Receivables"),
+    ("Short-term investments", "Other Short Term Investments"),
+    ("Property, plant and equipment, net", "Net PPE"),
+    ("Goodwill and intangibles", "Goodwill And Other Intangible Assets"),
+    ("Total assets", "Total Assets"),
+    ("Current liabilities", "Current Liabilities"),
+    ("Total liabilities", "Total Liabilities Net Minority Interest"),
+    ("Lease obligations", "Capital Lease Obligations"),
+    ("Minority interest", "Minority Interest"),
+    ("Preferred stock", "Preferred Stock Equity"),
+    ("Common equity", "Common Stock Equity"),
+    ("Tangible book value", "Tangible Book Value"),
+)
+# A clause of a data note that speaks of a price, a market value, a yield or a verdict of ours is left out of the
+# check's input (user's rule, Nov 7, 2026: the LLM judges the business, not the stock; review of Nov 8, 2026).
+_PRICED = re.compile(
+    r"(?i:\b(?:prices?|priced|pricing|market cap|market value|yields?|cheap|dear|scored?|scores|rank(?:s|ed|ing|ings)?"
+    r"|percentiles?|top lists|highlight lists|mood)\b)|\b(?:Value|Quality|EV)\b"
+)
+
+
+def check_kind(list_name: str) -> str:
+    """The check that judges a member of the stored tab `list_name`: its book on `BOOK_LISTS`, else its earnings."""
+    return BOOK if list_name in BOOK_LISTS else EARNINGS
+
+
+def price_free(notes) -> list[str]:
+    """`notes` with every clause that speaks of a price, a market value, a yield or a score of ours taken out (a note
+    left empty is dropped): the check reads the system's data notes and warning flags, never the stock."""
+    out = []
+    for note in notes or []:
+        clauses = re.split(r"(?<=[.;:])\s+", str(note).strip())
+        kept = " ".join(c for c in clauses if c and not _PRICED.search(c)).strip().rstrip(":;").strip()
+        if kept and re.search(r"[A-Za-z]{3}", kept):
+            out.append(kept)
+    return list(dict.fromkeys(out))
+
+
+def asks_about_cash(row: pd.Series) -> bool:
+    """True when the earnings check asks why the cash sits idle: an operating company whose shareholder-basis net cash
+    is at least `CASH_QUESTION_MIN_PCT` of its market value."""
+    net_cash = _num(row.get("Net_Cash_to_Cap"))
+    return bool(pd.notna(net_cash) and net_cash >= CASH_QUESTION_MIN_PCT and row.get("Financial_Mode") != True)  # noqa: E712
+
+
+def check_input(row: pd.Series, notes, kind: str, cfg=None) -> str:
+    """What a check reads about one company: the grade's input (`grade_input`: the business, never the price), the
+    book check's balance sheet by period, and the system's data notes and warning flags with every priced clause taken
+    out (`price_free`). The moat and management reasoning is not passed."""
+    from fq.settings import Settings
+
+    cfg = cfg or Settings()
+    out = [grade_input(row, cfg)]
+    if kind == BOOK:
+        periods = list(cfg.chronological)
+        if row.get("TTM_Identical_To_Latest") == True:  # noqa: E712
+            periods.remove("TTM")
+        periods = [p for p in periods if any(_present(row.get(f"{c}_{p}")) for _, c in BOOK_LINES)]
+        lines = []
+        for label, concept in BOOK_LINES:
+            values = [_num(row.get(f"{concept}_{p}")) / 1e6 for p in periods]
+            if any(pd.notna(v) for v in values):
+                lines.append((label, _cells(values, ",.0f")))
+        if lines:
+            heads = [_period_label(row, p) for p in periods]
+            out += ["", _table("The balance sheet, millions of US dollars at today's exchange rate", heads, lines)]
+    clean = price_free(notes)
+    if clean:
+        out += ["", "### Data notes and warning flags", *[f"- {n}" for n in clean]]
+    return "\n".join(out).strip()
+
+
+def _check_prompt_text(kind: str, cash: bool) -> str:
+    if kind == BOOK:
+        return _prompt("check_book.md")
+    text = _prompt("check_earnings.md")
+    question = _prompt("check_cash.md").replace("{{CASH_MIN}}", f"{CASH_QUESTION_MIN_PCT:g}") if cash else ""
+    topic = ',\n    {"name": "Net cash", "status": "ok | caution | fail", "line": "at most 12 words"}' if cash else ""
+    return text.replace("{{CASH_QUESTION}}", question).replace("{{CASH_TOPIC}}", topic)
+
+
+def check_hash(kind: str) -> str:
+    """What a check was made with: its prompts, model, thinking and input version (another hash makes it due)."""
+    names = ("check_book.md",) if kind == BOOK else ("check_earnings.md", "check_cash.md")
+    digest = hashlib.sha1("".join(_prompt(n) for n in names).encode())
+    digest.update(repr((kind, CHECK_MODEL, THINKING, CHECK_INPUT_VERSION, CASH_QUESTION_MIN_PCT)).encode())
+    return digest.hexdigest()[:12]
+
+
+def check_prompt(kind: str, company: str, ticker: str, figures: str, today: pd.Timestamp, cash: bool = False) -> str:
+    """The prompt of one check: `figures` is `check_input`; `cash` adds the net cash question (earnings only)."""
+    tags = " / ".join(f'"{t}"' for t in CHECK_TAGS[kind])
+    return (_check_prompt_text(kind, cash).replace("{{COMPANY_NAME}}", f"{company} ({ticker})")
+            .replace("{{EXECUTION_DATE}}", f"{today:%Y-%m-%d}").replace("{{TAGS}}", tags)
+            .replace("{{COMPANY_FIGURES}}", figures))  # fmt: skip
+
+
+def parse_check(text: str, kind: str) -> dict | None:
+    """The verdict block of a check's answer (the last JSON object in it), checked and tidied: `Pass` (bool),
+    `Headline`, `Tag` (one of `CHECK_TAGS`, failing checks only), `Topics` (name, status, line; only the topics of
+    `CHECK_TOPICS`, in their order) and `Why` (markdown bullets). None when no readable verdict is found: the check is
+    then not stored as made, so it is asked again, and it never counts as a pass."""
+    blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text or "", flags=re.DOTALL)
+    candidates = blocks or re.findall(r"(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})", text or "", flags=re.DOTALL)
+    for raw in reversed(candidates):
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        verdict = str(data.get("verdict", "")).strip().lower()
+        if verdict not in ("pass", "fail"):
+            continue
+        given = {str(t.get("name", "")).strip().lower(): t for t in data.get("topics") or [] if isinstance(t, dict)}
+        topics = []
+        for name in CHECK_TOPICS[kind]:
+            t = given.get(name.lower())
+            if t is None:
+                continue
+            status = str(t.get("status", "")).strip().lower()
+            topics.append({"name": name, "status": status if status in CHECK_STATUSES else "caution",
+                           "line": _clean_text(t.get("line"))})  # fmt: skip
+        why = data.get("why")
+        if isinstance(why, list):
+            why = "\n".join(f"- {_clean_text(w).lstrip('- ')}" for w in why)
+        tag = str(data.get("tag") or "").strip()
+        tag = next((t for t in CHECK_TAGS[kind] if t.lower() == tag.lower()), None)
+        failed = verdict == "fail"
+        return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
+                "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
+                "Why": str(why or "").strip()}  # fmt: skip
+    return None
+
+
+def _clean_text(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def check_company(client, ticker: str, company: str, figures: str, kind: str, today: pd.Timestamp,
+                  cash: bool = False) -> dict:  # fmt: skip
+    """One check: one pass of `CHECK_MODEL`, asked once more when its answer has no readable verdict; without one the
+    check is not made (an error), so it stays due."""
+    prompt = check_prompt(kind, company, ticker, figures, today, cash)
+    usage = []
+    for _ in range(2):
+        text, use = _call(client, CHECK_MODEL, prompt, CHECK_OUTPUT_TOKENS, f"{ticker} {kind} check")
+        usage.append(use)
+        parsed = parse_check(text, kind)
+        if parsed is not None:
+            break
+    else:
+        raise RuntimeError(f"{ticker} {kind} check: no readable verdict")
+    return {"Ticker": ticker, "Kind": kind, **parsed, "Report": text, "Checked_At": today, "Model": CHECK_MODEL,
+            "Check_Hash": check_hash(kind), "Tokens_In": sum(u["in"] for u in usage),
+            "Tokens_Out": sum(u["out"] for u in usage), "Cost_USD": round(sum(u["usd"] for u in usage), 4)}  # fmt: skip
+
+
+def load_checks(path: Path) -> pd.DataFrame:
+    """The stored checks (one row per ticker and kind), empty when none."""
+    if not path.exists():
+        return pd.DataFrame(columns=CHECK_COLUMNS)
+    return pd.read_parquet(path)
+
+
+def save_checks(checks: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    checks.drop_duplicates(["Ticker", "Kind"], keep="last").to_parquet(path, index=False)
+
+
+def checks_due(candidates, ranked: pd.DataFrame, checks: pd.DataFrame, now: pd.Timestamp) -> list[tuple[str, str]]:
+    """The (ticker, kind) candidates to check, in their order: never checked (or with no verdict), checked with
+    another prompt (`check_hash`), on an older annual report (`PeriodEnd_Y0` moved) or `MAX_AGE_DAYS` ago or more."""
+    current = {k: check_hash(k) for k in CHECK_KINDS}
+    stored = checks.set_index(["Ticker", "Kind"]) if not checks.empty else None
+    y0 = ranked.set_index("Ticker")["PeriodEnd_Y0"] if "PeriodEnd_Y0" in ranked.columns else pd.Series(dtype=object)
+    out = []
+    for ticker, kind in dict.fromkeys(candidates):
+        if stored is None or (ticker, kind) not in stored.index:
+            out.append((ticker, kind))
+            continue
+        row = stored.loc[(ticker, kind)]
+        checked = pd.to_datetime(row.get("Checked_At"), errors="coerce")
+        y0_now = pd.to_datetime(y0.get(ticker), errors="coerce")
+        y0_then = pd.to_datetime(row.get("Y0_End"), errors="coerce")
+        if (
+            pd.isna(checked)
+            or pd.isna(row.get("Pass"))
+            or (now - checked).days >= MAX_AGE_DAYS
+            or row.get("Check_Hash") != current[kind]
+            or (pd.notna(y0_now) and (pd.isna(y0_then) or y0_now > y0_then))
+        ):
+            out.append((ticker, kind))
+    return out
+
+
+def estimate_checks_usd(n: int, when: pd.Timestamp) -> float:
+    """What `n` checks cost, from `EST_CHECK_USD` scaled to the rates on `when`."""
+    now = [r for r in RATES[CHECK_MODEL] if when >= r[0]][-1][1] / RATES[CHECK_MODEL][0][1]
+    return n * EST_CHECK_USD * now
+
+
+def attach_checks(df: pd.DataFrame, path: Path) -> pd.DataFrame:
+    """`df` with each company's stored checks, per kind: `Check_Earnings_Pass` / `Check_Book_Pass` (True, False, or
+    None unchecked), `_Headline`, `_Tag`, `_Topics` (JSON), `_Why` and `_Date`, for the lists and the company pages."""
+    checks = load_checks(path)
+    out = df.drop(columns=[c for c in df.columns if c.startswith("Check_")])
+    for kind in CHECK_KINDS:
+        prefix = f"Check_{kind.capitalize()}_"
+        part = checks[checks["Kind"] == kind].set_index("Ticker") if not checks.empty else pd.DataFrame()
+        if part.empty:
+            out = out.assign(**{f"{prefix}Pass": None})
+            continue
+        pick = lambda col: out["Ticker"].map(part[col]) if col in part.columns else None  # noqa: B023, E731
+        passed = [None if pd.isna(v) else bool(v) for v in pick("Pass")]
+        out = out.assign(**{f"{prefix}Pass": pd.Series(passed, index=out.index, dtype=object),
+                            f"{prefix}Headline": pick("Headline"), f"{prefix}Tag": pick("Tag"),
+                            f"{prefix}Topics": pick("Topics"), f"{prefix}Why": pick("Why"),
+                            f"{prefix}Date": pd.to_datetime(pick("Checked_At"), errors="coerce").dt.strftime("%Y-%m-%d")})  # fmt: skip
+    return out
+
+
+def run_checks(todo: list[tuple[str, str]], ranked: pd.DataFrame, notes: dict[str, list[str]], path: Path,
+               workers: int = WORKERS) -> pd.DataFrame:  # fmt: skip
+    """Make the (ticker, kind) checks of `todo` from their rows in `ranked` (`check_input`) and `notes` (the data
+    notes and warning flags by ticker, priced clauses taken out here), saving each as it comes. Returns the new
+    checks; a check that fails is logged and skipped (it stays due)."""
+    client = _client()
+    today = pd.Timestamp.now().normalize()
+    rows = ranked.drop_duplicates("Ticker").set_index("Ticker", drop=False)
+    lock, new = threading.Lock(), []
+
+    def one(ticker: str, kind: str) -> dict | None:
+        if ticker not in rows.index:
+            log.warning("%s: not in the ranked run, not checked", ticker)
+            return None
+        row = rows.loc[ticker]
+        name = row.get("shortName") if isinstance(row.get("shortName"), str) else ticker
+        cash = kind == EARNINGS and asks_about_cash(row)
+        figures = check_input(row, notes.get(ticker, []), kind)
+        result = check_company(client, ticker, name, figures, kind, today, cash)
+        result["Y0_End"] = pd.to_datetime(row.get("PeriodEnd_Y0"), errors="coerce")
+        with lock:
+            new.append(result)
+            save_checks(pd.concat([load_checks(path), pd.DataFrame([result])], ignore_index=True), path)
+        return result
+
+    spent = 0.0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(one, t, k): (t, k) for t, k in todo}
+        for i, future in enumerate(as_completed(futures), 1):
+            ticker, kind = futures[future]
+            try:
+                result = future.result()
+            except Exception as exc:
+                log.error("%s %s check not made: %s", ticker, kind, exc)
+                continue
+            if result is None:
+                continue
+            spent += result["Cost_USD"]
+            log.info("Checked %s %s (%d/%d): %s%s, $%.3f (total $%.2f)", ticker, kind, i, len(todo),
+                     "passes" if result["Pass"] else "fails", f" ({result['Tag']})" if result["Tag"] else "",
+                     result["Cost_USD"], spent)  # fmt: skip
+    return pd.DataFrame(new, columns=CHECK_COLUMNS)

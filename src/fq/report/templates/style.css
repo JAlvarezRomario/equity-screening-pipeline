@@ -247,6 +247,25 @@ tr.grade-fail { background: color-mix(in srgb, var(--muted) 6%, transparent); }
 .grade-section p { margin: 0.3em 0 0; line-height: 1.55; max-width: 80ch; }
 .grade-detail { margin-top: 1em; font-size: 0.85em; }
 
+/* Company page: the checks of the numbers (earnings, book): verdict, one row per topic, the reasons folded. */
+.flag-tag.pill-check-fail { border-color: var(--neg); color: var(--neg); border-style: dashed; }
+.check-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.8em; flex-wrap: wrap; }
+.check-verdict { font-weight: 600; color: var(--pos); white-space: nowrap; }
+.check-verdict-fail { color: var(--neg); }
+.check-headline { margin: 0.3em 0 0.7em; line-height: 1.5; max-width: 80ch; }
+.check-topics { display: grid; gap: 0.35em; margin: 0 0 0.6em; }
+.check-topic { display: grid; grid-template-columns: minmax(11em, 15em) 1fr; gap: 0.8em; align-items: baseline; }
+.check-topic dt { font-weight: 500; }
+.check-topic dd { margin: 0; color: var(--muted); }
+.check-mark { display: inline-block; width: 1.1em; text-align: center; font-weight: 700; }
+.check-ok .check-mark { color: var(--pos); }
+.check-caution .check-mark { color: var(--muted); }
+.check-fail .check-mark { color: var(--neg); }
+.check-why { margin: 0.5em 0 0; padding-left: 1.2em; line-height: 1.55; max-width: 80ch; }
+.check-why li + li { margin-top: 0.3em; }
+.check-card.check-low .check-headline { color: var(--muted); }
+@media (max-width: 600px) { .check-topic { grid-template-columns: 1fr; gap: 0.1em; } .check-topic dd { padding-left: 1.5em; } }
+
 /* Full ranking: scrolls inside the card so the header row and the first two columns stay in view. */
 .table-filters { display: flex; gap: 12px; margin: 0.8em 0; flex-wrap: wrap; align-items: center; }
 .quick-filters { display: flex; gap: 0.4em; flex-wrap: wrap; align-items: center; }
