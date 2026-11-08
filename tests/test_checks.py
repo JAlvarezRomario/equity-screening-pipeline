@@ -53,6 +53,40 @@ def test_the_verdict_is_read_from_the_last_json_block_and_tidied():
     assert grading.parse_check('```json\n{"verdict": "maybe"}\n```', grading.EARNINGS) is None
 
 
+def test_a_failing_topic_or_cautions_on_cycle_and_one_offs_fail_whatever_the_model_wrote():
+    # User's rule, Nov 8, 2026 (after Haidilao passed on two cautions): two flattering forces at once fail.
+    two = [{"name": "Cycle", "status": "caution", "line": "Reopening spike"},
+           {"name": "One-offs and accounting", "status": "caution", "line": "Capex holiday"},
+           {"name": "AI and robotics", "status": "ok", "line": "Social dining"}]  # fmt: skip
+    out = grading.parse_check(_answer("pass", topics=two), grading.EARNINGS)
+    assert out["Pass"] is False and out["Tag"] == "peak earnings"
+    one_off = [{"name": "Cycle", "status": "ok", "line": "Normal"},
+               {"name": "One-offs and accounting", "status": "fail", "line": "A gain carries it"}]  # fmt: skip
+    out = grading.parse_check(_answer("pass", topics=one_off), grading.EARNINGS)
+    assert out["Pass"] is False and out["Tag"] == "one-offs"
+    book = [{"name": "Assets carried high", "status": "caution", "line": "x"},
+            {"name": "Net assets vs book", "status": "ok", "line": "y"}]  # fmt: skip
+    assert grading.parse_check(_answer("pass", topics=book), grading.BOOK)["Pass"] is True  # one caution: no fail
+    assert "more than about 20% below the average of the years shown" in grading.check_prompt(
+        grading.EARNINGS, "A", "A", "F", pd.Timestamp("2026-11-08")
+    )
+
+
+def test_accounting_notes_keep_their_terms_and_lose_only_the_stock_and_our_boilerplate():
+    # Review of Nov 8, 2026: "EV" and "FCF yield" as accounting terms stay; the suspect-figures flag is the earnings
+    # check's most useful note.
+    kept = grading.price_free([
+        "Holds client money (payroll balances): that cash is not subtracted from EV or invested capital.",
+        "Data suspect (earning power more than twice the reported FCF yield (add-backs worth checking)): ranked, but "
+        "left out of the top lists until checked.",
+        "Distress: Altman Z'' 0.90 with thin interest cover; scored, but left out of the top lists and the mood list "
+        "(cheap may mean failing).",
+        "Normalised FCF yield 9.1% against a price of 12.4."])  # fmt: skip
+    assert kept == ["Holds client money (payroll balances): that cash is not subtracted from EV or invested capital.",
+                    "Data suspect (earning power more than twice the reported FCF yield (add-backs worth checking)).",
+                    "Distress: Altman Z'' 0.90 with thin interest cover."]  # fmt: skip
+
+
 def test_the_cash_question_is_asked_only_from_twenty_percent_net_cash():
     assert grading.asks_about_cash(pd.Series({"Net_Cash_to_Cap": 20.0}))
     assert not grading.asks_about_cash(pd.Series({"Net_Cash_to_Cap": 19.9}))
@@ -158,15 +192,20 @@ def test_the_check_pool_holds_the_listed_past_their_bar_and_every_holding(cfg, m
 def test_the_check_card_sits_before_what_a_share_earns(cfg):
     df = _ranked(cfg)
     _graded(cfg, df, {}, {})
-    ticker = df["Ticker"].iloc[0]
-    _checked(cfg, {(ticker, grading.EARNINGS): False})
+    df["EPV_Per_Share_Yield"] = 10.0  # over the cheap lists' share-price bar, so some companies are listed
+    df.loc[df.index[-2:], "Traded_Value_USD"] = 1.0  # two too illiquid for any list (`highlights.listable`)
+    listed = list(dict.fromkeys(published_lists(df, cfg)["Ticker"]))
+    unlisted, other = [t for t in df["Ticker"] if t not in set(listed)][:2]
+    ticker = listed[0]
+    _checked(cfg, {(ticker, grading.EARNINGS): False, (unlisted, grading.EARNINGS): True})
     index = build_site(df, cfg)
-    page = (index.parent / "companies" / f"{slug(ticker)}.html").read_text(encoding="utf-8")
-    assert page.index("The numbers, checked") < page.index("What a share earns")
-    assert "✗ Peak earnings" in page and "Peak margins carry the record." in page and "A reason." in page
-    assert "check-low" in page and 'aria-label="fails"' in page and "without the price" in page
-    other = (index.parent / "companies" / f"{slug(df['Ticker'].iloc[1])}.html").read_text(encoding="utf-8")
-    assert "check-card" not in other  # no check made, no card
+    page = lambda t: (index.parent / "companies" / f"{slug(t)}.html").read_text(encoding="utf-8")  # noqa: E731
+    mine = page(ticker)
+    assert mine.index("The numbers, checked") < mine.index("What a share earns")
+    assert "✗ Peak earnings" in mine and "Peak margins carry the record." in mine and "A reason." in mine
+    assert "check-low" in mine and 'aria-label="fails"' in mine and "without the price" in mine
+    assert "check-card" not in page(other)  # no check made, no card
+    assert "check-card" not in page(unlisted)  # checked once, off the lists now: kept, not shown (as the grade card)
 
 
 def test_the_forward_test_freezes_the_checks_with_the_grades_and_gates_failed_members():

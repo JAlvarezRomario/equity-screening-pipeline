@@ -45,7 +45,10 @@ def check_pill(row: pd.Series) -> dict | None:
 def check_cards(row: pd.Series) -> list[dict]:
     """The company page's check cards, earnings first then book, for each check made: title, verdict, headline, the
     topic rows (mark, its spoken name, topic, line) and the reasoning bullets (markdown marks stripped; autoescaped
-    by the template)."""
+    by the template). Only while the company is listed or held (`Grade_Listed`), like the grade card: a check kept
+    from an earlier listing stays stored, not shown."""
+    if row.get("Grade_Listed") != True:  # noqa: E712
+        return []
     cards = []
     for kind in CHECK_KINDS:
         prefix = f"Check_{kind.capitalize()}_"

@@ -18,9 +18,9 @@
 {% endmacro %}
 {% macro qualified(rows, total, ranked=false) %}{% set shown = rows | rejectattr('extra') | list | length %}{% set low = rows | rejectattr('extra') | selectattr('fails') | list | length %}<p class="list-count muted">{% if ranked %}The top {{ shown }} of {{ "{:,}".format(total) }} eligible companies{% else %}{{ "{:,}".format(total) }} {{ 'company qualifies' if total == 1 else 'companies qualify' }}{% if total > shown %}; the top {{ shown }} are shown{% elif total %}; all are shown{% endif %}{% endif %}{% if low %}; {{ low }} of them {{ 'falls' if low == 1 else 'fall' }} short on the moat and management grade or the check of their numbers (folded under the list){% endif %}.</p>{% endmacro %}
 {% macro list_tables(rows, hdrs) %}{% set good = rows | rejectattr('fails') | list %}{% set low = rows | selectattr('fails') | list %}
-    {% if good %}{{ list_table(good, hdrs) }}{% else %}<p class="empty">None passes the moat and management grade.</p>{% endif %}
+    {% if good %}{{ list_table(good, hdrs) }}{% else %}<p class="empty">None passes the moat and management grade and the check of its numbers.</p>{% endif %}
     {% if low %}<details class="explain below-bar"><summary>{{ low | rejectattr('extra') | list | length }} below the moat and management bar or the check of their numbers</summary>
-    <p class="muted">They pass every figure test of the list, but the AI grade of their moat or management falls short: kept for reference, not replaced.</p>
+    <p class="muted">They pass every figure test of the list, but the AI grade of their moat or management falls short, or the AI check of their numbers finds them flattered (a cyclical peak, one-offs, AI risk, idle cash, or a book worth less than it shows): kept for reference, not replaced.</p>
     {{ list_table(low, hdrs) }}</details>{% endif %}{% endmacro %}
 {% macro ranking_row(r) %}
         <tr{% if r.fails %} class="grade-fail"{% endif %}{% if r.ticker in held %} data-held="1"{% endif %}{% if r.compounder %} data-compounder="1"{% endif %}{% if r.operating %} data-operating="1"{% endif %}{% if r.q70 %} data-q70="1"{% endif %}{% if r.clean %} data-clean="1"{% endif %}{% if r.wht0 %} data-wht0="1"{% endif %}>

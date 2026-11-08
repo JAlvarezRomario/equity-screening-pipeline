@@ -580,7 +580,7 @@ def run(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WOR
 CHECK_MODEL = GRADE_MODEL
 CHECK_OUTPUT_TOKENS = 32768
 # What `check_input` carries; bump it when that changes, so every check is redone (`check_hash`).
-CHECK_INPUT_VERSION = 1
+CHECK_INPUT_VERSION = 2  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield as terms)
 CASH_QUESTION_MIN_PCT = 20.0  # net cash / market cap, %, from which the earnings check asks about the cash (user)
 EARNINGS, BOOK = "earnings", "book"
 CHECK_KINDS = (EARNINGS, BOOK)
@@ -591,7 +591,11 @@ CHECK_TOPICS = {
     BOOK: ("Assets carried high", "Hidden liabilities", "Assets carried low", "Net assets vs book"),
 }
 CHECK_STATUSES = ("ok", "caution", "fail")
-EST_CHECK_USD = 0.06  # one check, one Argon pass, at the introductory rates (estimate, before measuring)
+# The earnings check fails on a caution on both of these (user's rule, Nov 8, 2026): two flattering forces at once.
+TWO_CAUTIONS = ("Cycle", "One-offs and accounting")
+EST_CHECK_USD = (
+    0.025  # one check, one Argon pass, at the introductory rates (measured on 5 checks, Nov 8, 2026: $0.022)
+)
 CHECK_COLUMNS = ["Ticker", "Kind", "Pass", "Headline", "Tag", "Topics", "Why", "Report", "Checked_At", "Y0_End",
                  "Model", "Check_Hash", "Tokens_In", "Tokens_Out", "Cost_USD"]  # fmt: skip
 # The book check's balance sheet, per period (label, column concept), millions of US dollars.
@@ -612,9 +616,19 @@ BOOK_LINES = (
 )
 # A clause of a data note that speaks of a price, a market value, a yield or a verdict of ours is left out of the
 # check's input (user's rule, Nov 7, 2026: the LLM judges the business, not the stock; review of Nov 8, 2026).
-_PRICED = re.compile(
-    r"(?i:\b(?:prices?|priced|pricing|market cap|market value|yields?|cheap|dear|scored?|scores|rank(?:s|ed|ing|ings)?"
-    r"|percentiles?|top lists|highlight lists|mood)\b)|\b(?:Value|Quality|EV)\b"
+# A clause of a data note that speaks of the stock is left out of the check's input (user's rule, Nov 7, 2026: the LLM
+# judges the business, not the stock): the market's view and our verdicts on it (`_STOCK_WORDS`), and any figure over
+# a price or a score of ours (`_PRICED_NUMBER`: a yield, P/E, market value or Value / Quality with a number). Words
+# such as EV, yield or Value used as accounting or method terms stay (review of Nov 8, 2026: "not subtracted from EV
+# or invested capital" is why client cash is set apart, and "earning power more than twice the reported FCF yield"
+# is the suspect-figures flag the earnings check needs most). Our list boilerplate is cut, not its sentence.
+_STOCK_WORDS = re.compile(r"(?i)\b(?:cheap|dear|mood|percentiles?|quadrant|the market|rankings)\b")
+_PRICED_NUMBER = re.compile(
+    r"(?i:\b(?:yields?|P/E|prices?|priced|market cap|market value)\b[^.;:]*?\d)|\b(?:Value|Quality)\b\s*\(?\s*\d"
+)
+_BOILERPLATE = re.compile(
+    r"(?i)[,;]?\s*(?:so it is |it is )?(?:ranked|scored)?,?\s*(?:but )?(?:left )?out of (?:the )?(?:top|highlight) "
+    r"lists?(?: and the mood list \([^)]*\))?(?: until [^.;]*)?"
 )
 
 
@@ -624,14 +638,18 @@ def check_kind(list_name: str) -> str:
 
 
 def price_free(notes) -> list[str]:
-    """`notes` with every clause that speaks of a price, a market value, a yield or a score of ours taken out (a note
-    left empty is dropped): the check reads the system's data notes and warning flags, never the stock."""
+    """`notes` with our list boilerplate cut ("ranked, but left out of the top lists until checked") and every clause
+    that speaks of the stock taken out (`_STOCK_WORDS`, `_PRICED_NUMBER`); a note left empty is dropped. The check
+    reads the system's data notes and warning flags, never the price."""
     out = []
     for note in notes or []:
-        clauses = re.split(r"(?<=[.;:])\s+", str(note).strip())
-        kept = " ".join(c for c in clauses if c and not _PRICED.search(c)).strip().rstrip(":;").strip()
-        if kept and re.search(r"[A-Za-z]{3}", kept):
-            out.append(kept)
+        text = _BOILERPLATE.sub("", str(note).strip())
+        clauses = re.split(r"(?<=[.;:])\s+", text)
+        kept = [c for c in clauses if c and not _STOCK_WORDS.search(c) and not _PRICED_NUMBER.search(c)]
+        joined = re.sub(r"[:;,]\s*\.", ".", " ".join(kept))  # what the cut boilerplate left: "):." -> ")."
+        joined = re.sub(r"\.{2,}", ".", joined).strip().rstrip(":;,").strip()
+        if joined and re.search(r"[A-Za-z]{3}", joined):
+            out.append(joined)
     return list(dict.fromkeys(out))
 
 
@@ -724,6 +742,13 @@ def parse_check(text: str, kind: str) -> dict | None:
         tag = str(data.get("tag") or "").strip()
         tag = next((t for t in CHECK_TAGS[kind] if t.lower() == tag.lower()), None)
         failed = verdict == "fail"
+        status = {t["name"]: t["status"] for t in topics}
+        # A failing topic fails the check, and on the earnings check so do cautions on both forces that flatter a
+        # record (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
+        if "fail" in status.values() or (kind == EARNINGS and all(status.get(n) == "caution" for n in TWO_CAUTIONS)):
+            if not failed:
+                tag = tag or ("one-offs" if status.get("One-offs and accounting") == "fail" else "peak earnings")
+            failed = True
         return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
                 "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
                 "Why": str(why or "").strip()}  # fmt: skip

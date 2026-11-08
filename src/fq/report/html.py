@@ -57,7 +57,8 @@ RANKING_EAGER_ROWS = 500
 
 # The one sentence shown under the Highlights heading; `TOP_LIST_NOTE` follows it in a fold.
 TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking. Those that fall short on the moat and "
-                 "management grade (see above) are folded away under each list, not deleted.")  # fmt: skip
+                 "management grade (see above), or whose numbers an AI check finds flattered, are folded away under "
+                 "each list, not deleted.")  # fmt: skip
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
                  "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "

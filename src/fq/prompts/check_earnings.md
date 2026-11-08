@@ -20,7 +20,14 @@ Answer each from what you know and from the figures. Be concrete: name years, it
 3. **AI and robotics.** Within about five to ten years, can AI or robots do much of what customers pay this company for, remove the need for it, or let new rivals do it far more cheaply? Physical, regulated, trust- or licence-based work is harder to replace than information work, routine services, content or intermediation. If AI strengthens what the company owns, say so.
 {{CASH_QUESTION}}
 ### THE VERDICT
-**FAIL** when the record that made the company look good rests mainly on a cyclical peak, a windfall or one-off items, so that a normal year would look materially worse; or when AI or robotics disruption of the business model is likely within the horizon; or when a question above shows the figures cannot be taken at face value. **PASS** when the record is a fair picture of the business through a cycle, even if one year needs a footnote. A caution on a topic does not fail the company by itself; a failing topic does.
+Judge against **the figures shown, all of them**: the screen reads the whole record of years above, not only the latest, so a flattering year inside it flatters the company even when today's year is normal.
+
+**FAIL** when:
+- a normal year's owner earnings, free cash flow or operating margin would be **more than about 20% below the average of the years shown**, because the record holds a cyclical peak, a windfall, a capex holiday, a one-off gain or another item that will not recur; or
+- AI or robotics disruption of the business model is likely within the horizon; or
+- a question above shows the figures cannot be taken at face value.
+
+**PASS** when the record shown is a fair picture of the business through a cycle, even if one year needs a footnote. A caution on one topic does not fail the company by itself; a failing topic does, and **a caution on both Cycle and One-offs and accounting counts as a fail**: two flattering forces in the same record are too many to read past.
 
 ### OUTPUT
 First write your analysis in plain prose, a few short paragraphs, topic by topic. Then end with **one** fenced JSON block, keys in exactly this order, evidence before the verdict:
