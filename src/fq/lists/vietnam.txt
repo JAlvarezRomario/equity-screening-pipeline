@@ -1,7 +1,8 @@
-# Vietnamese companies on HOSE, HNX and UPCoM (Yahoo Finance tickers: .VN), market cap >= 200 M USD. Vietnam is a
+# Vietnamese companies on HOSE, HNX and UPCoM (Yahoo Finance tickers: .VN), market cap >= 100 M USD (200 M until Nov 8, 2026). Vietnam is a
 # frontier market (not in MSCI EM), so no other list holds it. Built Oct 29, 2026 from Yahoo's screener (exchange
 # Vietnam), Yahoo country = Vietnam. Expect more unranked names than elsewhere (thin Yahoo statements, VAS, UPCoM
 # illiquidity). Refresh by hand (VN30 reviews: January and July).
+# Nov 8, 2026, user's choice: floor lowered to 100 M USD (exchange VSE, converted at fq's cached rate); 48 added.
 ACB.VN
 BAF.VN
 BCM.VN
@@ -115,3 +116,51 @@ VRE.VN
 VSC.VN
 VSH.VN
 VTP.VN
+DHC.VN
+CRV.VN
+VBB.VN
+PET.VN
+BVB.VN
+TLG.VN
+HNA.VN
+HT1.VN
+ANV.VN
+PDN.VN
+ACG.VN
+IJC.VN
+GEG.VN
+HHS.VN
+DBD.VN
+PAN.VN
+CMG.VN
+CHP.VN
+MSH.VN
+SCS.VN
+DPG.VN
+BIC.VN
+SZC.VN
+STG.VN
+TMP.VN
+BFC.VN
+DPR.VN
+DCL.VN
+MIG.VN
+AST.VN
+SHP.VN
+NTC.VN
+VVS.VN
+TVS.VN
+HDC.VN
+VDS.VN
+PTB.VN
+DVP.VN
+NAF.VN
+DXS.VN
+QCG.VN
+TRA.VN
+AGR.VN
+MCM.VN
+PPC.VN
+AAA.VN
+DSC.VN
+PGI.VN
