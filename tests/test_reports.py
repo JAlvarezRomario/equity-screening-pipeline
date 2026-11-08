@@ -125,7 +125,7 @@ def test_front_page_and_company_pages_say_the_same(cfg):
                     for t in page.select(".tile")}  # fmt: skip
         on_page |= {c.span.get_text(strip=True): c.get_text(" ", strip=True)[len(c.span.get_text(strip=True)) :]
                     for c in page.select(".headline .chip")}  # fmt: skip
-        for col, label in {"Value Score": "Value", "Quality Score": "Quality", "Owner Yield": "Owner yield",
+        for col, label in {"Value Score": "Value", "Quality Score": "Quality", "Owner Yield": "Owner yield on the business (ranked on)",
                            "Return Quality": "Return quality", "Market Cap (B$)": "Market cap",
                            "Analysts": "Analysts"}.items():  # fmt: skip
             if num(shown[col]):  # a figure the index shows, the page shows too, the same
@@ -217,7 +217,7 @@ def test_ranking_is_lean_and_company_pages_show_every_scored_criterion(cfg):
     groups = dict(company_facts(df.iloc[0], counts=rank_counts(df)))
     quality = [f["label"] for f in groups["Quality criteria"]]
     assert len(quality) == len(cfg.quality_criteria) and quality[0] == "Return quality"
-    assert [f["label"] for f in groups["Value criteria"]] == ["Owner yield"]
+    assert [f["label"] for f in groups["Value criteria"]] == ["Owner yield on the business (ranked on)"]
     rank = groups["Ranking"][0]
     assert rank["label"] == "Rank" and rank["value"].endswith(f" of {df['Rank'].notna().sum()}")
 
@@ -260,8 +260,8 @@ def test_company_page_leads_with_scores_tiles_and_neighbours(cfg):
     rest = page[page.index('class="card chart-card"') :]
     # Every scored criterion is a driver tile with how it ranks; the context tiles follow; neither is repeated below.
     assert "Owner yield" in drivers and "Return quality" in drivers and "better than" in drivers
-    assert "Earnings power / EV" in context and "<dt>Owner yield</dt>" not in rest
-    assert "<dt>Earnings power / EV, before interest</dt>" not in rest and "Value criteria" not in rest
+    assert "Owner yield on the share price" in context and "<dt>Owner yield on the business" not in rest
+    assert "<dt>Owner yield on the share price</dt>" not in rest and "Value criteria" not in rest
     assert 'id="company_chart"' in page and 'id="returns_chart"' in page and 'id="business_chart"' in page
     assert 'class="company-website"' in page and 'href="https://example.com"' in page
 
@@ -709,6 +709,7 @@ def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
     from fq.settings import Settings
 
     df = _ranked(cfg).copy()
+    df["Owner_Yield_Share"] = 10.0  # every company over the cheap lists' share-price bar: this test is the fifth's
     best = in_best_fraction(df)
     assert best.sum() == np.ceil(Settings().highlight_top_fraction * df["Rank"].notna().sum())
     df["Asset_Play"] = True

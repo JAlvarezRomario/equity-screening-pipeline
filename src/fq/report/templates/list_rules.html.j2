@@ -7,11 +7,13 @@
 {% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of the two.") %}<ul>
   <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
   <li>Ties go to the better sum of the two positions.</li>
+  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cheapest(r) %}{% call rules("The cheapest companies for what one share earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
   <li>Down the Value ranking until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
-  <li>The Value score: the normalised owner earnings one share owns (the cash it earns after everything the business needs to stay as it is), projected 3 years on its own steady trend, declines charged, over today's price.</li>
+  <li>The Value score: the normalised owner earnings of the business before interest (the cash it earns after everything it needs to stay as it is), projected 3 years on its own steady trend, declines charged, over market cap plus debt, less spare cash, so debt and cash do not change the rank.</li>
+  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: the same earnings after today's interest on debt or cash, over the share price.</li>
   <li>Cyclicals at mid-cycle earnings, with no trend.</li>
   <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays.</li>
   <li>The Quality score is not considered.</li>

@@ -171,3 +171,21 @@ def test_a_missing_criterion_counts_at_the_middle_not_at_the_strongest_one():
     assert coverage[n - 1] == pytest.approx(0.7)
     assert score[n - 1] < score[n - 2]
     assert score[n - 1] == pytest.approx(70 * 1.0 + 30 * 0.5, abs=3)
+
+
+def test_owner_yield_share_is_after_interest_over_the_share_price(cfg):
+    """The worked example (Nov 8, 2026): 10 shares at 1000, 100 a share before interest, no trend. Net cash of 500 a
+    share earning 11.25 after tax: 20% on the business, 11.1% on the share price. Net debt of 500 a share costing 15
+    after tax: the share-price yield sits above the business yield."""
+    flat = [1000.0] * 4
+    cash = _trend_frame(cfg, flat, epv=1000 / 5000 * 100)
+    cash[["FCF_Base", "Value_Base", "Net_Financing_Yield"]] = [10000.0, 5000.0, -112.5 * 100 / 10000]
+    _owner_yield(cash, cfg, _basis())
+    assert cash.loc[0, "Owner_Yield"] == pytest.approx(20.0)
+    assert cash.loc[0, "Owner_Yield_Share"] == pytest.approx(11.125)
+
+    debt = _trend_frame(cfg, flat, epv=1000 / 15000 * 100)
+    debt[["FCF_Base", "Value_Base", "Net_Financing_Yield"]] = [10000.0, 15000.0, 150.0 * 100 / 10000]
+    _owner_yield(debt, cfg, _basis())
+    assert debt.loc[0, "Owner_Yield_Share"] == pytest.approx(8.5)
+    assert debt.loc[0, "Owner_Yield_Share"] > debt.loc[0, "Owner_Yield"]

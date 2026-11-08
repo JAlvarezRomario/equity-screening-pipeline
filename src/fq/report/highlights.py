@@ -54,10 +54,6 @@ class Tab:
     ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (not the pure scores)
 
 
-def _top(col: str):
-    return lambda df, n, hurdle: top_n(df, col, n)
-
-
 def _plain(fn):
     return lambda df, n, hurdle: fn(df, n)
 
@@ -103,8 +99,15 @@ def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str) 
 
 def cheapest_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """Cheapest (user's choice, Nov 7, 2026): down the Value ranking, moat and management both at least
-    `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`)."""
-    return _graded_walk(df, n, "Value_Rank", grading.passes_cheapest, CHEAPEST_BAR)
+    `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`), owner yield on the share price above
+    `screens.CHEAP_MIN_SHARE_YIELD` (Nov 8, 2026)."""
+    return _graded_walk(sc.cheap_enough(df), n, "Value_Rank", grading.passes_cheapest, CHEAPEST_BAR)
+
+
+def cheap_and_good_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
+    """Cheap and good: the top of the combined ranking (`Rank`) whose owner yield on the share price is above
+    `screens.CHEAP_MIN_SHARE_YIELD` (user's choice, Nov 8, 2026)."""
+    return top_n(sc.cheap_enough(df), "Rank", n)
 
 
 def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
@@ -163,7 +166,7 @@ GROUPS = {
 # The tabs in the order the index page shows them, group by group; a company page lists its tabs in this order too.
 # fmt: off
 TABS: tuple[Tab, ...] = (
-    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.TOP_LIST_COLUMNS, _top("Rank"), group="start",
+    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
         ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),

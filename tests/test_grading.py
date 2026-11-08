@@ -223,8 +223,8 @@ def test_ungraded_companies_keep_their_place_with_a_pill(cfg):
 
 def test_the_grade_card_is_on_listed_companies_pages_only(cfg):
     df = _ranked(cfg)
-    listed = set(published_lists(df, cfg)["Ticker"])
     _graded(cfg, df, {}, {})
+    listed = set(published_lists(df, cfg)["Ticker"])  # after the grades: the graded walks change with them
     index = build_site(df, cfg)
     for ticker in df["Ticker"]:
         page = (index.parent / "companies" / f"{slug(ticker)}.html").read_text(encoding="utf-8")
@@ -383,12 +383,13 @@ def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded(
     from fq.report import highlights as hl
 
     df = pd.DataFrame({
-        "Ticker": ["LOW", "GOOD", "NEW", "GOOD2", "GOOD3"],
-        "Value_Rank": [1.0, 2.0, 3.0, 4.0, 5.0],
-        "Grade_Moat": [2.5, 3.0, np.nan, 4.0, 3.5],
-        "Grade_Mgmt": [4.0, 3.0, np.nan, 3.0, 3.5],
+        "Ticker": ["CASHY", "LOW", "GOOD", "NEW", "GOOD2", "GOOD3"],
+        "Value_Rank": [0.5, 1.0, 2.0, 3.0, 4.0, 5.0],
+        "Grade_Moat": [4.0, 2.5, 3.0, np.nan, 4.0, 3.5],
+        "Grade_Mgmt": [4.0, 4.0, 3.0, np.nan, 3.0, 3.5],
+        "Owner_Yield_Share": [6.0, 9.0, 9.0, 9.0, 9.0, 9.0],  # CASHY: cheap on EV, not above 6% on its share price
     })  # fmt: skip
     out = hl.cheapest_list(df, 2)
-    assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # LOW skipped, NEW waits for its grade
+    assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # CASHY and LOW skipped, NEW waits for its grade
     assert out["Grade_Pass"].tolist() == [True, None, True]
     assert grading.passes_cheapest(np.nan, 3.0) is None and grading.passes_cheapest(3.0, 2.75) is False

@@ -79,7 +79,9 @@ def _value(df: pd.DataFrame, cfg: Settings) -> None:
 
 
 def _owner_yield(df: pd.DataFrame, cfg: Settings, level_basis: pd.DataFrame) -> None:
-    """Owner_Yield: 3-year forward owner-earnings yield per share over today's price.
+    """Owner_Yield: 3-year forward owner-earnings yield before interest over the price of the operations
+    (`Value_Base`: market cap plus debt at face, less spare cash), so debt and cash do not move the rank; the yield
+    one share sees after today's interest, over the share price, is `Owner_Yield_Share` (shown, never scored).
     Credits per-share real growth (capped at +15%/yr) and charges declines (floored at -10%/yr), both in
     proportion to how smooth the trend is (R²: noise around a flat line is neither). The level is earnings at
     zero growth (growth capex left out); the trend is fitted on `FCF_Reported` (every capex and working capital
@@ -180,6 +182,21 @@ def _owner_yield(df: pd.DataFrame, cfg: Settings, level_basis: pd.DataFrame) -> 
     horizon = cfg.forward_years + level_basis["Age"].fillna(0.0)
     growth_mult = (1.0 + g_series) ** horizon
     df["Owner_Yield"] = level.where(level <= 0, level * growth_mult)
+    df["Owner_Yield_Share"] = _owner_yield_share(df, growth_mult)
+
+
+def _owner_yield_share(df: pd.DataFrame, growth_mult: pd.Series) -> pd.Series:
+    """Owner_Yield_Share (display, the company page's headline; user's choice, Nov 8, 2026): `Owner_Yield` as one
+    share sees it. The flow before interest on `Value_Base`, grown as `Owner_Yield` is, less today's net interest
+    after tax (`Net_Financing_Yield`: paid on debt, or earned on spare cash, not grown), over the market cap of the
+    parent's share (`FCF_Base`). Net cash earning ~3% pulls it below `Owner_Yield`, net debt lifts it above: that is
+    why the ranking stays on `Owner_Yield` (Greenblatt's EBIT/EV; comparability across balance sheets) and this is
+    never scored. Financial and float mode: `Value_Base` is `FCF_Base`, so only the financing differs."""
+    level = _col(df, "EPV_Yield")
+    grown = level.where(level <= 0, level * growth_mult)
+    base = _col(df, "FCF_Base")
+    base = base.where(base > 0)
+    return (grown * _col(df, "Value_Base") - _col(df, "Net_Financing_Yield").fillna(0) * base) / base
 
 
 def _trend_denominator(newest: float, level: float, mean_scale: float, cfg: Settings) -> float:

@@ -28,8 +28,20 @@ TOP_LIST_COLUMNS = [
     ("Quality Score", "Quality_Score", ".0f", 1, ""),
 ]  # fmt: skip
 
+# The lists named cheap (Cheap and good, Cheapest; user's choice, Nov 8, 2026): what one share earns after today's
+# interest, over the share price (`Owner_Yield_Share`), above this; a blank fails. The ranking stays on the EV yield.
+CHEAP_MIN_SHARE_YIELD = 6.0
+SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "Owner_Yield_Share", ".1f", 1, "%")
+CHEAP_AND_GOOD_COLUMNS = [*TOP_LIST_COLUMNS, SHARE_YIELD_COLUMN]
+
+
+def cheap_enough(df: pd.DataFrame) -> pd.DataFrame:
+    """The companies whose owner yield on the share price is above `CHEAP_MIN_SHARE_YIELD` (the lists named cheap)."""
+    return df[_num(df, "Owner_Yield_Share") > CHEAP_MIN_SHARE_YIELD]
+
+
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
-VALUE_LIST_COLUMNS = [*TOP_LIST_COLUMNS, ("Owner Yield", "Owner_Yield", ".1f", 1, "%")]
+VALUE_LIST_COLUMNS = [*TOP_LIST_COLUMNS, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), SHARE_YIELD_COLUMN]
 QUALITY_LIST_COLUMNS = [
     ("Moat", "Grade_Moat", ".2f", 1, ""),
     ("Management", "Grade_Mgmt", ".2f", 1, ""),

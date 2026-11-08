@@ -66,7 +66,8 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "book. Every list but Cheap and good, Cheapest and Best businesses also leaves out "
                  "the industries AI substitutes or disrupts (software, IT services, consulting, staffing, advertising, "
                  "publishing, education, business services, internet content, gaming, health information, entertainment "
-                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings; the other "
+                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings (the two "
+                 "named cheap also ask an owner yield on the share price above {cheap_yield}%); the other "
                  "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists; "
                  "Energy says how it picks). Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
@@ -98,6 +99,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "spreads": ", ".join(f"{c} {sovereign_spread(c):.1f}" for c in SPREAD_EXAMPLES),
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
+        "cheap_yield": g(sc.CHEAP_MIN_SHARE_YIELD),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "asset_min_roic": g(cfg.asset_play_min_roic),
         "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),
@@ -249,6 +251,7 @@ def build_site(
         top_list_note=TOP_LIST_NOTE.format(
             top=top,
             liquid=f"${cfg.list_min_traded_usd / 1e3:,.0f}k",
+            cheap_yield=f"{sc.CHEAP_MIN_SHARE_YIELD:g}",
             both=f"{grading.MIN_BOTH:g}",
             one=f"{grading.MIN_ONE:g}",
         ),
