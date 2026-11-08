@@ -1,6 +1,7 @@
 # SDAX & German Mittelstand Champions (XETRA Prime & General Standard)
 # Oct 28, 2026: ADTN.DE, B4B.DE, C3Y.DE, COP.DE, CSU.DE, D6H.DE, EIN3.DE, NLX.DE, NYM.DE, STR.DE and VAR1.DE removed:
 # Yahoo has no quote for them (delisted or taken over).
+# Nov 8, 2026: HBM.DE, SHA.DE, TTR.DE removed (no price on Yahoo: delisted or taken over).
 1COV.DE
 1U1.DE
 8TRA.DE
@@ -36,7 +37,6 @@ F3C.DE
 FYB.DE
 GIL.DE
 HAW.DE
-HBM.DE
 HNL.DE
 IVU.DE
 IXX.DE
@@ -45,8 +45,6 @@ MUM.DE
 PBB.DE
 SBS.DE
 SGL.DE
-SHA.DE
-TTR.DE
 UUU.DE
 WSU.DE
 ZIL2.DE

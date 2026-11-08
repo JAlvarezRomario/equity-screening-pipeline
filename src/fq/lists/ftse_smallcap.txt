@@ -1,11 +1,11 @@
 # FTSE SmallCap Index and FTSE AIM leaders (UK) active constituents
 # Oct 28, 2026: BOO.L is now DEBS.L (boohoo); ASOS.L (duplicate of ASC.L), ATS.L, AUGM.L, FDP.L, FJV.L, LTG.L, MRL.L,
 # SWEF.L and TET.L removed: Yahoo has no quote for them (delisted, taken over or wound up).
+# Nov 8, 2026: ASIT.L, FSF.L, KAPE.L, KWS.L, ROOF.L, TM17.L removed (no price on Yahoo: delisted or taken over).
 ABDX.L
 AEWU.L
 APTD.L
 ASC.L
-ASIT.L
 BGEU.L
 BGS.L
 DEBS.L
@@ -25,7 +25,6 @@ DOTD.L
 FAS.L
 FORT.L
 FOXT.L
-FSF.L
 FSJ.L
 FSTA.L
 FUTR.L
@@ -38,9 +37,7 @@ HLCL.L
 HSW.L
 INOV.L
 JZCP.L
-KAPE.L
 KMR.L
-KWS.L
 LIO.L
 LSL.L
 LTI.L
@@ -66,7 +63,6 @@ PRV.L
 PSDL.L
 RCH.L
 REC.L
-ROOF.L
 RSE.L
 RWA.L
 RWS.L
@@ -79,7 +75,6 @@ SNWS.L
 STB.L
 STVG.L
 SUS.L
-TM17.L
 TPT.L
 TRCS.L
 TRI.L

@@ -1,6 +1,7 @@
 # S&P/ASX MidCap 50 and S&P/ASX Small Ordinaries (Yahoo Finance tickers: ASX code + .AX).
 # Mid- and small-cap Australian companies quoted in AUD. Net of members already held in ASX 50
 # or MSCI World, and excluding foreign primary lines. Refresh by hand.
+# Nov 8, 2026: QUB.AX removed (no price on Yahoo: delisted or taken over).
 ANN.AX
 ARB.AX
 BSL.AX
@@ -95,7 +96,6 @@ GMD.AX
 EDV.AX
 TAH.AX
 IEL.AX
-QUB.AX
 TLX.AX
 NEU.AX
 PWH.AX
