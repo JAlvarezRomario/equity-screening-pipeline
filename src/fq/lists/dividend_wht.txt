@@ -84,3 +84,4 @@ Chile: 35  # less a credit for the first-category corporate tax paid
 
 # Issuers taxed outside Yahoo's headquarters country.
 SBLK 0  # Star Bulk: incorporated in the Marshall Islands, headquartered in Greece; added Nov 8, 2026
+BOCHGR.AT 25  # Bank of Cyprus Holdings: an Irish plc, Irish dividend withholding; headquartered in Cyprus; Nov 8, 2026
