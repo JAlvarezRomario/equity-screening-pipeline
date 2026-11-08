@@ -7,6 +7,7 @@
 # ORILINA), as REITs elsewhere; TELL.AT (the Bank of Greece, a central bank). Foreign-domiciled lines kept with their
 # own rate through Yahoo's country: VIO.AT, CENER.AT, TITC.AT (Belgium), ACAG.AT (Austria), MERKO.AT (North Macedonia).
 # Statutory dividend withholding 5% (`dividend_wht.txt`). Refresh by hand quarterly.
+# Nov 8, 2026: floor applied in USD (the screener's is in euros): ASTAK, FLEXO, MIG, PAP, OLYMP added.
 ELPE.AT
 BOCHGR.AT
 CENER.AT
@@ -61,3 +62,8 @@ IATR.AT
 DOTSOFT.AT
 ONYX.AT
 DAIOS.AT
+ASTAK.AT
+FLEXO.AT
+MIG.AT
+PAP.AT
+OLYMP.AT
