@@ -276,10 +276,10 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Nov 7, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
-    # Net cash, Below book), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
+    # Nov 8, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
+    # Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
     # (Cheapest, Best businesses).
-    assert len(panels) == 14
+    assert len(panels) == 13
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -288,7 +288,15 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     groups = ("Start here", "By style", "By kind", "Raw scores")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert "Boring businesses" in html and 'id="hl-income"' in html
-    for gone in ("hl-repeaters", "hl-cannibals", "hl-radar", "hl-carry", "hl-dividend-growers", "hl-best-grades"):
+    for gone in (
+        "hl-repeaters",
+        "hl-cannibals",
+        "hl-radar",
+        "hl-carry",
+        "hl-dividend-growers",
+        "hl-best-grades",
+        "hl-net-cash",
+    ):
         assert gone not in html
 
 
@@ -574,20 +582,15 @@ def test_cannibal_buybacks_must_be_paid_from_free_cash_flow(cfg):
     assert list(flagged.iloc[:4]) == [True, False, True, True]
 
 
-def test_net_cash_list(cfg):
-    from fq.ranking import trusted
-    from fq.report.screens import net_cash_list
+def test_net_cash_pill_marks_a_cash_pile_on_the_lists_but_not_twice_on_the_company_page():
+    """Nov 8, 2026: the Net cash tab retired (Value counts cash through enterprise value); its test is a pill."""
+    from fq.report.pills import company_flags, tags
 
-    df = _ranked(cfg).copy()
-    df = df[df["Rank"].notna() & trusted(df)].head(5).copy()
-    df.loc[:, ["Net_Cash_to_Cap", "Share_Reduction_Rate", "FCF_Positive_Share"]] = [40.0, 1.0, 100.0]
-    df["In_Best_Fraction"] = [True, True, True, True, False]  # the last is outside the best fifth
-    rows = df.index
-    df.loc[rows[1], "Net_Cash_to_Cap"] = 10.0  # too little cash
-    df.loc[rows[2], "Share_Reduction_Rate"] = -3.0  # issuing shares: the pile is diluted
-    df.loc[rows[3], "FCF_Positive_Share"] = 50.0  # the pile is burned
-    assert list(net_cash_list(df, len(df))["Ticker"]) == [df.loc[rows[0], "Ticker"]]
-    assert 'data-panel="hl-net-cash">Net cash</button>' in build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
+    row = lambda **over: pd.Series({"Net_Cash_to_Cap": 40.0, "Financial_Mode": False} | over)  # noqa: E731
+    assert "net cash" in [t["word"] for t in tags(row())]
+    assert "net cash" not in [t["word"] for t in tags(row(Net_Cash_to_Cap=10.0))]
+    assert "net cash" not in [t["word"] for t in tags(row(Financial_Mode=True))]
+    assert "Net cash" not in [w for w, _ in company_flags(row())]  # the page has its own net cash badge
 
 
 def test_net_net_pill_marks_net_current_assets_above_the_price_excluding_banks_and_homebuilders(cfg):
@@ -601,7 +604,7 @@ def test_net_net_pill_marks_net_current_assets_above_the_price_excluding_banks_a
     assert "net-net" not in [t["word"] for t in tags(row(industry="Residential Construction"))]
     assert "net-net" not in [t["word"] for t in tags(row(industry="Real Estate - Development"))]
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-asset-plays">Below book</button>' in html and "net-net" in html
+    assert 'data-panel="hl-asset-plays">Balance sheet plays</button>' in html and "net-net" in html
 
 
 def test_list_filters_for_reinvestment_and_pricing_power(cfg):

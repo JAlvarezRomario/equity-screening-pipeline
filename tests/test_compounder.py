@@ -160,7 +160,7 @@ def test_income_needs_a_decade_without_a_cut_cover_little_tax_and_a_lasting_busi
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
-        return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
+        return row | {"Income_Unbroken_Years": 12.0, "Income_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
                       "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "Dividend_WHT": 0.0,
                       "EPV_Per_Share_Yield": 8.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
                       "Common Stock Equity_Y0": 100.0} | over  # fmt: skip
@@ -170,8 +170,8 @@ def test_income_needs_a_decade_without_a_cut_cover_little_tax_and_a_lasting_busi
         r("A", 1.0, Dividend_Yield=3.5),  # the higher yield at the same growth: first
         r("BANK", 3.0, Financial_Mode=True, Equity_to_Assets=9.0),  # ROE stands for ROIC
         r("TAXED", 4.0, Dividend_WHT=15.0),
-        r("YOUNG", 4.0, Dividend_Unbroken_Years=9.0),
-        r("CUT_NOW", 4.0, Dividend_Cut_Recent=True),
+        r("YOUNG", 4.0, Income_Unbroken_Years=9.0),
+        r("CUT_NOW", 4.0, Income_Cut_Recent=True),
         r("RECESSION_CUT", 4.0, Recession_Dividend_Fall=-30.0),
         r("LOW_YIELD", 4.0, Dividend_Yield=2.4),
         r("PAYS_IT_ALL", 4.0, Dividend_Yield=7.0),  # above 80% of what a share earns after interest
@@ -183,7 +183,7 @@ def test_income_needs_a_decade_without_a_cut_cover_little_tax_and_a_lasting_busi
         r("INDEBTED", 4.0, NetDebt_to_EBIT=4.0, Interest_Coverage=3.0),
         r("THIN_BANK", 4.0, Financial_Mode=True, Equity_to_Assets=4.0),
         r("LOW_RANK", 4.0, In_Best_Fraction=False),
-        r("NO_RECORD", 4.0, Dividend_Unbroken_Years=np.nan),
+        r("NO_RECORD", 4.0, Income_Unbroken_Years=np.nan),
     ])  # fmt: skip
     assert income_list(df)["Ticker"].tolist() == ["A", "B", "BANK"]
 
@@ -193,7 +193,8 @@ def test_income_takes_a_bank_ranked_apart_on_its_own_kinds_best():
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
-        return row | {"Dividend_Unbroken_Years": 12.0, "Regular_DPS_Growth_10Y": 5.0, "Dividend_Yield": 3.0,
+        return row | {"Income_Unbroken_Years": 12.0, "Income_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
+                      "Dividend_Yield": 3.0,
                       "Owner_Yield": 8.0, "EPV_Per_Share_Yield": 8.0, "Dividend_WHT": 0.0, "ROIC_Norm": 15.0, "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0,
                       "Common Stock Equity_Y0": 100.0, "Rank_Group": "ranked", "In_Best_Fraction": True,
                       "Kind_Rank": np.nan, "In_Kind_Best": False} | over  # fmt: skip

@@ -297,35 +297,6 @@ def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: i
     return pd.Series(ok, index=df.index)
 
 
-# The "Net cash" list: what put a company on it, then the usual facts (user's choice, Oct 29, 2026).
-NET_CASH_COLUMNS = [
-    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
-    ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
-def net_cash_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Companies whose net cash is at least `Settings.net_cash_min_pct` of their market cap, shares not issued and
-    reported free cash flow positive in most years (the pile neither diluted nor burned), `in_best_fraction` of the
-    combined ranking; trusted as `ranking.top_n`, in combined rank order. Cyclicals stay: the cash is what carries
-    them through the downturn (the pill says so). Display only."""
-    s = Settings()
-    num = lambda col: (  # noqa: E731
-        pd.to_numeric(df[col], errors="coerce") if col in df.columns else pd.Series(np.nan, index=df.index)
-    )
-    keep = (
-        (num("Net_Cash_to_Cap") >= s.net_cash_min_pct)
-        & (num("Share_Reduction_Rate") >= s.net_cash_min_share_reduction)
-        & ~(num("FCF_Positive_Share") < s.net_cash_min_fcf_pos_share)
-        & in_best_fraction(df)
-    )
-    return top_n(df[keep], "Rank", n)
-
-
 # The "Shortlist 100" list (user's choice, Oct 29, 2026): the hand-off for research in depth, every diagnostic the
 # cache already holds applied at once. Display only; the thresholds live here, not in `Settings`, so the method
 # fingerprint (`evaluate.METHOD_MODULES`) and every snapshot's method group stay as they are. The top 20 by combined
@@ -623,7 +594,12 @@ def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 # investor keeps, held for a decade, ordered by what they pay now plus how fast they can grow. Stability is a gate,
 # not a score: a dividend either has the record or it does not. Display only; constants here, as the Shortlist's.
 INCOME_MAX_WHT = 10.0  # statutory dividend withholding on a non-resident, % (before treaties: one yardstick)
-INCOME_MIN_YEARS = 10  # complete years back to the latest dividend cut or gap (`Dividend_Unbroken_Years`)
+INCOME_MIN_YEARS = 10  # complete years back to the latest gap or dip deeper than `INCOME_HELD` allows
+# A year may pay down to this share of the year before (user's choice, Nov 8, 2026; the other lists keep
+# `dividend_record.HELD`, 95%): most companies at 10% withholding or less (China, Thailand, the Gulf, Malaysia) pay a
+# fixed share of earnings, so the dividend moves with them; a dip in a soft year is the policy working, not distress.
+# The dividend no lower than ten years ago, the recession test and the cover catch a real decline.
+INCOME_HELD = 0.80
 INCOME_MIN_YIELD = 2.5  # dividend yield after withholding, %
 INCOME_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
 # The dividend at most this share of what a share earns after interest at zero growth (`EPV_Per_Share_Yield`; Nov 7,
@@ -636,7 +612,7 @@ INCOME_COLUMNS = [
     ("Yield after WHT", "Net_Dividend_Yield", ".1f", 1, "%"),
     ("Growth Counted / yr", "Income_Growth", "+.1f", 1, "%"),
     ("Dividend Growth / yr", "Regular_DPS_Growth_10Y_US", "+.1f", 1, "%"),
-    ("Unbroken Years", "Dividend_Unbroken_Years", ".0f", 1, ""),
+    ("Years Paid, No Deep Dip", "Income_Unbroken_Years", ".0f", 1, ""),
     ("Spread over Loan", "Loan_Spread", "+.1f", 1, "%"),
     ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
     RECESSION_COLUMN,
@@ -653,6 +629,24 @@ def with_dividend_record(df: pd.DataFrame) -> pd.DataFrame:
     if "Regular_DPS_Growth_10Y_US" not in df.columns:
         df = df.assign(Regular_DPS_Growth_10Y_US=dividend_growth_us(df))
     return df
+
+
+INCOME_RECORD = {"Income_Unbroken_Years": "Dividend_Unbroken_Years", "Income_Cut_Recent": "Dividend_Cut_Recent"}
+
+
+def with_income_record(df: pd.DataFrame) -> pd.DataFrame:
+    """`df` with `Income_Unbroken_Years` and `Income_Cut_Recent`: the dividend record judged with Income's tolerance
+    (`dividend_record(df, held=INCOME_HELD)`), only for rows at most `INCOME_MAX_WHT` withholding (the others never
+    reach the list; blank and False); columns already there are kept (`highlights.prepare` adds them once)."""
+    if all(c in df.columns for c in INCOME_RECORD):
+        return df
+    out = pd.DataFrame({"Income_Unbroken_Years": np.nan, "Income_Cut_Recent": False}, index=df.index)
+    asked = _num(df, "Dividend_WHT") <= INCOME_MAX_WHT
+    if asked.any():
+        record = dividend_record(df[asked], held=INCOME_HELD)
+        for col, source in INCOME_RECORD.items():
+            out.loc[asked, col] = record[source]
+    return df.assign(**out.astype({"Income_Unbroken_Years": float, "Income_Cut_Recent": bool}))
 
 
 def dividend_growth_us(df: pd.DataFrame) -> pd.Series:
@@ -679,8 +673,9 @@ def income_growth(df: pd.DataFrame) -> pd.Series:
 
 def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """The Income list (user's choice, Nov 7, 2026). Gates: statutory withholding at most `INCOME_MAX_WHT`
-    (`Dividend_WHT`); no dividend cut in the last `INCOME_MIN_YEARS` complete years nor in the last 12 months
-    (`dividend_record`: specials and payment timing judged payment by payment, in the declared currency); the regular
+    (`Dividend_WHT`); paid in each of the last `INCOME_MIN_YEARS` complete years, no year under `INCOME_HELD` of the
+    one before, nor the last 12 months under it of the 12 before (`with_income_record`: specials and payment timing
+    judged payment by payment, in the declared currency); the regular
     dividend no lower than 10 years ago in US terms (`dividend_growth_us`); yield after withholding at least
     `INCOME_MIN_YIELD`; normalised ROIC (ROE for financials) at least `INCOME_MIN_ROIC`; the dividend at most
     `INCOME_MAX_PAYOUT` of the earnings power a share keeps after interest (`EPV_Per_Share_Yield`; a blank fails); a
@@ -692,7 +687,7 @@ def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     (`Net_Dividend_Yield`) plus the growth counted (`income_growth`); one number a reader can check by hand.
     `Loan_Spread` (that yield less the euro margin loan's cost, `Borrow_Rate`) is shown for readers who borrow for
     it, never a gate. Trusted as `ranking.top_n`. Display only."""
-    df = with_dividend_record(df)
+    df = with_income_record(with_dividend_record(df))
     kind_best = kind_order(df)[1]
     financial = kind(df).isin(("bank", "insurer"))
     net_yield = _num(df, "Dividend_Yield") * (1 - _num(df, "Dividend_WHT") / 100)
@@ -701,8 +696,8 @@ def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     loan = _num(df, "Borrow_Rate").fillna(FALLBACK_BORROW_RATE)
     keep = (
         (_num(df, "Dividend_WHT") <= INCOME_MAX_WHT)
-        & (_num(df, "Dividend_Unbroken_Years") >= INCOME_MIN_YEARS)  # 0 when a cut was paid this year
-        & ~_flag(df, "Dividend_Cut_Recent")
+        & (_num(df, "Income_Unbroken_Years") >= INCOME_MIN_YEARS)  # 0 when a deep dip was paid this year
+        & ~_flag(df, "Income_Cut_Recent")
         & (_num(df, "Regular_DPS_Growth_10Y_US") >= 0)
         & (net_yield >= INCOME_MIN_YIELD)
         & (_num(df, "ROIC_Norm") >= INCOME_MIN_ROIC)

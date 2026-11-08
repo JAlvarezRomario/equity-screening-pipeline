@@ -35,7 +35,19 @@ def tags(row: pd.Series) -> list[dict]:
     if flag("Asset_Play"):
         add("below book", "Tangible book per share (net debt counted against it; a holding's book with its "
             f"goodwill) at or above the share price, the book earning at least {s.asset_play_min_roic:g}% (normalised "
-            "ROIC), with positive owner earnings, bounded debt and no dilution: the Below book list's test.")  # fmt: skip
+            "ROIC), with positive owner earnings, bounded debt and no dilution: the Balance sheet plays list's test.")  # fmt: skip
+    net_cash = pd.to_numeric(row.get("Net_Cash_to_Cap"), errors="coerce")
+    if net_cash >= s.net_cash_min_pct and not flag("Financial_Mode"):
+        out.append(
+            {
+                "word": "net cash",
+                "why": f"Cash less all debt, on the shareholders' share, is {net_cash:.0f}% of "
+                f"the market value (at least {s.net_cash_min_pct:g}%): a buyer gets the cash with the business.",
+                "cls": "",
+                "mark": "",
+                "badge": False,
+            }
+        )  # the company page has its own net cash badge
     ncav = pd.to_numeric(row.get("NCAV_to_Price"), errors="coerce")
     industry = row.get("industry")
     land_inventory = isinstance(industry, str) and industry_key(industry) in NCAV_EXCLUDED_INDUSTRIES

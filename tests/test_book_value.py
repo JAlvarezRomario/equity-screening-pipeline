@@ -123,6 +123,9 @@ def test_asset_play_qualifies_only_below_tangible_book_with_a_book_that_earns(cf
 
     flags = asset_play(df, cfg)
     assert list(flags) == [True, False, False, False, False, True]
+    # Nov 8, 2026: an asset manager is never asked, however far below book (its value is fees, not book).
+    df["industry"] = ["Asset Management"] + ["Auto Parts"] * 5
+    assert list(asset_play(df, cfg)) == [False, False, False, False, False, True]
 
 
 def test_asset_play_strips_goodwill_and_delevers_net_debt(cfg):
@@ -212,5 +215,5 @@ def test_below_book_orders_by_the_discount_and_renders_in_html(cfg):
     ranked = apply_dual_ranking(calculate_metrics(raw, cfg), cfg)
     assert "Asset_Play" in ranked.columns and "Effective_NAV_to_Price" in ranked.columns
     html = build_site(ranked, cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-asset-plays">Below book</button>' in html
+    assert 'data-panel="hl-asset-plays">Balance sheet plays</button>' in html
     assert 'id="hl-asset-plays"' in html

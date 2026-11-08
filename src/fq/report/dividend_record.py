@@ -15,7 +15,9 @@ from a cut; the payments can. The rules, in order:
 4. Cut: a year under `HELD` x the year before, unless the payment counts explain it: the year has fewer payments than
    the one before and the next year makes up the pair, or the year before had more payments than usual or than the
    year before it (one pulled forward, or an interim added) and the year is held against the year before that. The
-   tolerance is for rounding, not for cuts; a raise cut back with the same payments is a cut.
+   tolerance is for rounding, not for cuts; a raise cut back with the same payments is a cut. Income passes its own
+   `held` (`screens.INCOME_HELD`, Nov 8, 2026: a payout-ratio dividend moves with earnings); the recession note keeps
+   `HELD`.
 5. Unbroken years: back from the last complete year to the latest gap or cut; the record is whole when that reaches
    the first year Yahoo has a payment, or when the latest gap or cut is more than `JUDGED_YEARS` old (user's choice,
    Nov 5, 2026: old Yahoo records hold lone wrong payments, ED and GD in the 1970s-80s at a quarter of the usual one,
@@ -131,8 +133,8 @@ def regular_payments(payments: pd.Series) -> pd.Series:
     return pd.Series(out[~drop], index=payments.index[~drop])
 
 
-def _cut_recent(regular: pd.Series, as_of: pd.Timestamp | None) -> bool:
-    """Rule 6: the 12 months to `as_of` under `HELD` x the 12 months before, both with the same number of payments."""
+def _cut_recent(regular: pd.Series, as_of: pd.Timestamp | None, held: float = HELD) -> bool:
+    """Rule 6: the 12 months to `as_of` under `held` x the 12 months before, both with the same number of payments."""
     if as_of is None or pd.isna(as_of):
         return False
     window = pd.Timedelta(days=WINDOW_DAYS)
@@ -140,7 +142,7 @@ def _cut_recent(regular: pd.Series, as_of: pd.Timestamp | None) -> bool:
     before = regular[(regular.index > as_of - 2 * window) & (regular.index <= as_of - window)]
     if now.empty or len(now) != len(before):
         return False
-    return bool(now.sum() < HELD * before.sum())
+    return bool(now.sum() < held * before.sum())
 
 
 def _recession_falls(total: dict[int, float], first: int, last_year: int, model, sector=None) -> tuple[list, int]:
@@ -171,13 +173,15 @@ EMPTY = {"Dividend_Unbroken_Years": np.nan, "Dividend_Record_Whole": False, "Reg
          "Recessions_Covered": 0.0, "Recessions_Due": np.nan}  # fmt: skip
 
 
-def judge(payments: pd.Series, last_year: int, as_of: pd.Timestamp | None = None, model=None, sector=None) -> dict:
-    """The record of one company (rules 1-7 of the module docstring), complete years up to `last_year`, this year's
+def judge(payments: pd.Series, last_year: int, as_of: pd.Timestamp | None = None, model=None, sector=None,
+          held: float = HELD) -> dict:  # fmt: skip
+    """The record of one company (rules 1-7 of the module docstring; a cut is a year under `held` x the year before),
+    complete years up to `last_year`, this year's
     payments up to `as_of`, downturns as they apply to the business `model` in `sector`: the `COLUMNS`. Without payments the
     record is blank (`Dividend_Unbroken_Years` NaN), and each list's test says whether a blank passes."""
     if payments[payments.index.year <= last_year].empty:
         return dict(EMPTY)
-    cut_now = _cut_recent(regular_payments(payments), as_of)
+    cut_now = _cut_recent(regular_payments(payments), as_of, held)
     regular = regular_payments(payments[payments.index.year <= last_year])
     first = int(payments.index.year.min())
     years = range(first, last_year + 1)
@@ -189,13 +193,13 @@ def judge(payments: pd.Series, last_year: int, as_of: pd.Timestamp | None = None
     def broken(y: int) -> bool:
         if total[y] <= 0:
             return True
-        if y == first or total[y] >= HELD * total[y - 1]:
+        if y == first or total[y] >= held * total[y - 1]:
             return False
-        slipped_out = n[y] < n[y - 1] and y + 1 in total and total[y] + total[y + 1] >= HELD * 2 * total[y - 1]
+        slipped_out = n[y] < n[y - 1] and y + 1 in total and total[y] + total[y + 1] >= held * 2 * total[y - 1]
         # More payments the year before than usual or than the year before it: one pulled forward, or a move to more
         # frequent payments (an interim added) that front-loaded that year (Dom Development, 2023).
         extra = y - 2 in total and (n[y - 1] > usual[y - 1] or n[y - 1] > n[y - 2])
-        pulled_in = extra and total[y] >= HELD * total[y - 2]
+        pulled_in = extra and total[y] >= held * total[y - 2]
         return not (slipped_out or pulled_in)
 
     start = next((y for y in range(last_year, first - 1, -1) if broken(y)), None)
@@ -214,8 +218,8 @@ def judge(payments: pd.Series, last_year: int, as_of: pd.Timestamp | None = None
             "Recessions_Due": float(due)}  # fmt: skip
 
 
-def dividend_record(df: pd.DataFrame) -> pd.DataFrame:
-    """`judge` for every row of `df`: payments from `DPS_Payments_FX`, else `DPS_Payments`; the last complete year is the
+def dividend_record(df: pd.DataFrame, held: float = HELD) -> pd.DataFrame:
+    """`judge` (a cut under `held` x the year before) for every row of `df`: payments from `DPS_Payments_FX`, else `DPS_Payments`; the last complete year is the
     one before `Fetched_At`, this year's payments judged up to it; downturns by `Business_Model` and `sector`. The
     `COLUMNS`."""
     empty = pd.Series([None] * len(df), index=df.index, dtype=object)
@@ -225,7 +229,7 @@ def dividend_record(df: pd.DataFrame) -> pd.DataFrame:
     fetched = pd.to_datetime(df.get("Fetched_At", empty), errors="coerce")
     models, sectors = df.get("Business_Model", empty), df.get("sector", empty)
     rows = [
-        judge(parse_payments(p), when.year - 1, when, m, sec) if pd.notna(when) else dict(EMPTY)
+        judge(parse_payments(p), when.year - 1, when, m, sec, held) if pd.notna(when) else dict(EMPTY)
         for p, when, m, sec in zip(chosen, fetched, models, sectors, strict=True)
     ]
     return pd.DataFrame(rows, index=df.index, columns=list(COLUMNS)).astype(COLUMNS)  # columns even when `df` is empty

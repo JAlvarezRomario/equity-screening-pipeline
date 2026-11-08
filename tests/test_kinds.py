@@ -139,9 +139,11 @@ def test_utilities_list_holds_its_own_kind_with_debt_bounded_and_the_dividend_he
 
 
 def _payers(n: int, **cols) -> pd.DataFrame:
-    """Dividend payers passing every Income gate unless `cols` says: a clean 15-year record growing 4% a year."""
+    """Dividend payers passing every Income gate unless `cols` says: a clean 15-year record growing 4% a year (Income's
+    own record, `Income_Unbroken_Years`, as well as the 5% one)."""
     base = dict(Dividend_WHT=0.0, Dividend_Yield=5.0, EPV_Per_Share_Yield=9.0, ROIC_Norm=20.0,
-                Rank=np.arange(1.0, n + 1), In_Best_Fraction=True)  # fmt: skip
+                Rank=np.arange(1.0, n + 1), In_Best_Fraction=True, Income_Unbroken_Years=15.0,
+                Income_Cut_Recent=False)  # fmt: skip
     return _record(_frame(n, **(base | cols)))
 
 
@@ -153,7 +155,7 @@ def test_income_keeps_a_withholding_of_ten_percent_at_most():
 
 def test_income_needs_a_decade_without_a_cut_and_a_covered_dividend():
     df = _payers(4, EPV_Per_Share_Yield=[9.0, 9.0, 9.0, np.nan])
-    df = df.assign(Dividend_Unbroken_Years=[15.0, 5.0, 15.0, 15.0], Dividend_Cut_Recent=[False, False, True, False])
+    df = df.assign(Income_Unbroken_Years=[15.0, 5.0, 15.0, 15.0], Income_Cut_Recent=[False, False, True, False])
     # T1 cut five years ago, T2 cut this year, T3 has no earnings power to cover the dividend with.
     assert sc.income_list(df)["Ticker"].tolist() == ["T0"]
 
@@ -176,3 +178,26 @@ def test_income_counts_growth_no_faster_than_the_business_funds_it_and_at_most_t
 def test_income_shows_the_spread_over_the_loan_without_testing_it():
     out = sc.income_list(_payers(1, Dividend_Yield=3.0, Borrow_Rate=4.8))
     assert out["Ticker"].tolist() == ["T0"] and out["Loan_Spread"].iloc[0] == pytest.approx(-1.8)
+
+
+def _annual(amounts: list[float], first: int = 2010) -> str:
+    """A `DPS_Payments` JSON: one payment each June from `first`."""
+    import json
+
+    return json.dumps({f"{first + i}-06-15": a for i, a in enumerate(amounts) if a})
+
+
+def test_income_lets_a_payout_ratio_dividend_dip_up_to_a_fifth_in_a_year():
+    """Nov 8, 2026 (user's choice): a year may pay 20% less than the one before (Income only; the other lists keep
+    5%); a deeper dip, or a year without a dividend, breaks the record."""
+    years = [1.0, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3, 1.35, 1.4, 1.45, 1.5, 1.55, 1.6, 1.65, 1.7]  # 2010-2024
+    dip15, dip25, gap = years.copy(), years.copy(), years.copy()
+    dip15[10], dip25[10], gap[10] = 1.45 * 0.85, 1.45 * 0.75, 0.0  # 2020
+    df = _frame(4, DPS_Payments=[_annual(years), _annual(dip15), _annual(dip25), _annual(gap)],
+                Fetched_At=pd.Timestamp("2025-03-01"), Dividend_WHT=0.0)  # fmt: skip
+    out = sc.with_income_record(df)
+    assert out["Income_Unbroken_Years"].tolist() == [15.0, 15.0, 4.0, 4.0]
+    strict = sc.with_dividend_record(df)["Dividend_Unbroken_Years"]
+    assert strict.tolist()[:2] == [15.0, 4.0]  # the 5% record the other lists read is unchanged
+    taxed = sc.with_income_record(df.assign(Dividend_WHT=15.0))
+    assert taxed["Income_Unbroken_Years"].isna().all()  # never judged: Income would not take it anyway

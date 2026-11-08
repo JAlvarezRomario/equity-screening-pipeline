@@ -180,7 +180,7 @@ def test_a_rupee_dividend_growing_slower_than_its_inflation_counts_its_growth_in
 
     def r(ticker, rank, **over):
         row = _twenty_year_row(ticker, rank, roic=(15, 15, 14, 14))
-        return row | {"Dividend_Unbroken_Years": 12.0, "Dividend_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
+        return row | {"Income_Unbroken_Years": 12.0, "Income_Cut_Recent": False, "Regular_DPS_Growth_10Y": 5.0,
                       "Recession_Dividend_Fall": -3.0, "Dividend_Yield": 3.0, "Owner_Yield": 8.0, "ROIC_Norm": 15.0,
                       "EPV_Per_Share_Yield": 8.0, "Dividend_WHT": 0.0,
                       "NetDebt_to_EBIT": 1.0, "Net_Debt": 10.0, "Common Stock Equity_Y0": 100.0} | over  # fmt: skip

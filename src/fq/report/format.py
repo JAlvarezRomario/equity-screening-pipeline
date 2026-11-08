@@ -120,6 +120,9 @@ COLUMN_HELP = {
     "Dividend_Unbroken_Years": "Calendar years back from the last complete one with the regular dividend per share "
                                "raised or held (specials left out, payment timing allowed for, in the declared "
                                "currency). Shown, never scored.",
+    "Income_Unbroken_Years": "Calendar years back from the last complete one with the regular dividend per share paid "
+                             "and no year more than 20% below the year before (the Income list's record; specials left "
+                             "out, payment timing allowed for, declared currency). Shown, never scored.",
     "Recession_Dividend_Note": "How the regular dividend per share (specials left out, declared currency) went through "
                                "each global recession on file (lists/recessions.txt): its lowest two-year mean over "
                                "the recession and the two years after, against the two years before. 2020 is not "

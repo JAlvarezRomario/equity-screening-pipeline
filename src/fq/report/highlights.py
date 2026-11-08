@@ -144,8 +144,8 @@ GROUPS = {
     ),
     "style": (
         "By style",
-        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, a pile "
-        "of net cash, or a price below tangible book; each from the best {top} of the combined ranking.",
+        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, or a "
+        "price below what the balance sheet holds; each from the best {top} of the combined ranking.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
@@ -170,9 +170,8 @@ TABS: tuple[Tab, ...] = (
     Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
-    Tab("Net cash", "net_cash", "hl-net-cash", sc.NET_CASH_COLUMNS, _plain(sc.net_cash_list)),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
-        sort="Book_Order"),
+        sort="Book_Order", label="Balance sheet plays"),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
         sort="Kind_Rank"),
     Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
@@ -194,7 +193,8 @@ RANKED_TABS = tuple(t.name for t in TABS if t.ranked)
 # Retired tabs the forward test still follows under their stored names (Nov 4, 2026: Nectar, Compounders and Better
 # every year gave way to Operating companies and Fast growers; Net-nets merged into Below book; Temporary trouble
 # retired, user's choice; Nov 7, 2026: Repeaters, Cannibals, Off the radar, Dividend growers, Dividend carry and Best
-# grades retired before the freeze, so none is stored), with the reader's name where it differed.
+# grades retired before the freeze; Nov 8, 2026: Net cash, now a pill; so none is stored), with the reader's name
+# where it differed.
 RETIRED_LABELS = {"Nectar": "Steady growers, net cash"}
 
 
@@ -242,7 +242,7 @@ def fails(df: pd.DataFrame) -> pd.Series:
 
 def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None = None) -> pd.DataFrame:
     """The columns the lists read beyond the ranking: withholding, the run's best-fraction cut, the dividend record
-    (`screens.with_dividend_record`), industry leaders and (with `cfg`) the stored moat and management grades
+    (`screens.with_dividend_record`, Income's own `screens.with_income_record`), industry leaders and (with `cfg`) the stored moat and management grades
     (`grading.attach`)."""
     if cfg is not None:
         df = grading.attach(df, cfg.data_dir / "grades.parquet")
@@ -255,7 +255,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
-    df = sc.with_dividend_record(df)  # judged once per report, not once per list call
+    df = sc.with_income_record(sc.with_dividend_record(df))  # judged once per report, not once per list call
     # Leaders of their industry among the benchmark's companies (the Shortlist's recession test), the same in every run.
     leaders_among = df
     if bench is not None and not bench.empty:  # the benchmark, plus the run's companies outside it

@@ -13,14 +13,14 @@
   <li>Down the Value ranking until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
   <li>The Value score: the normalised owner earnings one share owns (the cash it earns after everything the business needs to stay as it is), projected 3 years on its own steady trend, declines charged, over today's price.</li>
   <li>Cyclicals at mid-cycle earnings, with no trend.</li>
-  <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Below book.</li>
+  <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays.</li>
   <li>The Quality score is not considered.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, among those whose moat and management are graded among the best, whatever their price.") %}<ul>
   <li>Down the Quality ranking until 20 companies whose moat and management are both graded at least {{ r.grade_best }}, one of them above it: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
   <li>The Quality score: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt; plus how much one share of the business grew and whether the share count shrank.</li>
-  <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Below book).</li>
+  <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays).</li>
   <li>Price is not considered: a great business can still be too dear. Cheap and good is where price and quality meet.</li>
 </ul>{% endcall %}{% endmacro %}
 
@@ -36,7 +36,7 @@
 </ul>
 <details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
 
-{% macro below_book(r) %}{% call rules("Companies priced below their tangible book value per share, net debt counted, whose book earns its keep; ordered by the size of the discount. Operating companies and holdings.") %}<ul>
+{% macro below_book(r) %}{% call rules("Companies priced below what their balance sheet holds: tangible book value per share, net debt counted, with a book that earns its keep; ordered by the size of the discount. Operating companies and holdings.") %}<ul>
   <li>Book value and tangible book value (book less goodwill and other intangibles) per share both positive.</li>
   <li>Tangible book per share, with net debt counted against it, at or above the share price; book per share not shrinking.</li>
   <li>The book earns its keep: normal return on capital (ROIC) of {{ r.asset_min_roic }}% or more. A book is worth about what it earns, so a company earning 3% on its assets at 70% of book is no bargain.</li>
@@ -44,8 +44,8 @@
   <li>Holdings: their book per share with its goodwill, since leaving goodwill out would value the companies a holding bought at zero. Equity at least 6% of assets, Quality &ge; 50 (too few holdings for a best fifth of their own).</li>
   <li>Both: Value &ge; 50, positive earnings power, no dilution.</li>
   <li>Ordered by the discount: tangible book (net debt counted) as a share of the price, largest first.</li>
-  <li>Not here: banks and insurers (their own lists) and REITs (the Real estate list: a REIT's book is cost under US accounting, fair value under international rules, so book does not compare).</li>
-</ul><p>Net current assets (current assets less every liability; Graham's net-net test) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets), and marked with a <strong>net-net</strong> pill when they cover the whole share price.</p>{% endcall %}{% endmacro %}
+  <li>Not here: banks and insurers (their own lists), REITs (the Real estate list: a REIT's book is cost under US accounting, fair value under international rules, so book does not compare) and asset managers (their value is the fees they earn, which no book records).</li>
+</ul><p>Net current assets (current assets less every liability; Graham's net-net test) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets). A net-net, priced below its net current assets, is also below its tangible book, so it enters by the same tests, return on capital included, and is marked with a <strong>net-net</strong> pill. Most net-nets lose money, and Graham bought them as a basket; this list keeps the rare one that earns.</p>{% endcall %}{% endmacro %}
 
 {% macro banks(r) %}{% call rules("Banks and lenders judged against other banks and lenders only: return on equity, book and capital.") %}<ul>
   <li>Banks, credit card and consumer lenders, brokers, mortgage lenders and mortgage REITs. Not in the rankings: a lender's earnings rest on borrowed money, so its yield and returns do not compare with an operating company's.</li>
@@ -85,18 +85,11 @@
   <li>In combined rank order, not cut to the best {{ r.top }} (too few would pass).</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro net_cash(r) %}{% call rules("Companies whose spare cash is a large part of their market value: a buyer gets the cash with the business.") %}<ul>
-  <li>Net cash (cash less all debt, on the shareholders' share) of {{ r.net_cash_min }}% or more of the market value.</li>
-  <li>Shares not issued and free cash flow positive in at least {{ r.net_cash_min_fcf }}% of the years, so the pile is neither diluted nor burned.</li>
-  <li>Banks, insurers and holdings are not measured this way.</li>
-  <li>Cyclicals stay, marked: for them the cash is what carries them through the downturn.</li>
-  <li>It keeps only the best {{ r.top }} of the combined ranking, in that order.</li>
-</ul>{% endcall %}{% endmacro %}
 
-{% macro income(r) %}{% call rules("Dividends a foreign investor keeps (statutory withholding at most " ~ r.income_wht ~ "%), paid for at least a decade without a cut, ordered by what they pay now plus how fast they can grow.") %}<ul>
+{% macro income(r) %}{% call rules("Dividends a foreign investor keeps (statutory withholding at most " ~ r.income_wht ~ "%), paid every year for at least a decade, never more than " ~ r.income_dip ~ "% below the year before, ordered by what they pay now plus how fast they can grow.") %}<ul>
   <li>Withholding tax on dividends for a foreign individual of {{ r.income_wht }}% or less, at the statutory rate before any treaty (one yardstick for every reader).</li>
-  <li>No cut in the regular dividend per share for at least {{ r.income_years }} complete years, nor in the last twelve months (the twelve months below the twelve before, with as many payments in each), and the dividend no lower than ten years ago, in US terms.</li>
-  <li>Judged payment by payment, in the currency the dividend is declared in. A special dividend (a payment at least {{ r.special_ratio }}&times; its season's usual size, higher than the same payment a year before and a year after) is left out, so the year after it is not a cut. A payment that slipped across New Year, or moved earlier when an interim dividend was added, is no cut either. Any other fall of more than {{ r.dividend_held }}% is.</li>
+  <li>The regular dividend per share paid in each of at least {{ r.income_years }} complete years, no year more than {{ r.income_dip }}% below the year before, nor the last twelve months below the twelve before by as much (with as many payments in each), and the dividend no lower than ten years ago, in US terms. Most companies at low withholding (China, Thailand, Malaysia, the Gulf) pay a fixed share of their earnings, so their dividend moves with them; a small dip in a soft year is that policy, not trouble.</li>
+  <li>Judged payment by payment, in the currency the dividend is declared in. A special dividend (a payment at least {{ r.special_ratio }}&times; its season's usual size, higher than the same payment a year before and a year after) is left out, so the year after it is not a dip. A payment that slipped across New Year, or moved earlier when an interim dividend was added, is no dip either.</li>
   <li>Yield after withholding of {{ r.income_yield }}% or more; the dividend at most {{ r.income_payout }}% of what one share earns after interest at zero growth, so it is paid from today's earnings.</li>
   <li>Normal return on capital (on equity for banks and insurers) of {{ r.income_roic }}% or more.</li>
   <li>Lasting: not cyclical, not at peak margins, past the AI screen, the dividend not cut more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}, and {{ r.downturns }}).</li>

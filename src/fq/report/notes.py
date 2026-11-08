@@ -171,7 +171,7 @@ def data_notes(row: pd.Series, cfg: Settings, periods: list[str]) -> list[str]:
     if isinstance(group, str) and group != RANKED:
         why = {
             "financial": "banks and insurers are judged against their own kind, in their own lists",
-            "holding": "a holding is judged on its book, in the Below book list",
+            "holding": "a holding is judged on its book, in the Balance sheet plays list",
             "real_estate": "a REIT is judged against other REITs, in the Real estate list",
             "utility": "a utility is judged against other utilities, in the Utilities list",
             "apart": "its business model is not ranked yet",

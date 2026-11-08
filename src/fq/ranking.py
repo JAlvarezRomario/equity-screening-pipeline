@@ -639,12 +639,16 @@ def asset_play(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     (`Book_Per_Share_Compounding` >= 0). Requires normalised ROIC at least `asset_play_min_roic` (book is worth about
     what it earns), positive owner earnings, `Value_Score >= asset_play_min_value`, no meaningful dilution, bounded
     debt and recurring positive FCF for non-financials, and capital adequacy plus active buybacks for banks/insurers.
+    Not asked: the industries of `asset_play_excluded_industries` (asset managers, Nov 8, 2026). Shown as "Balance
+    sheet plays"; a net-net enters by the same tests (its NCAV sits below tangible book) and is pilled.
     """
     fin = _flag(df, "Financial_Mode")
     group = df["Rank_Group"] if "Rank_Group" in df.columns else rank_group(df, cfg)
     holding = group == "holding"
     # Its own earnings tests below decide profitability; the kinds judged elsewhere stay out.
     fit = comparable(df) & trusted(df) & ~group.isin({"financial", "real_estate", "apart"})
+    if "industry" in df.columns:  # an asset manager's value is its fees, which no book records
+        fit &= ~df["industry"].isin(cfg.asset_play_excluded_industries)
 
     raw_bv = _num(df, "BV_to_Price")
     tangible = _num(df, "NAV_to_Price")

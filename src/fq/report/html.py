@@ -100,7 +100,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "asset_min_roic": g(cfg.asset_play_min_roic),
-        "net_cash_min": g(cfg.net_cash_min_pct), "net_cash_min_fcf": g(cfg.net_cash_min_fcf_pos_share),
+        "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),
         "min_years": cfg.improver_min_years,
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),
         "operating_max_dip": g(sc.OPERATING_MAX_DIP * 100),
@@ -113,7 +113,6 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "income_yield": g(sc.INCOME_MIN_YIELD), "income_roic": g(sc.INCOME_MIN_ROIC),
         "income_payout": g(sc.INCOME_MAX_PAYOUT * 100), "income_growth_cap": g(sc.INCOME_GROWTH_CAP),
         "special_ratio": g(dividend_record.SPECIAL_RATIO),
-        "dividend_held": g(round((1 - dividend_record.HELD) * 100)),
         "recession_fall": g(sc.RECESSION_MAX_FALL),
         "recessions": " and ".join(str(y) for y, _, only in dividend_record.recessions() if not only),
         "recession_exempt": "; ".join(

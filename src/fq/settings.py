@@ -543,13 +543,12 @@ class Settings:
     # (`screens.operating_list`, `fast_grower_list`, Nov 4, 2026) test growth year by year; display only. Named after
     # "Better every year" (Oct 28, 2026), which they replaced.
     improver_min_years: int = 3
-    # "Net cash" list (`format.net_cash_list`, user's choice Oct 29, 2026), display only: net cash at least
-    # `net_cash_min_pct` (%) of the market cap (`Net_Cash_to_Cap`, shareholder basis; not measured for banks, insurers
-    # and holdings), shares not issued (`net_cash_min_share_reduction`), reported FCF positive in at least
-    # `net_cash_min_fcf_pos_share` (%) of the years, so the pile is neither diluted nor burned; trusted as `ranking.top_n`.
+    # The "net cash" pill (`report.pills`; its tab retired Nov 8, 2026, user's choice: Value already counts cash through
+    # enterprise value), display only: net cash at least `net_cash_min_pct` (%) of the market cap (`Net_Cash_to_Cap`,
+    # shareholder basis; not measured for banks, insurers and holdings). `net_cash_min_share_reduction`: the
+    # Shortlist's "no dilution" step.
     net_cash_min_pct: float = 25.0
     net_cash_min_share_reduction: float = -0.5
-    net_cash_min_fcf_pos_share: float = 75.0
     # Every screened highlight list keeps only the best `highlight_top_fraction` of the combined ranking
     # (`format.in_best_fraction`; user's choice, Oct 29, 2026: a list is a lens on cheap-and-good companies, not a way
     # around the ranking). "Cheapest" and "Best businesses" are not cut: the top of each score, undiluted.
@@ -558,8 +557,11 @@ class Settings:
     # are not reported, de-levered when in net debt) >= `asset_play_min_nav_price` (%) of the price now (Nov 7, 2026:
     # the "growing into book" route retired, the list is named for a price below book), the book earning at least
     # `asset_play_min_roic` (normalised ROIC, %; financial review, Nov 7, 2026: book is worth about what it earns, so a
-    # 3% earner at 0.7x book is no bargain; was > 0).
+    # 3% earner at 0.7x book is no bargain; was > 0). Shown as "Balance sheet plays" (Nov 8, 2026). Out:
+    # `asset_play_excluded_industries` (user's choice, Nov 8, 2026: an asset manager's book is the fund stakes and seed
+    # capital it holds, its value the fee stream no book records).
     asset_play_min_nav_price: float = 100.0
+    asset_play_excluded_industries: tuple[str, ...] = ("Asset Management",)
     asset_play_min_roic: float = 8.0
     asset_play_min_value: float = 50.0
     asset_play_min_quality: float = 35.0
