@@ -5,6 +5,7 @@
 # (their Kuwait line is kept; Makhazen as MKHZN.KW), REITs and funds. Kept: GFH.KW (Bahrain), QIC.KW (Umm Al Quwain)
 # and VALMORE.KW (Egypt), listed in Kuwait. Kuwait quotes in fils (`fx.MINOR_UNITS`). Statutory dividend withholding
 # 0% (Kuwait, Qatar, UAE, Bahrain; Egypt 10%: `dividend_wht.txt`). Refresh by hand quarterly.
+# Refreshed Nov 8, 2026: GINS.KW (Gulf Insurance Group) and DRC.AE (Dubai Refreshment) added; Bahraini lines on the DFM (Al Salam Bank, Ithmaar) and REITs still left out.
 MASQ.AE
 CBD.AE
 TALABAT.AE
@@ -168,3 +169,5 @@ MARAKEZ.KW
 COAST.KW
 ASIYA.KW
 SECH.KW
+GINS.KW
+DRC.AE

@@ -3,6 +3,7 @@
 # Kuala Lumpur), net of every other benchmark list; Yahoo country = Malaysia (one Singapore-based counter left out).
 # Includes 7 REITs (the method evaluates them like other companies). Refresh by hand (FTSE Bursa Malaysia reviews:
 # June and December).
+# Refreshed Nov 8, 2026: 5335.KL (HI Mobility) added; 5340.KL (UMS Integration) is held as 558.SI.
 0045.KL
 0056.KL
 0097.KL
@@ -193,3 +194,4 @@
 9296.KL
 9687.KL
 9822.KL
+5335.KL

@@ -5,6 +5,7 @@
 # funds are not companies; names without a market cap. Statutory dividend withholding 5% (`dividend_wht.txt`).
 # Oman: Yahoo has no Muscat Stock Exchange equities (only MSCI Oman index quotes), so none can be added. Refresh by
 # hand quarterly, with the TASI / MSCI reviews.
+# Refreshed Nov 8, 2026: 9583, 9628, 9580, 1832, 7201 added (listed or grown past 100 M since); REIT funds still left out.
 1020.SR
 1111.SR
 1182.SR
@@ -222,3 +223,8 @@
 9637.SR
 9640.SR
 9649.SR
+9583.SR
+9628.SR
+9580.SR
+1832.SR
+7201.SR
