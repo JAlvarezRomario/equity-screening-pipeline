@@ -277,9 +277,9 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
     # Nov 8, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
-    # Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
+    # Low beta, Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
     # (Cheapest, Best businesses).
-    assert len(panels) == 13
+    assert len(panels) == 14
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -893,3 +893,21 @@ def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_ranking
     assert df.loc[fragile, "Ticker"] not in set(h.shown("Below book")["Ticker"])
     assert df.loc[software, "Ticker"] not in set(h.shown("Below book")["Ticker"])
     assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted
+
+
+def test_low_beta_keeps_a_steady_share_and_leaves_out_each_failure():
+    """Low beta (Nov 8, 2026): one row passing every gate (a non-payer: no dividend record) is kept; each other row
+    fails exactly one gate."""
+    from fq.report.screens import low_beta_list
+
+    ok = {"Financial_Mode": False, "Cyclical": False, "beta": 0.3, "Owner_Yield_Share": 9.0, "Revenue_Worst_Change": 2.0,
+          "FCF_Positive_Share": 100.0, "Owner_Trend": 1.0, "Gross_Margin_StdDev": 1.0, "ROIC_Variability": 0.02,
+          "NetDebt_to_EBIT": 0.5, "Net_Debt": -1.0, "Rank": 1.0, "In_Best_Fraction": True, "industry": "Packaged Foods",
+          "Data_Suspect": False}  # fmt: skip
+    fails = {"HIGHBETA": {"beta": 0.6}, "NOBETA": {"beta": np.nan}, "CYCLE": {"Cyclical": True},
+             "SALESFELL": {"Revenue_Worst_Change": -8.0}, "EVCHEAP": {"Owner_Yield_Share": 6.0},
+             "BUMPY": {"Gross_Margin_StdDev": 4.0}, "LOSSYEAR": {"FCF_Positive_Share": 80.0},
+             "BANK": {"Financial_Mode": True}}  # fmt: skip
+    rows = [{**ok, "Ticker": "STEADY"}] + [{**ok, **change, "Ticker": t} for t, change in fails.items()]
+    df = pd.DataFrame(rows)
+    assert low_beta_list(df)["Ticker"].tolist() == ["STEADY"]

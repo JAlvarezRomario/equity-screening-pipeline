@@ -725,6 +725,56 @@ def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(out, "Income_Order", n)
 
 
+# "Low beta" (user's choice, Nov 8, 2026): a share that moves little with the market and a business whose figures
+# move little, at a price already paying. Beta is Yahoo's (5 years of monthly returns against the S&P 500): the one
+# list a price-path figure gates, never a score, rank or flag. For a non-US share it partly measures how little it
+# moves with Wall Street (in the benchmark, Nov 8, 2026: under 0.5 for 13% of the ranked US companies, 83-85% of the
+# Saudi and Thai ones). The steadiness bars land the list near 20 of the benchmark before the grade (28, Nov 8, 2026).
+LOW_BETA_MAX = 0.5  # Yahoo beta below this; a blank fails
+LOW_BETA_MIN_REVENUE_WORST = -5.0  # worst yearly revenue change on file, %
+LOW_BETA_MIN_FCF_POS = 100.0  # % of years with positive reported free cash flow
+LOW_BETA_MAX_GROSS_MARGIN_SD = 2.0  # gross margin standard deviation, pp
+LOW_BETA_MAX_ROIC_VARIABILITY = 0.04  # ROIC spread around its trend line (`ROIC_Variability`), x
+LOW_BETA_COLUMNS = [
+    SHARE_YIELD_COLUMN,
+    ("Beta", "beta", ".2f", 1, ""),
+    ("Worst Revenue Year", "Revenue_Worst_Change", "+.1f", 1, "%"),
+    ("Gross Margin SD", "Gross_Margin_StdDev", ".1f", 1, " pp"),
+    ("ROIC Variability", "ROIC_Variability", ".2f", 1, "x"),
+    ("Net Debt / EBIT", "NetDebt_to_EBIT", ".1f", 1, "x"),
+    RECESSION_COLUMN,
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
+
+
+def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """The Low beta list. Gates: an operating company (no bank, insurer or holding); Yahoo `beta` below `LOW_BETA_MAX`
+    (a blank fails); owner yield on the share price above `CHEAP_MIN_SHARE_YIELD`; a lasting business
+    (`_lasting_business`: not cyclical, not at peak margins, a dividend, when paid, not cut more than
+    `RECESSION_MAX_FALL` % in a past recession; a company paying none passes on its figures) and a sound balance sheet
+    (`_sound_balance_sheet`); revenue never down more than `LOW_BETA_MIN_REVENUE_WORST` % in a year, free cash flow
+    positive in every year on file, owner earnings not trending down (`Owner_Trend` >= 0), gross margin and ROIC
+    steady (`LOW_BETA_MAX_GROSS_MARGIN_SD`, `LOW_BETA_MAX_ROIC_VARIABILITY`); `in_best_fraction`. A blank steadiness
+    figure fails: the list is about a record shown. Order (`Low_Beta_Order`): owner yield on the share price, highest
+    first. Trusted as `ranking.top_n`. Display only."""
+    keep = (
+        ~_flag(df, "Financial_Mode")
+        & (_num(df, "beta") < LOW_BETA_MAX)
+        & (_num(df, "Owner_Yield_Share") > CHEAP_MIN_SHARE_YIELD)
+        & _lasting_business(df)
+        & _sound_balance_sheet(df)
+        & (_num(df, "Revenue_Worst_Change") >= LOW_BETA_MIN_REVENUE_WORST)
+        & (_num(df, "FCF_Positive_Share") >= LOW_BETA_MIN_FCF_POS)
+        & (_num(df, "Owner_Trend") >= 0)
+        & (_num(df, "Gross_Margin_StdDev") <= LOW_BETA_MAX_GROSS_MARGIN_SD)
+        & (_num(df, "ROIC_Variability") <= LOW_BETA_MAX_ROIC_VARIABILITY)
+        & in_best_fraction(df)
+    )
+    out = with_dividend_record(df[keep])
+    out = out.assign(Low_Beta_Order=_num(out, "Owner_Yield_Share").rank(method="first", ascending=False))
+    return top_n(out, "Low_Beta_Order", n)
+
+
 def _latest_value(df: pd.DataFrame, concept: str) -> pd.Series:
     """TTM, else the latest annual report (`Y0`)."""
     out = pd.Series(np.nan, index=df.index)

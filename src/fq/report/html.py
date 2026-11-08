@@ -100,6 +100,8 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
         "cheap_yield": g(sc.CHEAP_MIN_SHARE_YIELD),
+        "beta_max": g(sc.LOW_BETA_MAX), "beta_revenue": g(-sc.LOW_BETA_MIN_REVENUE_WORST),
+        "beta_gm_sd": g(sc.LOW_BETA_MAX_GROSS_MARGIN_SD), "beta_roic_var": g(sc.LOW_BETA_MAX_ROIC_VARIABILITY),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "asset_min_roic": g(cfg.asset_play_min_roic),
         "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),

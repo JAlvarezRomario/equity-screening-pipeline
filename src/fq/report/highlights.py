@@ -147,8 +147,9 @@ GROUPS = {
     ),
     "style": (
         "By style",
-        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, or a "
-        "price below what the balance sheet holds; each from the best {top} of the combined ranking.",
+        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, a "
+        "steady business whose share moves little, or a price below what the balance sheet holds; each from the best "
+        "{top} of the combined ranking.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
@@ -173,6 +174,7 @@ TABS: tuple[Tab, ...] = (
     Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
+    Tab("Low beta", "low_beta", "hl-low-beta", sc.LOW_BETA_COLUMNS, _plain(sc.low_beta_list), sort="Low_Beta_Order"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
         sort="Book_Order", label="Balance sheet plays"),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",

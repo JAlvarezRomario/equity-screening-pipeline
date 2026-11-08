@@ -101,6 +101,15 @@
   <li><strong>Spread over loan</strong> (shown, not tested): the yield after withholding less what a euro margin loan costs today, {{ r.borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety). Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
 </ul>{% endcall %}{% endmacro %}
 
+{% macro low_beta(r) %}{% call rules("Steady businesses whose share has moved little with the market, at a price that already pays: for a holder who wants to sleep well, or who borrows against the holding.") %}<ul>
+  <li>Beta below {{ r.beta_max }}: Yahoo's, from 5 years of monthly returns against the S&amp;P 500. The only list a share's price path tests. For a share outside the US it partly says how little it moves with Wall Street, not how little it can fall, so the list leans to Asia and the Gulf.</li>
+  <li>Owner yield on the share price above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price. Ordered by it, highest first.</li>
+  <li>Steady figures in every year on file: revenue never down more than {{ r.beta_revenue }}% in a year, free cash flow positive every year, owner earnings not trending down, gross margin within {{ r.beta_gm_sd }} points (standard deviation) and return on capital steady (spread around its trend at most {{ r.beta_roic_var }}&times;). A missing figure fails.</li>
+  <li>Lasting: not cyclical, not at peak margins, past the AI screen; a dividend, when paid, not cut more than {{ r.recession_fall }}% in a past recession. A company paying none is judged on its figures.</li>
+  <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity.</li>
+  <li>Operating companies only, from the best {{ r.top }} of the combined ranking.</li>
+</ul>{% endcall %}{% endmacro %}
+
 {% macro shortlist(r) %}{% call rules("Boring businesses worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
   <li><strong>Ranked</strong>: profitable operating companies in the best {{ r.top }} of the combined ranking.</li>
   <li><strong>Growth without dilution</strong>: revenue per share not falling, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
