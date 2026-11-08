@@ -1,7 +1,7 @@
 # Companies on Nasdaq / NYSE incorporated in Bermuda, the British Virgin Islands, Jersey, the Marshall Islands or the
 # Cayman Islands (SEC EDGAR state of incorporation; Liberty Global by its EDGAR address in Bermuda, the field being blank),
-# market cap >= 100 M USD from Yahoo, net of every other list (so the Cayman companies here are the
-# 100-200 M ones `cayman_adrs.txt` does not reach). Built Nov 8, 2026, user's choice: 0% withholding places of
+# market cap >= 100 M USD from Yahoo, net of every other list (the Cayman companies here are those `cayman_adrs.txt` does not hold:
+# 100-200 M, or listed or grown since Oct 29). Built Nov 8, 2026, user's choice: 0% withholding places of
 # incorporation. No Guernsey, Isle of Man or Cyprus company passed. Left out: blank-check companies (SIC 6770), OTC
 # lines; companies held under another line (NetEase, JD.com, Trip.com, Li Auto, XPeng, New Oriental, NIO, Bilibili,
 # HUTCHMED, Kingsoft Cloud, Hesai, Pony AI, Ascentage in Hong Kong; Aegon as AGN.AS, Wise as WISE.L, Hafnia as
