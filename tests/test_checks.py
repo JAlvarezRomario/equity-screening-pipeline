@@ -125,6 +125,25 @@ def test_the_check_reads_the_figures_and_flags_never_a_price_or_a_verdict_of_our
     )
 
 
+def test_the_earnings_check_sees_what_sits_behind_the_clean_figures_and_the_book_check_retained_earnings():
+    # Consultant review, Nov 8, 2026: one-offs still inside, a capex holiday, working capital coming back.
+    row = _grading_row(**{"Net Income_Y0": 140e6, "Total Unusual Items_Y0": 25e6, "Depreciation And Amortization_Y0": 60e6,
+                          "Capital Expenditure_Y0": -20e6, "Change In Working Capital_Y0": 45e6,
+                          "Retained Earnings_Y0": 700e6, "Common Stock Equity_Y0": 800e6})  # fmt: skip
+    md = grading.check_input(row, [], grading.EARNINGS)
+    assert "### Behind the earnings" in md and "| Net income, as reported | 140 |" in md
+    assert "| Unusual items, pre-tax (taken out of the clean figures) | 25 |" in md
+    assert "| Change in working capital (cash out is negative) | 45 |" in md
+    assert "Retained earnings" not in md
+    book = grading.check_input(row, [], grading.BOOK)
+    assert "| Retained earnings | 700 |" in book and "Behind the earnings" not in book
+    today = pd.Timestamp("2026-11-08")
+    assert "capex holiday" in grading.check_prompt(grading.EARNINGS, "A", "A", "F", today)
+    cash = grading.check_prompt(grading.EARNINGS, "A", "A", "F", today, cash=True)
+    assert "fail only on a real catch" in cash and "**caution**" in cash
+    assert "eat the book" in grading.check_prompt(grading.BOOK, "A", "A", "F", today)
+
+
 def test_due_when_new_unread_another_prompt_a_new_report_or_a_year_old():
     now = pd.Timestamp("2026-11-08")
     ranked = pd.DataFrame({"Ticker": ["A", "B", "C", "D", "E"], "PeriodEnd_Y0": ["2025-12-31"] * 4 + ["2026-06-30"]})

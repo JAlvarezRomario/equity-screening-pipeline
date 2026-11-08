@@ -580,7 +580,8 @@ def run(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WOR
 CHECK_MODEL = GRADE_MODEL
 CHECK_OUTPUT_TOKENS = 32768
 # What `check_input` carries; bump it when that changes, so every check is redone (`check_hash`).
-CHECK_INPUT_VERSION = 2  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield as terms)
+CHECK_INPUT_VERSION = 3  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield as terms); 3: the earnings
+# check sees what sits behind the earnings (`EARNINGS_LINES`), the book check retained earnings (consultant review)
 CASH_QUESTION_MIN_PCT = 20.0  # net cash / market cap, %, from which the earnings check asks about the cash (user)
 EARNINGS, BOOK = "earnings", "book"
 CHECK_KINDS = (EARNINGS, BOOK)
@@ -616,7 +617,18 @@ BOOK_LINES = (
     ("Minority interest", "Minority Interest"),
     ("Preferred stock", "Preferred Stock Equity"),
     ("Common equity", "Common Stock Equity"),
+    ("Retained earnings", "Retained Earnings"),
     ("Tangible book value", "Tangible Book Value"),
+)
+# The earnings check's view behind the clean figures, per period (consultant review, Nov 8, 2026): reported net income
+# and the unusual items the system took out (is a one-off still inside, or already stripped?), depreciation against
+# capex (a capex holiday) and the change in working capital (a free cash flow jump that is only working capital).
+EARNINGS_LINES = (
+    ("Net income, as reported", "Net Income"),
+    ("Unusual items, pre-tax (taken out of the clean figures)", "Total Unusual Items"),
+    ("Depreciation and amortisation", "Depreciation And Amortization"),
+    ("Capital expenditure", "Capital Expenditure"),
+    ("Change in working capital (cash out is negative)", "Change In Working Capital"),
 )
 # A clause of a data note that speaks of a price, a market value, a yield or a verdict of ours is left out of the
 # check's input (user's rule, Nov 7, 2026: the LLM judges the business, not the stock; review of Nov 8, 2026).
@@ -672,23 +684,32 @@ def check_input(row: pd.Series, notes, kind: str, cfg=None) -> str:
 
     cfg = cfg or Settings()
     out = [grade_input(row, cfg)]
-    if kind == BOOK:
-        periods = list(cfg.chronological)
-        if row.get("TTM_Identical_To_Latest") == True:  # noqa: E712
-            periods.remove("TTM")
-        periods = [p for p in periods if any(_present(row.get(f"{c}_{p}")) for _, c in BOOK_LINES)]
-        lines = []
-        for label, concept in BOOK_LINES:
-            values = [_num(row.get(f"{concept}_{p}")) / 1e6 for p in periods]
-            if any(pd.notna(v) for v in values):
-                lines.append((label, _cells(values, ",.0f")))
-        if lines:
-            heads = [_period_label(row, p) for p in periods]
-            out += ["", _table("The balance sheet, millions of US dollars at today's exchange rate", heads, lines)]
+    spec = (
+        (BOOK_LINES, "The balance sheet, millions of US dollars at today's exchange rate")
+        if kind == BOOK
+        else (EARNINGS_LINES, "Behind the earnings, millions of US dollars at today's exchange rate")
+    )
+    table = _period_table(row, cfg, *spec)
+    if table:
+        out += ["", table]
     clean = price_free(notes)
     if clean:
         out += ["", "### Data notes and warning flags", *[f"- {n}" for n in clean]]
     return "\n".join(out).strip()
+
+
+def _period_table(row: pd.Series, cfg, lines_spec, title: str) -> str | None:
+    """A table of `lines_spec` (label, concept) by period, in millions, the periods with any figure; None when empty."""
+    periods = list(cfg.chronological)
+    if row.get("TTM_Identical_To_Latest") == True:  # noqa: E712
+        periods.remove("TTM")
+    periods = [p for p in periods if any(_present(row.get(f"{c}_{p}")) for _, c in lines_spec)]
+    lines = []
+    for label, concept in lines_spec:
+        values = [_num(row.get(f"{concept}_{p}")) / 1e6 for p in periods]
+        if any(pd.notna(v) for v in values):
+            lines.append((label, _cells(values, ",.0f")))
+    return _table(title, [_period_label(row, p) for p in periods], lines) if lines else None
 
 
 def _check_prompt_text(kind: str, cash: bool) -> str:
