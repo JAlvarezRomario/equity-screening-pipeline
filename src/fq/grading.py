@@ -593,6 +593,10 @@ CHECK_TOPICS = {
 CHECK_STATUSES = ("ok", "caution", "fail")
 # The earnings check fails on a caution on both of these (user's rule, Nov 8, 2026): two flattering forces at once.
 TWO_CAUTIONS = ("Cycle", "One-offs and accounting")
+# The pill of a failing topic (`parse_check`): what the reader sees beside the ticker.
+TOPIC_TAGS = {"Cycle": "peak earnings", "One-offs and accounting": "one-offs", "AI and robotics": "AI risk",
+              "Net cash": "cash catch", "Assets carried high": "book overstated", "Hidden liabilities": "book overstated",
+              "Net assets vs book": "book overstated"}  # fmt: skip
 EST_CHECK_USD = (
     0.025  # one check, one Argon pass, at the introductory rates (measured on 5 checks, Nov 8, 2026: $0.022)
 )
@@ -746,9 +750,14 @@ def parse_check(text: str, kind: str) -> dict | None:
         # A failing topic fails the check, and on the earnings check so do cautions on both forces that flatter a
         # record (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
         if "fail" in status.values() or (kind == EARNINGS and all(status.get(n) == "caution" for n in TWO_CAUTIONS)):
-            if not failed:
-                tag = tag or ("one-offs" if status.get("One-offs and accounting") == "fail" else "peak earnings")
             failed = True
+        # The pill names the first failing topic (Nov 8, 2026: Haidilao failed on its cycle but was tagged "cash
+        # catch", never asked about cash); the model's tag only when no topic fails, two cautions read as a peak.
+        first_fail = next(
+            (TOPIC_TAGS[t["name"]] for t in topics if t["status"] == "fail" and t["name"] in TOPIC_TAGS), None
+        )
+        if failed:
+            tag = first_fail or tag or (CHECK_TAGS[kind][0])
         return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
                 "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
                 "Why": str(why or "").strip()}  # fmt: skip

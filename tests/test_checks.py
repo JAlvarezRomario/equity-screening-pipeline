@@ -64,6 +64,9 @@ def test_a_failing_topic_or_cautions_on_cycle_and_one_offs_fail_whatever_the_mod
                {"name": "One-offs and accounting", "status": "fail", "line": "A gain carries it"}]  # fmt: skip
     out = grading.parse_check(_answer("pass", topics=one_off), grading.EARNINGS)
     assert out["Pass"] is False and out["Tag"] == "one-offs"
+    # The pill names the failing topic, not the model's tag (Haidilao: a failing cycle tagged "cash catch").
+    cycle = [{"name": "Cycle", "status": "fail", "line": "Rebound and capex freeze"}]
+    assert grading.parse_check(_answer("fail", "cash catch", topics=cycle), grading.EARNINGS)["Tag"] == "peak earnings"
     book = [{"name": "Assets carried high", "status": "caution", "line": "x"},
             {"name": "Net assets vs book", "status": "ok", "line": "y"}]  # fmt: skip
     assert grading.parse_check(_answer("pass", topics=book), grading.BOOK)["Pass"] is True  # one caution: no fail
