@@ -598,6 +598,7 @@ TWO_CAUTIONS = ("Cycle", "One-offs and accounting")
 TOPIC_TAGS = {"Cycle": "peak earnings", "One-offs and accounting": "one-offs", "AI and robotics": "AI risk",
               "Net cash": "cash catch", "Assets carried high": "book overstated", "Hidden liabilities": "book overstated",
               "Net assets vs book": "book overstated"}  # fmt: skip
+CHECK_WORKERS = 12  # checks made at once: one call each, waiting on the model, not this machine (Nov 8, 2026)
 EST_CHECK_USD = (
     0.025  # one check, one Argon pass, at the introductory rates (measured on 5 checks, Nov 8, 2026: $0.022)
 )
@@ -873,7 +874,7 @@ def attach_checks(df: pd.DataFrame, path: Path) -> pd.DataFrame:
 
 
 def run_checks(todo: list[tuple[str, str]], ranked: pd.DataFrame, notes: dict[str, list[str]], path: Path,
-               workers: int = WORKERS) -> pd.DataFrame:  # fmt: skip
+               workers: int = CHECK_WORKERS) -> pd.DataFrame:  # fmt: skip
     """Make the (ticker, kind) checks of `todo` from their rows in `ranked` (`check_input`) and `notes` (the data
     notes and warning flags by ticker, priced clauses taken out here), saving each as it comes. Returns the new
     checks; a check that fails is logged and skipped (it stays due)."""
