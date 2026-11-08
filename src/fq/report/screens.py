@@ -29,15 +29,16 @@ TOP_LIST_COLUMNS = [
 ]  # fmt: skip
 
 # The lists named cheap (Cheap and good, Cheapest; user's choice, Nov 8, 2026): what one share earns after today's
-# interest, over the share price (`Owner_Yield_Share`), above this; a blank fails. The ranking stays on the EV yield.
+# interest at zero growth, over the share price (`EPV_Per_Share_Yield`), above this; a blank fails. The ranking
+# stays on the yield over market cap plus debt, less spare cash.
 CHEAP_MIN_SHARE_YIELD = 6.0
-SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "Owner_Yield_Share", ".1f", 1, "%")
+SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
 CHEAP_AND_GOOD_COLUMNS = [*TOP_LIST_COLUMNS, SHARE_YIELD_COLUMN]
 
 
 def cheap_enough(df: pd.DataFrame) -> pd.DataFrame:
     """The companies whose owner yield on the share price is above `CHEAP_MIN_SHARE_YIELD` (the lists named cheap)."""
-    return df[_num(df, "Owner_Yield_Share") > CHEAP_MIN_SHARE_YIELD]
+    return df[_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD]
 
 
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
@@ -615,7 +616,7 @@ INCOME_HELD = 0.80
 INCOME_MIN_YIELD = 2.5  # dividend yield after withholding, %
 INCOME_MIN_ROIC = 10.0  # normalised ROIC (ROE for financials), %
 # The dividend at most this share of what a share earns after interest at zero growth (`EPV_Per_Share_Yield`; Nov 7,
-# 2026: was `Owner_Yield`, before interest and 3 years ahead): the rest grows the next dividend.
+# 2026): the rest grows the next dividend.
 INCOME_MAX_PAYOUT = 0.8
 # Growth counted in the order, %/yr at most: past it a company is a growth stock with a dividend, not income.
 INCOME_GROWTH_CAP = 10.0
@@ -760,7 +761,7 @@ def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     keep = (
         ~_flag(df, "Financial_Mode")
         & (_num(df, "beta") < LOW_BETA_MAX)
-        & (_num(df, "Owner_Yield_Share") > CHEAP_MIN_SHARE_YIELD)
+        & (_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD)
         & _lasting_business(df)
         & _sound_balance_sheet(df)
         & (_num(df, "Revenue_Worst_Change") >= LOW_BETA_MIN_REVENUE_WORST)
@@ -771,7 +772,7 @@ def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & in_best_fraction(df)
     )
     out = with_dividend_record(df[keep])
-    out = out.assign(Low_Beta_Order=_num(out, "Owner_Yield_Share").rank(method="first", ascending=False))
+    out = out.assign(Low_Beta_Order=_num(out, "EPV_Per_Share_Yield").rank(method="first", ascending=False))
     return top_n(out, "Low_Beta_Order", n)
 
 
@@ -904,10 +905,9 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
         ("kept its margin through inflation", _margin_held(df)),
         # Earnings power at zero growth beats the Treasury and what more the company's own government pays to borrow
         # dollars (`Sovereign_Spread`, `universe.sovereign_spread`; user's choice, Nov 7, 2026; a frame without it: the
-        # US's): the lower of `Owner_Yield` (3 years of trend credited) and `EPV_Yield` (none), so growth is the margin
-        # of safety, not part of the hurdle (Graham, Greenwald; Nov 7, 2026, as Temporary trouble already asked).
-        ("beats the bond",
-         ~(np.fmin(num("Owner_Yield"), num("EPV_Yield")) < hurdle + num("Sovereign_Spread").fillna(0.0))),
+        # US's): `Owner_Yield`, no growth credited, so growth is the margin of safety, not part of the hurdle (Graham,
+        # Greenwald; Nov 7, 2026, as Temporary trouble already asked).
+        ("beats the bond", ~(num("Owner_Yield") < hurdle + num("Sovereign_Spread").fillna(0.0))),
         ("durable returns",
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
          & (num("Quality_Score") >= SHORTLIST_MIN_QUALITY)),

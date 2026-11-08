@@ -115,6 +115,7 @@ def test_highlights_explain_each_list_and_tag_the_yardstick(cfg):
     from fq.report.pills import FINANCIAL_PILL, list_pills
 
     ranked = apply_dual_ranking(calculate_metrics(make_raw(cfg, n=6), cfg), cfg)
+    ranked["EPV_Per_Share_Yield"] += 4.0  # the synthetic 3-6% over the cheap lists' 6% bar, so Cheapest has rows
     page = build_site(ranked, cfg).read_text(encoding="utf-8")
     # What every list leaves out is said once, under the Highlights heading.
     highlights = page.split("<h2>Highlights</h2>")[1].split('<div class="tabs"')[0]

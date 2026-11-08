@@ -308,9 +308,9 @@ Criterion = tuple[str, str, float]
 # `metrics.capital._shareholder_base`), so cash and debt count at face and a company is neither cheaper for borrowing
 # nor dearer for holding cash (Greenwald). Leverage risk is judged once, in Quality. Payout (dividends +
 # buybacks) is shown only: it is a use of the FCF already counted (share reduction is a shown percentile too).
-# Value is a single forward owner-earnings yield before interest over `Value_Base` (user's rule, Oct 26, 2026):
-# normalised owner earnings at zero real growth, projected 3 years forward on the real trend of all-capex FCF per
-# share (capped at +15%/yr, floored at -10%/yr, both shrunk by R²), over market cap plus debt, less spare cash.
+# Value is a single owner-earnings yield before interest over `Value_Base` (user's rule, Oct 26, 2026): normalised
+# owner earnings at zero real growth, over market cap plus debt, less spare cash. No projection (user's rule,
+# Nov 8, 2026; was 3 years forward on the trend): growth is Quality's, counted once.
 VALUE_CRITERIA: tuple[Criterion, ...] = (("Owner_Yield", "top", 1.0),)
 
 # Quality (user's rule, Oct 26, 2026): return on capital, normalised ROIC (operating) or ROE (financials), adjusted
@@ -597,8 +597,7 @@ class Settings:
     roic_cap: float = 100.0
     # Incremental ROIC is only measured when invested capital grew by at least this share.
     incremental_min_growth: float = 0.05
-    # Forward yield & owner-earnings trend parameters (Value):
-    forward_years: int = 3
+    # Owner-earnings trend parameters (`Owner_Trend`, shown; it never moves the yield):
     trend_cap_up: float = 15.0  # max credited uptrend, %/yr
     trend_floor_down: float = -10.0  # max penalized downtrend, %/yr
     trend_scale_floor: float = 0.01  # 1% of revenue/share (or book/share)

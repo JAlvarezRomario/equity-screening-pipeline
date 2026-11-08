@@ -41,8 +41,7 @@ COMPANY_FACTS = [
     ("Equity / assets", "Equity_to_Assets", ".1f", 1, "%"),
     ("Shares reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
     # Shown, not scored.
-    ("Owner yield on the share price", "Owner_Yield_Share", ".1f", 1, "%"),
-    ("Earnings power / EV, before interest", "EPV_Yield", ".1f", 1, "%"),
+    ("Owner yield on the share price", "EPV_Per_Share_Yield", ".1f", 1, "%"),
     ("FCF yield (norm.)", "FCFy_Norm", ".1f", 1, "%"),
     ("Pre-tax yield", "Pretax_Yield_Avg", ".1f", 1, "%"),
     ("Reported FCF (Y0, M$)", "FCF_Reported_Y0", ",.0f", 1e-6, ""),
@@ -92,7 +91,7 @@ RANKING_FACTS = ("Rank", "Value_Score", "Quality_Score", "Value_Rank", "Quality_
 # at a glance); `company_facts` leaves them out there so they are not shown twice.
 HEADLINE_FACTS = [
     ("Price", "currentPrice", ",.2f", 1, " $"),
-    ("Owner yield", "Owner_Yield_Share", ".1f", 1, "%"),
+    ("Owner yield", "EPV_Per_Share_Yield", ".1f", 1, "%"),
     ("Market cap", "Market Cap", ",.1f", 1, " B$"),
     ("EV", "EV", ",.1f", 1, " B$"),
     ("P/E", "trailingPE", ".1f", 1, ""),
@@ -110,7 +109,7 @@ HEADLINE_FACTS = [
 # Context in large type under the score drivers (`score_tiles`; financial mode swaps two). `company_facts` then
 # leaves them out.
 KEY_TILES = [
-    ("Owner yield on the share price", "Owner_Yield_Share", ".1f", 1, "%"),
+    ("Owner yield on the share price", "EPV_Per_Share_Yield", ".1f", 1, "%"),
     ("ROIC (norm.)", "ROIC_Norm", ".1f", 1, "%"),
     ("Net debt / EBIT", "NetDebt_to_EBIT", ".1f", 1, "x"),
     ("Dividend yield", "Dividend_Yield", ".1f", 1, "%"),
@@ -150,8 +149,8 @@ def key_tiles(row: pd.Series) -> list[dict]:
 
 # One plain line under each scored criterion's tile: what it measures, for a reader new to the terms.
 DRIVER_NOTES = {
-    "Owner_Yield": "the ranking's yardstick: earnings before interest over market cap plus debt, less spare cash, "
-    "so debt and cash do not change the rank",
+    "Owner_Yield": "the ranking's yardstick: what the business earns today, no growth assumed, before interest, over "
+    "market cap plus debt, less spare cash, so debt and cash do not change the rank",
     "Return_Quality": "return on capital (ROE for financials), adjusted for its trend, steadiness and debt",
     "Per_Share_Compounding": "how fast one share of the business grew each year",
     "Share_Reduction_Rate": "shares bought back (+) or issued (-) each year",

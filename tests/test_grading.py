@@ -197,6 +197,7 @@ def _graded(cfg, df, moat, mgmt):
 
 def test_a_company_below_the_bar_stays_on_its_list_folded_under_it(cfg):
     df = _ranked(cfg)
+    df["EPV_Per_Share_Yield"] = 10.0  # over the cheap lists' share-price bar: this test is the grade's
     first = published_lists(df, cfg).query("List == 'Cheap and good'")["Ticker"].tolist()
     assert len(first) >= 2 and published_lists(df, cfg)["Grade_Pass"].isna().all()  # nothing graded yet
     low = first[0]
@@ -387,7 +388,7 @@ def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded(
         "Value_Rank": [0.5, 1.0, 2.0, 3.0, 4.0, 5.0],
         "Grade_Moat": [4.0, 2.5, 3.0, np.nan, 4.0, 3.5],
         "Grade_Mgmt": [4.0, 4.0, 3.0, np.nan, 3.0, 3.5],
-        "Owner_Yield_Share": [6.0, 9.0, 9.0, 9.0, 9.0, 9.0],  # CASHY: cheap on EV, not above 6% on its share price
+        "EPV_Per_Share_Yield": [6.0, 9.0, 9.0, 9.0, 9.0, 9.0],  # CASHY: cheap on EV, not above 6% on its share price
     })  # fmt: skip
     out = hl.cheapest_list(df, 2)
     assert out["Ticker"].tolist() == ["GOOD", "NEW", "GOOD2"]  # CASHY and LOW skipped, NEW waits for its grade

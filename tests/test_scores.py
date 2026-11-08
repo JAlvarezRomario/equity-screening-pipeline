@@ -6,7 +6,7 @@ import pytest
 
 from conftest import make_raw
 from fq.metrics import calculate_metrics
-from fq.metrics.valuation import _owner_yield
+from fq.metrics.valuation import _owner_yield, _per_share_yield
 from fq.ranking import apply_dual_ranking
 
 
@@ -69,20 +69,20 @@ def test_cyclical_owner_trend_is_not_charged_unless_it_fell_every_year(cfg):
     assert bumpy.loc[0, "Owner_Trend"] == 0.0 and bumpy.loc[0, "Owner_Yield"] == pytest.approx(5.0)
     falling = _trend_frame(cfg, [140.0, 120.0, 100.0, 80.0], cyclical=True)
     _owner_yield(falling, cfg, _basis())
-    assert falling.loc[0, "Owner_Trend"] < 0 and falling.loc[0, "Owner_Yield"] < 5.0
+    assert falling.loc[0, "Owner_Trend"] < 0 and falling.loc[0, "Owner_Yield"] == pytest.approx(5.0)
     rising = _trend_frame(cfg, [80.0, 100.0, 120.0, 140.0], cyclical=True)
     _owner_yield(rising, cfg, _basis())
     assert rising.loc[0, "Owner_Trend"] == 0.0
 
 
-def test_owner_trend_projects_from_the_levels_date_and_not_past_an_over_earner_cap(cfg):
+def test_owner_yield_is_todays_level_whatever_the_trend_and_no_rise_past_an_over_earner_cap(cfg):
+    """No projection (user's rule, Nov 8, 2026): a smooth grower and a smooth decliner keep today's level."""
     flows = [100.0, 110.0, 121.0, 133.1]
-    latest, median = _trend_frame(cfg, flows), _trend_frame(cfg, flows)
-    _owner_yield(latest, cfg, _basis(age=0.0))
-    _owner_yield(median, cfg, _basis(age=1.5))
-    g = latest.loc[0, "Owner_Trend"] / 100
-    assert latest.loc[0, "Owner_Yield"] == pytest.approx(5.0 * (1 + g) ** 3)
-    assert median.loc[0, "Owner_Yield"] == pytest.approx(5.0 * (1 + g) ** 4.5)
+    rising, falling = _trend_frame(cfg, flows), _trend_frame(cfg, flows[::-1])
+    _owner_yield(rising, cfg, _basis(age=1.5))
+    _owner_yield(falling, cfg, _basis(age=1.5))
+    assert rising.loc[0, "Owner_Trend"] > 0 and rising.loc[0, "Owner_Yield"] == pytest.approx(5.0)
+    assert falling.loc[0, "Owner_Trend"] < 0 and falling.loc[0, "Owner_Yield"] == pytest.approx(5.0)
     capped = _trend_frame(cfg, flows)
     _owner_yield(capped, cfg, _basis(capped=True))
     assert capped.loc[0, "Owner_Trend"] == 0.0 and capped.loc[0, "Owner_Yield"] == pytest.approx(5.0)
@@ -100,7 +100,7 @@ def test_owner_trend_rate_is_on_the_newest_level(cfg):
     assert df.loc[0, "Owner_Trend"] == pytest.approx(expected, rel=0.02)
 
 
-def test_owner_yield_forward_growth_credited_when_smooth(cfg):
+def test_owner_yield_credits_no_growth_when_smooth(cfg):
     raw = make_raw(cfg, n=2)
     # Give row 0 a smooth rising owner earnings per share
     for k, p in enumerate(cfg.fiscal_years):
@@ -116,9 +116,9 @@ def test_owner_yield_forward_growth_credited_when_smooth(cfg):
     assert "Owner_Trend" in df.columns
     assert "Owner_Smoothness" in df.columns
 
-    # Smooth uptrend should give positive Owner_Trend and boost Owner_Yield above EPV_Yield
+    # A smooth uptrend shows a positive Owner_Trend; the yield stays today's earning power
     if df.loc[0, "EPV_Yield"] > 0:
-        assert df.loc[0, "Owner_Yield"] >= df.loc[0, "EPV_Yield"]
+        assert df.loc[0, "Owner_Yield"] == df.loc[0, "EPV_Yield"]
         assert df.loc[0, "Owner_Trend"] > 0.0
 
 
@@ -173,19 +173,19 @@ def test_a_missing_criterion_counts_at_the_middle_not_at_the_strongest_one():
     assert score[n - 1] == pytest.approx(70 * 1.0 + 30 * 0.5, abs=3)
 
 
-def test_owner_yield_share_is_after_interest_over_the_share_price(cfg):
-    """The worked example (Nov 8, 2026): 10 shares at 1000, 100 a share before interest, no trend. Net cash of 500 a
-    share earning 11.25 after tax: 20% on the business, 11.1% on the share price. Net debt of 500 a share costing 15
-    after tax: the share-price yield sits above the business yield."""
+def test_per_share_yield_is_after_interest_over_the_share_price(cfg):
+    """The worked example (Nov 8, 2026): 10 shares at 1000, 100 a share before interest. Net cash of 500 a share
+    earning 11.25 after tax: 20% on the business, 11.1% on the share price. Net debt of 500 a share costing 15 after
+    tax: the share-price yield sits above the business yield."""
     flat = [1000.0] * 4
     cash = _trend_frame(cfg, flat, epv=1000 / 5000 * 100)
     cash[["FCF_Base", "Value_Base", "Net_Financing_Yield"]] = [10000.0, 5000.0, -112.5 * 100 / 10000]
     _owner_yield(cash, cfg, _basis())
     assert cash.loc[0, "Owner_Yield"] == pytest.approx(20.0)
-    assert cash.loc[0, "Owner_Yield_Share"] == pytest.approx(11.125)
+    assert _per_share_yield(cash).loc[0] == pytest.approx(11.125)
 
     debt = _trend_frame(cfg, flat, epv=1000 / 15000 * 100)
     debt[["FCF_Base", "Value_Base", "Net_Financing_Yield"]] = [10000.0, 15000.0, 150.0 * 100 / 10000]
     _owner_yield(debt, cfg, _basis())
-    assert debt.loc[0, "Owner_Yield_Share"] == pytest.approx(8.5)
-    assert debt.loc[0, "Owner_Yield_Share"] > debt.loc[0, "Owner_Yield"]
+    assert _per_share_yield(debt).loc[0] == pytest.approx(8.5)
+    assert _per_share_yield(debt).loc[0] > debt.loc[0, "Owner_Yield"]

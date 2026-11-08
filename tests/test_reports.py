@@ -12,7 +12,9 @@ from fq.report.links import slug
 
 
 def _ranked(cfg):
-    return apply_dual_ranking(calculate_metrics(make_raw(cfg), cfg), cfg)
+    df = apply_dual_ranking(calculate_metrics(make_raw(cfg), cfg), cfg)
+    # The synthetic companies earn 3-6% today: over the cheap lists' share-price bar, so they fill the lists.
+    return df.assign(EPV_Per_Share_Yield=df["EPV_Per_Share_Yield"] + 4.0)
 
 
 def test_html_site(cfg):
@@ -193,7 +195,8 @@ def test_chart_bars_are_owner_earnings_and_the_caption_says_why(cfg):
     i = list(bars.x).index(cfg.latest)
     expected = row[f"Owner_Earnings_{cfg.latest}"] * row["Parent_Share"] / row[f"Ordinary Shares Number_{cfg.latest}"]
     assert bars.y[i] == pytest.approx(expected / row["currentPrice"] * 100)
-    assert any(t.name.startswith("Earnings power/share") for t in fig.data)
+    line = next(t for t in fig.data if t.name.startswith("Owner yield / share"))  # the page's headline figure
+    assert line.y[0] == pytest.approx(row["EPV_Per_Share_Yield"])
     texts = [" ".join(t for _, t in owner_earnings_caption(df.iloc[k])) for k in range(4)]
     assert "growth added back" in texts[0] or "bought growth" in texts[0]
     assert "deposits and loans" in texts[1] and "depreciation" in texts[2] and "Investment gains" in texts[3]
@@ -668,8 +671,6 @@ def test_shortlist_applies_every_test_and_counts_its_funnel(cfg):
     picked = shortlist_list(df, len(df))
     assert set(picked["Ticker"]) == set(df.loc[[rows[0], rows[11], rows[16], rows[20]], "Ticker"])
     assert shortlist_list(df, len(df), hurdle=9.0).empty  # a Treasury above 6% raises the bar
-    on_growth = df.assign(EPV_Yield=np.where(df.index == rows[0], 5.0, df["EPV_Yield"]))  # 8% only with growth
-    assert df.at[rows[0], "Ticker"] not in set(shortlist_list(on_growth, len(df))["Ticker"])  # zero growth beats it
     exciting = df.assign(industry=np.where(df.index == rows[0], "Telecom Services", df["industry"]))
     assert df.at[rows[0], "Ticker"] not in set(shortlist_list(exciting, len(df))["Ticker"])  # not a boring industry
     assert list(picked["Rank"]) == sorted(picked["Rank"])  # combined rank order
@@ -709,7 +710,7 @@ def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
     from fq.settings import Settings
 
     df = _ranked(cfg).copy()
-    df["Owner_Yield_Share"] = 10.0  # every company over the cheap lists' share-price bar: this test is the fifth's
+    df["EPV_Per_Share_Yield"] = 10.0  # every company over the cheap lists' share-price bar: this test is the fifth's
     best = in_best_fraction(df)
     assert best.sum() == np.ceil(Settings().highlight_top_fraction * df["Rank"].notna().sum())
     df["Asset_Play"] = True
@@ -900,12 +901,12 @@ def test_low_beta_keeps_a_steady_share_and_leaves_out_each_failure():
     fails exactly one gate."""
     from fq.report.screens import low_beta_list
 
-    ok = {"Financial_Mode": False, "Cyclical": False, "beta": 0.3, "Owner_Yield_Share": 9.0, "Revenue_Worst_Change": 2.0,
+    ok = {"Financial_Mode": False, "Cyclical": False, "beta": 0.3, "EPV_Per_Share_Yield": 9.0, "Revenue_Worst_Change": 2.0,
           "FCF_Positive_Share": 100.0, "Owner_Trend": 1.0, "Gross_Margin_StdDev": 1.0, "ROIC_Variability": 0.02,
           "NetDebt_to_EBIT": 0.5, "Net_Debt": -1.0, "Rank": 1.0, "In_Best_Fraction": True, "industry": "Packaged Foods",
           "Data_Suspect": False}  # fmt: skip
     fails = {"HIGHBETA": {"beta": 0.6}, "NOBETA": {"beta": np.nan}, "CYCLE": {"Cyclical": True},
-             "SALESFELL": {"Revenue_Worst_Change": -8.0}, "EVCHEAP": {"Owner_Yield_Share": 6.0},
+             "SALESFELL": {"Revenue_Worst_Change": -8.0}, "EVCHEAP": {"EPV_Per_Share_Yield": 6.0},
              "BUMPY": {"Gross_Margin_StdDev": 4.0}, "LOSSYEAR": {"FCF_Positive_Share": 80.0},
              "BANK": {"Financial_Mode": True}}  # fmt: skip
     rows = [{**ok, "Ticker": "STEADY"}] + [{**ok, **change, "Ticker": t} for t, change in fails.items()]

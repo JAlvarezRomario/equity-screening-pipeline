@@ -730,9 +730,9 @@ def test_suspect_checks_the_yield_value_scores(cfg):
     from fq.metrics.flags import _data_suspect
 
     df = calculate_metrics(make_raw(cfg, n=3), cfg)
-    df.loc[0, "Owner_Yield"] = 33.0  # the trend lifts a 21% level beyond the suspect line
+    df.loc[0, "Owner_Yield"] = 33.0  # a level beyond the suspect line
     df.loc[1, ["EPV_Yield", "FCFy_EV_Norm"]] = [25.0, 11.7]  # mostly add-backs
-    df.loc[2, ["EPV_Yield", "FCFy_EV_Norm", "Owner_Yield"]] = [8.0, 3.0, 9.0]  # a grower at a modest yield
+    df.loc[2, ["EPV_Yield", "FCFy_EV_Norm", "Owner_Yield"]] = [8.0, 3.0, 8.0]  # a modest yield
     _data_suspect(df, cfg)
     assert "owner earnings yield" in df.loc[0, "Suspect_Reasons"]
     assert "twice the reported FCF" in df.loc[1, "Suspect_Reasons"]

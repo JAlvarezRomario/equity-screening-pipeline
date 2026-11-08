@@ -154,9 +154,9 @@ def company_chart_figure(
     _guide(fig, 15, h15_label, c["guide"], dash="dot", width=1.0)
     if pd.notna(norm):
         fig.add_trace(go.Scatter(x=[years[0], years[-1]], y=[norm] * 2, mode="lines", showlegend=False,
-                                 name=f"Earnings power/share, normalised ({norm:.1f}%)", hoverinfo="skip",
+                                 name=f"Owner yield / share, today ({norm:.1f}%)", hoverinfo="skip",
                                  line=dict(color=c["power"], width=2.5)))  # fmt: skip
-        _line_label(fig, norm, f"<b>Earnings power / share {norm:.1f}%</b>", c["power"])
+        _line_label(fig, norm, f"<b>Owner yield / share {norm:.1f}%</b>", c["power"])
     fig.update_layout(barmode="group", bargap=0.25, height=420, hovermode="x unified", legend=_LEGEND,
                       margin=dict(t=40, b=40, l=50, r=20))  # fmt: skip
     _relative_x_axes(fig, row, years)
