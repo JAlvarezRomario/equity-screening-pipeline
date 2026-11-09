@@ -84,7 +84,7 @@ WALK_WAITING = TOP_N  # ungraded companies a graded walk holds at once: the next
 # walks further down its ranking, a company not yet graded or checked counting as a pass until it is (so a walk
 # never runs ahead of the grading), and never past `WALK_MAX_ROWS` rows.
 MIN_ALL_PASS = 10
-WALK_MAX_ROWS = 60
+WALK_MAX_ROWS = 30  # Nov 9, 2026 (user's choice; was 60): Banks and lenders showed 60 rows, 41 below the bar
 
 
 def _check_verdict(row_value) -> bool | None:
