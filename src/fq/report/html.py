@@ -85,11 +85,11 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists). "
                  "Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
-                 "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
-                 "{one} (Boring businesses, Temporary trouble, Cheapest and Best businesses set bars of their own), are the "
-                 "list; the others stay on it, folded away under the table, and none is replaced (Cheapest and Best "
-                 "businesses take the next one down instead). Cheap and good, Cheapest and Best businesses walk "
-                 "further down their ranking until at least {min_pass} pass every test. A grade changes no score "
+                 "own knowledge and this site's figures: those with both grades at least {both} (Boring businesses, "
+                 "Temporary trouble, Cheapest and Best businesses set bars of their own), are the list; the others "
+                 "stay on it, folded away under the table, and the list takes the next company that qualifies in "
+                 "their place, so its rows that pass stay full while enough qualify. Cheap and good, Cheapest and "
+                 "Best businesses walk further down their ranking until at least {min_pass} pass every test. A grade changes no score "
                  "and no rank.")  # fmt: skip
 
 
@@ -113,7 +113,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "net_debt_equity": g(sc.SHORTLIST_MAX_NET_DEBT_EQUITY), "leader_share": g(sc.SHORTLIST_LEADER_SHARE * 100),
         "leader_min": g(sc.SHORTLIST_LEADER_MIN), "hurdle": g(round(hurdle, 1)),
         "spreads": ", ".join(f"{c} {sovereign_spread(c):.1f}" for c in SPREAD_EXAMPLES),
-        "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP), "grade_one": g(grading.MIN_ONE),
+        "grade_both": g(grading.MIN_BOTH), "grade_top": g(grading.SHORTLIST_MIN_TOP),
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
         "cheap_yield": g(sc.CHEAP_MIN_SHARE_YIELD),
         "beta_max": g(sc.LOW_BETA_MAX), "beta_revenue": g(-sc.LOW_BETA_MIN_REVENUE_WORST),
@@ -322,7 +322,6 @@ def build_site(
             momentum=f"{-LIST_MIN_MOMENTUM:g}",
             cheap_yield=f"{sc.CHEAP_MIN_SHARE_YIELD:g}",
             both=f"{grading.MIN_BOTH:g}",
-            one=f"{grading.MIN_ONE:g}",
             min_pass=MIN_ALL_PASS,
         ),
         industries=sc.industry_averages(df, bench),

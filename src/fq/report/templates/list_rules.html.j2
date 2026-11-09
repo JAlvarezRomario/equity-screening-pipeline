@@ -127,13 +127,14 @@
   <li><strong>A boring industry</strong>: one that does not attract new capital, so the incumbents face few new competitors: {{ r.boring_industries }}.</li>
   <li><strong>Price</strong>: earnings power at zero growth (and the owner yield, if lower) of at least {{ r.hurdle }}% of the price, the higher of 6% and the 10-year Treasury (a business should pay more than a bond before any growth; growth is the margin of safety), plus how much more than the US the company's home government pays to borrow dollars (its rating-based default spread, from Damodaran's January table, less the US's, in points: {{ r.spreads }}; the country of its headquarters, not of its sales); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
-  <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}, or either at least {{ r.grade_one }}).</li>
+  <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}).</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro trouble(r) %}{% call rules("Boring businesses in temporary trouble: every test of Boring businesses but one, nothing breaking now, which they fail. Sales, profit or analysts' estimates are falling right now, and the price shows it; the bet is that the trouble passes and the business stays.") %}<ul>
   <li>Every other test of Boring businesses, as there: a boring industry past the AI screen, growing per share without dilution, cash-backed and clean earnings, a sound balance sheet, recession leaders only, the margin kept through inflation, owner earnings at zero growth (EPV) beating the bond, durable returns, the best {{ r.top }} of the combined ranking.</li>
   <li>Nothing breaking now, failed: recent revenue down more than {{ r.revenue_fall }}% or operating profit (EBIT) down more than {{ r.ebit_fall }}% (the latest quarters against the year before), earnings estimates cut more than {{ r.estimate_cut }}% in 90 days, or a dividend cut paid in the last 12 months.</li>
   <li>Graded before it counts: moat and management both at least {{ r.trouble_both }} and either at least {{ r.trouble_top }}; an ungraded company is folded away until graded.</li>
+  <li>The one list that keeps a share down more than {{ r.list_momentum }}% in 6 months: a falling price is what trouble looks like.</li>
   <li>In combined-rank order. Read why the numbers fall before buying: a temporary trouble and a broken business look alike at first.</li>
 </ul>{% endcall %}{% endmacro %}
 

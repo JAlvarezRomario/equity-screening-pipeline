@@ -40,9 +40,10 @@ CALL_TIMEOUT_MS = 600_000  # one model call (about a minute normally); past it t
 MAX_AGE_DAYS = 365  # re-grade after a year, or when a new annual report lands (`due`)
 MAX_PER_RUN = 60  # companies graded by one `fq run -u benchmark` (~$6 now); `fq grade` has no cap
 
-# The gate (user's rule, Oct 31, 2026): both grades at least MIN_BOTH, or either at least MIN_ONE.
+# The gate (user's rule, Oct 31, 2026): both grades at least MIN_BOTH. Until Nov 9, 2026 either grade at least 4.25 also
+# passed; dropped (user's choice): an outstanding moat does not make up for a management that treats minority holders
+# badly (no shown company passed by that route that day, 4 of 818 stored grades could).
 MIN_BOTH = 3.0
-MIN_ONE = 4.25
 # The Shortlist's stricter gate (user's rule, Oct 31, 2026): both at least MIN_BOTH and either at least SHORTLIST_MIN_TOP.
 SHORTLIST_MIN_TOP = 4.0
 # Best businesses (user's choice, Nov 7, 2026; the bar of the retired Best grades tab): both at least BEST_MIN_BOTH and
@@ -77,10 +78,10 @@ PASS_HASH_ALIASES: frozenset[str] = frozenset({"ca61a6316a06"})
 
 
 def passes(moat, mgmt) -> bool | None:
-    """The gate: True when both grades reach `MIN_BOTH` or either reaches `MIN_ONE`; None when ungraded."""
+    """The gate: True when both grades reach `MIN_BOTH`; None when ungraded."""
     if pd.isna(moat) or pd.isna(mgmt):
         return None
-    return bool((moat >= MIN_BOTH and mgmt >= MIN_BOTH) or max(moat, mgmt) >= MIN_ONE)
+    return bool(moat >= MIN_BOTH and mgmt >= MIN_BOTH)
 
 
 def passes_best_walk(moat, mgmt) -> bool | None:

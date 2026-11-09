@@ -56,6 +56,11 @@ class Tab:
     # Its "No dividend tax" rows: the tab re-run among zero-withholding companies (True), or its own members at 0%
     # withholding (False: The List, whose sources' zero-withholding re-runs would hold companies nobody graded).
     zero_rerun: bool = True
+    # Drawn only from shares not down more than `LIST_MIN_MOMENTUM` over 6 months (False: Temporary trouble, whose
+    # point is a business in trouble now, which a fallen price usually shows; user's choice, Nov 9, 2026).
+    price_floor: bool = True
+    # A ranked walk's eligible companies (the count above it), when not what the walk returns (it stops at a row cap).
+    eligible: Callable[[pd.DataFrame], pd.DataFrame] | None = None
 
 
 def _plain(fn):
@@ -152,6 +157,16 @@ def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.Data
     until at least `MIN_ALL_PASS` pass the check too (Nov 9, 2026). Price plays no part: a raw score; Cheap and good is
     where price and quality meet."""
     return _graded_walk(df, n, "Quality_Rank", grading.passes_best_walk, BEST_BAR)
+
+
+def _eligible_cheap(rank_col: str) -> Callable[[pd.DataFrame], pd.DataFrame]:
+    """The companies a cheap walk may draw from: past the share-price bar, trusted and ranked on `rank_col`."""
+    return lambda df: top_n(sc.cheap_enough(df), rank_col, len(df))
+
+
+def _eligible_quality(df: pd.DataFrame) -> pd.DataFrame:
+    """The companies Best businesses may draw from: trusted and ranked on Quality."""
+    return top_n(df, "Quality_Rank", len(df))
 
 
 def _trouble(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
@@ -315,10 +330,11 @@ TABS: tuple[Tab, ...] = (
     Tab(THE_LIST, "the_list", "hl-the-list", sc.THE_LIST_COLUMNS, the_list, group="list", n=THE_LIST_N,
         sort="The_List_Order", checked=False, zero_rerun=False),
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
-        ranked=True),
+        ranked=True, eligible=_eligible_cheap("Rank")),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
-    Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
+    Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N,
+        price_floor=False),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
     Tab("Low beta", "low_beta", "hl-low-beta", sc.LOW_BETA_COLUMNS, _plain(sc.low_beta_list), sort="Low_Beta_Order"),
@@ -333,9 +349,9 @@ TABS: tuple[Tab, ...] = (
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
         sort="Kind_Rank"),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="raw",
-        sort="Value_Rank", ranked=True),
+        sort="Value_Rank", ranked=True, eligible=_eligible_cheap("Value_Rank")),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, best_business_list, group="raw",
-        sort="Quality_Rank", ranked=True),
+        sort="Quality_Rank", ranked=True, eligible=_eligible_quality),
 )
 # fmt: on
 TAB = {t.name: t for t in TABS}
@@ -388,9 +404,25 @@ def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     then carry the check of its kind (`with_check`)."""
     if not tab.checked:
         return tab.screen
-    if not tab.ai_screen:
-        return lambda df, n, hurdle: with_check(tab.screen(df, n, hurdle), tab.name)
-    return lambda df, n, hurdle: with_check(tab.screen(df[sc.ai_resilient(df)], n, hurdle), tab.name)
+
+    def pool(df: pd.DataFrame) -> pd.DataFrame:
+        return df[sc.ai_resilient(df)] if tab.ai_screen else df
+
+    if tab.ranked:  # the score lists walk on their own (`_graded_walk`, `cheap_and_good_list`)
+        return lambda df, n, hurdle: with_check(tab.screen(pool(df), n, hurdle), tab.name)
+    return lambda df, n, hurdle: _fill(with_check(tab.screen(pool(df), len(df), hurdle), tab.name), n)
+
+
+def _fill(out: pd.DataFrame, n: int) -> pd.DataFrame:
+    """A screened list's rows in its order, down to the `n`-th that does not fail (`fails`: a moat and management grade
+    or a check below the bar), at most `WALK_MAX_ROWS` (user's choice, Nov 9, 2026: one rule for every list, as the
+    walks had; Insurers showed 17 shaded of 20 while 16 more qualified). The failures met on the way stay, folded
+    under the list; ungraded and unchecked companies keep their place and count until they are judged."""
+    if n >= len(out):  # every qualifier asked for (`Highlights.total`): no row cap
+        return out
+    ok = (~fails(out)).to_numpy().cumsum()
+    reach = int(np.searchsorted(ok, n)) + 1 if len(ok) and ok[-1] >= n else len(out)
+    return out.iloc[: min(reach, WALK_MAX_ROWS)]
 
 
 def highlight_picks(hurdle: float) -> dict[str, tuple[Pick, int]]:
@@ -446,13 +478,13 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
 LIST_MIN_MOMENTUM = -20.0
 
 
-def listable(df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
+def listable(df: pd.DataFrame, cfg: Settings, price_floor: bool = True) -> pd.DataFrame:
     """The rows a highlight list may show: median daily traded value (`Traded_Value_USD`) at least
-    `list_min_traded_usd`, a slice nobody can buy beats nothing, and a share price not down more than
+    `list_min_traded_usd`, a slice nobody can buy beats nothing, and (`price_floor`) a share price not down more than
     `LIST_MIN_MOMENTUM` % over 6 months (`Momentum_6M`); a missing figure passes. The full ranking keeps all."""
     traded = pd.to_numeric(df["Traded_Value_USD"], errors="coerce") if "Traded_Value_USD" in df.columns else None
     keep = pd.Series(True, index=df.index) if traded is None else ~(traded < cfg.list_min_traded_usd)
-    return df[keep & ~(sc._num(df, "Momentum_6M") < LIST_MIN_MOMENTUM)]
+    return df[keep & ~(price_floor & (sc._num(df, "Momentum_6M") < LIST_MIN_MOMENTUM))]
 
 
 @dataclass
@@ -463,14 +495,23 @@ class Highlights:
 
     frame: pd.DataFrame
     lists: pd.DataFrame
+    liquid: pd.DataFrame  # `lists` without the price floor (`Tab.price_floor` False)
     treasury_yield: float | None
     hurdle: float
     picks: dict[str, tuple[Pick, int]]
     borrow_rate: float = FALLBACK_BORROW_RATE  # what a euro margin loan costs, % (`fx.get_borrow_rate`)
     zero: pd.DataFrame = field(init=False)
+    liquid_zero: pd.DataFrame = field(init=False)
 
     def __post_init__(self) -> None:
         self.zero = self.lists[self.lists["Dividend_WHT"] == 0]
+        self.liquid_zero = self.liquid[self.liquid["Dividend_WHT"] == 0]
+
+    def _rows(self, name: str, zero: bool = False) -> pd.DataFrame:
+        """The rows tab `name` may draw from: with or without the price floor (`Tab.price_floor`), zero-withholding
+        only when `zero`."""
+        floor = TAB[name].price_floor
+        return (self.zero if floor else self.liquid_zero) if zero else (self.lists if floor else self.liquid)
 
     @classmethod
     def compute(cls, df: pd.DataFrame, cfg: Settings, bench: pd.DataFrame | None = None) -> Highlights:
@@ -479,23 +520,29 @@ class Highlights:
         hurdle = sc.bond_hurdle(treasury)
         borrow = get_borrow_rate(cfg.data_dir / "borrow_rate.json")
         frame = frame.assign(Borrow_Rate=borrow)  # Income's loan spread (shown), kept by every subset
-        return cls(frame, listable(frame, cfg), treasury, hurdle, highlight_picks(hurdle), borrow)
+        liquid = listable(frame, cfg, price_floor=False)
+        return cls(frame, listable(frame, cfg), liquid, treasury, hurdle, highlight_picks(hurdle), borrow)
 
     def shown(self, name: str, zero: bool = False) -> pd.DataFrame:
         """The rows tab `name` shows (`zero`: among zero-withholding companies only), in the list's own order."""
         pick, n = self.picks[name]
         if zero and not TAB[name].zero_rerun:
-            members = pick(self.lists, len(self.lists))
+            rows = self._rows(name)
+            members = pick(rows, len(rows))
             return members[members["Dividend_WHT"] == 0].head(n)
-        return pick(self.zero if zero else self.lists, n)
+        return pick(self._rows(name, zero), n)
 
     def total(self, name: str) -> int:
-        """How many companies qualify for tab `name`, however many rows it shows."""
-        return len(self.picks[name][0](self.lists, len(self.lists)))
+        """How many companies qualify for tab `name`, however many rows it shows (a ranked walk: how many it may draw
+        from, `Tab.eligible`, past the AI screen)."""
+        tab, rows = TAB[name], self._rows(name)
+        if tab.eligible is not None:
+            return len(tab.eligible(rows[sc.ai_resilient(rows)] if tab.ai_screen else rows))
+        return len(self.picks[name][0](rows, len(rows)))
 
     def funnel(self, name: str) -> list[tuple[str, int]] | None:
         tab = TAB[name]
-        return None if tab.funnel is None else tab.funnel(self.lists, self.hurdle)
+        return None if tab.funnel is None else tab.funnel(self._rows(name), self.hurdle)
 
     def listed(self) -> set[str]:
         """Every company a tab shows (the zero-withholding extras left out)."""

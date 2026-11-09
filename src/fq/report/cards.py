@@ -6,7 +6,7 @@ import re
 
 import pandas as pd
 
-from fq.grading import BOOK, CHECK_KINDS, EARNINGS, MIN_BOTH, MIN_ONE, SHORTLIST_MIN_TOP, passes_shortlist
+from fq.grading import BOOK, CHECK_KINDS, EARNINGS, MIN_BOTH, SHORTLIST_MIN_TOP, passes_shortlist
 from fq.report.format import DASH
 
 GRADE_PILL = ("Moat and management, 1 to 5, graded by an AI model (Gemini) from its own knowledge and this site's "
@@ -87,11 +87,7 @@ def grade_pill(row: pd.Series) -> dict:
         return {"label": "not graded", "why": "Not graded on moat and management yet; it keeps its place meanwhile.",
                 "cls": "pill-grade-none"}  # fmt: skip
     low = row.get("Grade_Pass") is False or row.get("Grade_Pass") == False  # noqa: E712
-    rule = (
-        row.get("Grade_Bar")
-        if isinstance(row.get("Grade_Bar"), str)
-        else (f"both at least {MIN_BOTH:g}, or either at least {MIN_ONE:g}")
-    )
+    rule = row.get("Grade_Bar") if isinstance(row.get("Grade_Bar"), str) else f"both at least {MIN_BOTH:g}"
     bar = f" Below this list's bar ({rule}): shaded at the bottom."
     why = GRADE_PILL + (bar if low else "")
     return {"label": f"moat {_grade_text(moat)} · mgmt {_grade_text(mgmt)}", "why": why,

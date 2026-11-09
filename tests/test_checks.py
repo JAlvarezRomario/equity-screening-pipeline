@@ -428,3 +428,26 @@ def test_the_lists_mix_sets_its_shares_against_the_markets():
     assert mix["Countries"] == ("Japan 40% (market 10%); United States 30% (market 90%); Hong Kong 20% (market 0%); "
                                 "other 10% (market 0%)")  # fmt: skip
     assert mix["Size"].startswith("Small 60%") and mix["Currencies"].startswith("JPY 40% (market 10%)")
+
+
+def test_a_list_fills_past_its_failures_and_keeps_them_folded():
+    # User's choice, Nov 9, 2026: one rule for every list (Insurers showed 17 shaded of 20 while 16 more qualified).
+    import fq.report.highlights as hl
+
+    verdicts = [False, True, None, False, True, True, True]
+    out = pd.DataFrame({"Ticker": list("ABCDEFG"), "Grade_Pass": verdicts, "Check_Pass": [True] * 7})
+    assert hl._fill(out, 3)["Ticker"].tolist() == ["A", "B", "C", "D", "E"]  # 3 that do not fail, the 2 fails kept
+    assert hl._fill(out, 10)["Ticker"].tolist() == list("ABCDEFG")  # fewer qualify: all shown
+    many = pd.DataFrame({"Ticker": [f"T{i}" for i in range(100)], "Grade_Pass": False, "Check_Pass": True})
+    assert len(hl._fill(many, 20)) == hl.WALK_MAX_ROWS and len(hl._fill(many, 100)) == 100  # the count is uncapped
+
+
+def test_temporary_trouble_keeps_fallen_shares_and_walks_count_their_eligible(cfg):
+    # User's choices, Nov 9, 2026: the price floor would gut the list built for trouble; a walk's count is its pool.
+    import fq.report.highlights as hl
+
+    assert hl.TAB["Temporary trouble"].price_floor is False
+    assert all(t.price_floor for t in hl.TABS if t.name != "Temporary trouble")
+    assert all(t.eligible is not None for t in hl.TABS if t.ranked)
+    df = pd.DataFrame({"Ticker": ["FELL", "OK"], "Momentum_6M": [-40.0, 1.0], "Traded_Value_USD": [1e9, 1e9]})
+    assert hl.listable(df, cfg, price_floor=False)["Ticker"].tolist() == ["FELL", "OK"]

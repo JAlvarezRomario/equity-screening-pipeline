@@ -19,7 +19,7 @@ def _ranked(cfg):
 
 def test_the_gate_is_both_at_three_or_either_at_four_and_a_quarter():
     assert grading.passes(3.0, 3.0) and grading.passes(4.0, 3.5)
-    assert grading.passes(2.0, 4.25) and grading.passes(4.5, 1.0)  # one outstanding grade carries it
+    assert not grading.passes(2.0, 4.25) and not grading.passes(4.5, 1.0)  # Nov 9, 2026: no outstanding-grade route
     assert not grading.passes(2.5, 4.0) and not grading.passes(3.0, 2.75) and not grading.passes(2.0, 2.0)
     assert grading.passes(None, 3.0) is None and grading.passes(float("nan"), 4.0) is None  # ungraded
 
@@ -261,7 +261,9 @@ def test_holdings_are_graded_listed_or_not(cfg, monkeypatch):
 def test_the_shortlist_asks_both_at_three_and_one_at_four():
     assert grading.passes_shortlist(3.0, 4.0) and grading.passes_shortlist(4.5, 3.25)
     assert not grading.passes_shortlist(3.5, 3.75)  # clears the other lists' bar, not the Shortlist's
-    assert not grading.passes_shortlist(2.5, 5.0) and grading.passes(2.5, 5.0)  # one outstanding grade is not enough
+    assert not grading.passes_shortlist(2.5, 5.0) and not grading.passes(
+        2.5, 5.0
+    )  # one outstanding grade is not enough
     assert grading.passes_shortlist(None, 4.0) is None
 
 
