@@ -188,10 +188,6 @@ THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Compounders")
 THE_LIST_N = 25  # user's choice, Nov 9, 2026: five turns of the five source lists; the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.25  # moat and management both at least this, whatever the source list's own bar
-# A share that fell more than this % over 6 months (`Momentum_6M`) is left out (user's choice, Nov 9, 2026: a falling
-# price can be news the figures do not show yet; the second place the price path is read, after Low beta's beta,
-# never a score, rank or flag; a blank passes). 43 -> 35 on Nov 9, 2026.
-THE_LIST_MIN_MOMENTUM = -20.0
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
 # holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
@@ -226,8 +222,7 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     comes before any list's second; a tie goes to the higher owner yield on the share price. `The_List_Why` names
     each list with that place ("Cheapest #2 · Balance sheet plays #1"). Left out: a company whose check failed on any
     source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
-    (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; a share down more than `THE_LIST_MIN_MOMENTUM` % over
-    6 months; net cash at least `Settings.net_cash_min_pct` % of market cap with management under
+    (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of market cap with management under
     `THE_LIST_CASH_MGMT`."""
     parts = []
     for name in THE_LIST_SOURCES:
@@ -257,7 +252,6 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     # No banks, insurers, REITs or holdings (user's choices, Nov 9, 2026); fee businesses such as Visa or Moody's stay.
     model = both.get("Business_Model", pd.Series(None, index=both.index, dtype=object))
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
-    both = both[~(sc._num(both, "Momentum_6M") < THE_LIST_MIN_MOMENTUM)]  # falling knives out; a blank passes
     hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
     both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
     if both.empty:
@@ -445,12 +439,20 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     return df
 
 
+# A share that fell more than this % over 6 months (`Momentum_6M`) is on no list (user's choice, Nov 9, 2026: first on
+# The List, the same day on every list: a falling price can be news the figures do not show yet). Display only: the
+# second place the price path is read, after Low beta's beta, never a score, rank or flag; a blank passes. On The
+# List, 8 of 43 on Nov 9, 2026.
+LIST_MIN_MOMENTUM = -20.0
+
+
 def listable(df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
     """The rows a highlight list may show: median daily traded value (`Traded_Value_USD`) at least
-    `list_min_traded_usd`, a slice nobody can buy beats nothing (a missing figure passes). The full ranking keeps all."""
-    if "Traded_Value_USD" not in df.columns:
-        return df
-    return df[~(pd.to_numeric(df["Traded_Value_USD"], errors="coerce") < cfg.list_min_traded_usd)]
+    `list_min_traded_usd`, a slice nobody can buy beats nothing, and a share price not down more than
+    `LIST_MIN_MOMENTUM` % over 6 months (`Momentum_6M`); a missing figure passes. The full ranking keeps all."""
+    traded = pd.to_numeric(df["Traded_Value_USD"], errors="coerce") if "Traded_Value_USD" in df.columns else None
+    keep = pd.Series(True, index=df.index) if traded is None else ~(traded < cfg.list_min_traded_usd)
+    return df[keep & ~(sc._num(df, "Momentum_6M") < LIST_MIN_MOMENTUM)]
 
 
 @dataclass

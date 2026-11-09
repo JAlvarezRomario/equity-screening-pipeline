@@ -19,12 +19,12 @@ from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_compa
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
 from fq.report.highlights import (
     GROUPS,
+    LIST_MIN_MOMENTUM,
     MIN_ALL_PASS,
     SHORTLIST,
     TABS,
     THE_LIST_CASH_MGMT,
     THE_LIST_MIN_GRADE,
-    THE_LIST_MIN_MOMENTUM,
     THE_LIST_N,
     Highlights,
     Tab,
@@ -68,12 +68,13 @@ def _write_index(index: str, out_dir: Path) -> None:
 RANKING_EAGER_ROWS = 500
 
 # The one sentence shown under the Highlights heading; `TOP_LIST_NOTE` follows it in a fold.
-TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking. Those that fall short on the moat and "
+TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking, and shares down more than "
+                 f"{-LIST_MIN_MOMENTUM:g}% over 6 months. Those that fall short on the moat and "
                  "management grade (see above), or whose numbers an AI check finds flattered, are folded away under "
                  "each list, not deleted.")  # fmt: skip
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
-                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
+                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day, shares down more than {momentum}% over 6 months (a falling price can be news the figures do not show yet; the only place the share price is read, never in a score or rank) and business "
                  "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
                  "REITs and utilities are judged against their own kind in the By kind lists, holdings in Below "
                  "book. Every list also leaves out "
@@ -142,7 +143,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
-        "the_list_momentum": g(-THE_LIST_MIN_MOMENTUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
+        "list_momentum": g(-LIST_MIN_MOMENTUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
@@ -318,6 +319,7 @@ def build_site(
         top_list_note=TOP_LIST_NOTE.format(
             top=top,
             liquid=f"${cfg.list_min_traded_usd / 1e3:,.0f}k",
+            momentum=f"{-LIST_MIN_MOMENTUM:g}",
             cheap_yield=f"{sc.CHEAP_MIN_SHARE_YIELD:g}",
             both=f"{grading.MIN_BOTH:g}",
             one=f"{grading.MIN_ONE:g}",

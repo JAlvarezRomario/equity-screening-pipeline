@@ -388,15 +388,23 @@ def test_the_score_lists_walk_down_until_ten_pass_every_test(monkeypatch):
                                       .assign(Rank=range(1, 3 * n + 1)), 20)) == hl.WALK_MAX_ROWS  # fmt: skip
 
 
-def test_the_list_leaves_out_falling_knives_and_cash_hoards_under_weak_management(monkeypatch):
-    # User's choices, Nov 9, 2026: a share down more than 20% in 6 months is out (a blank passes); net cash of at
-    # least 25% of the market cap needs management graded at least 4, in any country.
-    rows = pd.DataFrame([_row("FELL", 9.0, Momentum_6M=-25.0), _row("DIP", 8.0, Momentum_6M=-10.0),
-                         _row("BLANK", 7.0, Momentum_6M=None), _row("HOARD", 6.0, Net_Cash_to_Cap=40.0),
+def test_the_list_leaves_out_cash_hoards_under_weak_management(monkeypatch):
+    # User's choice, Nov 9, 2026: net cash of at least 25% of the market cap needs management graded at least 4, in
+    # any country.
+    rows = pd.DataFrame([_row("OK", 7.0), _row("HOARD", 6.0, Net_Cash_to_Cap=40.0),
                          _row("HOARD4", 5.0, mgmt=4.0, Net_Cash_to_Cap=40.0),
                          _row("SOME", 4.0, Net_Cash_to_Cap=10.0)])  # fmt: skip
     hl = _sources(monkeypatch, {"Compounders": rows})
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["DIP", "BLANK", "HOARD4", "SOME"]
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "HOARD4", "SOME"]
+
+
+def test_no_list_shows_a_share_down_more_than_20_percent_in_6_months(cfg):
+    # User's choice, Nov 9, 2026 (first The List, then every list): a blank passes, as does a smaller fall.
+    from fq.report.highlights import listable
+
+    df = pd.DataFrame({"Ticker": ["FELL", "DIP", "BLANK", "THIN"], "Momentum_6M": [-25.0, -10.0, None, 5.0],
+                       "Traded_Value_USD": [1e9, 1e9, 1e9, 1.0]})  # fmt: skip
+    assert listable(df, cfg)["Ticker"].tolist() == ["DIP", "BLANK"]
 
 
 def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch):
