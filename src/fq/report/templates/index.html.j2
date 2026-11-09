@@ -94,6 +94,7 @@
     {{ texts[t.key](rule) }}
     {% if t.funnel %}<p class="list-funnel muted">{% for label, count in t.funnel %}{{ label }}: {{ "{:,}".format(count) }}{% if not loop.last %} &rarr; {% endif %}{% endfor %}.</p>{% endif %}
     {{ qualified(t.rows, t.total, t.ranked) }}
+    {% if t.mix %}<p class="list-mix muted">Mix of the {{ t.rows | rejectattr('extra') | list | length }} shown, each counted once, against the market (the benchmark's companies weighted by size, close to a global index):{% for m in t.mix %} <strong>{{ m.label }}</strong> {{ m.text }}.{% endfor %}</p>{% endif %}
     {% if t.rows %}{{ list_tables(t.rows, t.headers) }}{% else %}<p class="empty">None in this run.</p>{% endif %}
   </section>
   {% endfor %}

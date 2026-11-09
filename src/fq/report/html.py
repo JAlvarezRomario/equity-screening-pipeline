@@ -22,7 +22,9 @@ from fq.report.highlights import (
     MIN_ALL_PASS,
     SHORTLIST,
     TABS,
+    THE_LIST_CASH_MGMT,
     THE_LIST_MIN_GRADE,
+    THE_LIST_MIN_MOMENTUM,
     THE_LIST_N,
     Highlights,
     Tab,
@@ -140,6 +142,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
+        "the_list_momentum": g(-THE_LIST_MIN_MOMENTUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
@@ -160,9 +163,12 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["pills"].append(grade_pill(row))
         if (check := check_pill(row)) is not None:
             r["pills"].append(check)
-        if isinstance(row.get("The_List_From"), str):  # The List: the lists it came from
-            r["pills"] += [{"label": src, "cls": "pill-src", "why": f"On {src}, past its moat and management bar and "
-                            "the AI check of its numbers."} for src in row["The_List_From"].split(" · ")]  # fmt: skip
+        if isinstance(row.get("The_List_Why"), str):  # The List: each list it came from, and its place there
+            for seat in row["The_List_Why"].split(" · "):
+                src, _, place = seat.rpartition(" #")
+                r["pills"].append({"label": seat, "cls": "pill-src",
+                                   "why": f"Place {place} among {src}'s companies that pass every test; The List takes "
+                                          "each list's best in turn."})  # fmt: skip
         missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
         if missing:
             r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",
@@ -171,12 +177,54 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
     return rows
 
 
+def _shares(values: pd.Series, weights: pd.Series | None = None) -> pd.Series:
+    """Each value's share of the whole, %, largest first (weighted by `weights` when given; blanks left out)."""
+    w = pd.Series(1.0, index=values.index) if weights is None else pd.to_numeric(weights, errors="coerce")
+    keep = values.notna() & w.notna() & (w > 0)
+    totals = w[keep].groupby(values[keep]).sum()
+    return (totals / totals.sum() * 100).sort_values(ascending=False) if totals.sum() > 0 else totals
+
+
+def list_mix(rows: pd.DataFrame, market: pd.DataFrame, top: int = 3) -> list[dict]:
+    """The List's mix against the market (user's choice, Nov 9, 2026: over 5 years the countries, sizes and currencies
+    can move results as much as the picks): for country, size class (`index_charts.CAP_CLASSES`) and currency, The
+    List's largest shares (each row counts once: equal weights, as a reader would buy them) beside the same share of
+    `market` weighted by market cap (the benchmark's companies, close to a global index), then "other"."""
+    names = [c for c, _, _ in index_charts.CAP_CLASSES]
+
+    def size(df: pd.DataFrame) -> pd.Series:
+        caps = pd.to_numeric(df["Market Cap"], errors="coerce")
+        return index_charts.market_cap_class(caps).map(lambda k: names[int(k)]).where(caps > 0)
+
+    out = []
+    for label, pick in (
+        ("Countries", lambda df: df["country"]),
+        ("Size", size),
+        ("Currencies", lambda df: df["currency"]),
+    ):
+        try:
+            mine, theirs = _shares(pick(rows)), _shares(pick(market), market["Market Cap"])
+        except KeyError:  # a frame without the column
+            continue
+        if mine.empty:
+            continue
+        parts = [f"{k} {v:.0f}% (market {theirs.get(k, 0.0):.0f}%)" for k, v in mine.head(top).items()]
+        rest = mine.iloc[top:].sum()
+        if rest > 0.5:
+            parts.append(
+                f"other {rest:.0f}% (market {100 - theirs.reindex(mine.head(top).index).fillna(0).sum():.0f}%)"
+            )
+        out.append({"label": label, "text": "; ".join(parts)})
+    return out
+
+
 def tab_views(h: Highlights) -> list[dict]:
     """Every tab as the index page shows it, in `TABS` order: label, panel id, heading, group, prose macro, rows,
     total (the stored `name` stays out of sight, `Tab.label`)."""
     return [{"name": t.label or t.name, "panel": t.panel, "heading": t.label or t.heading or t.name, "key": t.key,
              "group": t.group, "ranked": t.ranked, "rows": _list_rows(h, t), "total": h.total(t.name),
-             "headers": headers(t.columns), "funnel": h.funnel(t.name)} for t in TABS]  # fmt: skip
+             "headers": headers(t.columns), "funnel": h.funnel(t.name),
+             "mix": list_mix(h.shown(t.name), h.frame) if t.key == "the_list" else []} for t in TABS]  # fmt: skip
 
 
 def tab_groups(top: str) -> dict[str, dict[str, str]]:

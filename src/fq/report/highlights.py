@@ -188,6 +188,14 @@ THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Compounders")
 THE_LIST_N = 25  # user's choice, Nov 9, 2026: five turns of the five source lists; the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.25  # moat and management both at least this, whatever the source list's own bar
+# A share that fell more than this % over 6 months (`Momentum_6M`) is left out (user's choice, Nov 9, 2026: a falling
+# price can be news the figures do not show yet; the second place the price path is read, after Low beta's beta,
+# never a score, rank or flag; a blank passes). 43 -> 35 on Nov 9, 2026.
+THE_LIST_MIN_MOMENTUM = -20.0
+# Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
+# least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
+# holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
+THE_LIST_CASH_MGMT = 4.0
 # Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
 THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
@@ -215,9 +223,12 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     once each, with `The_List_From` naming the lists they came from (as readers see them). Order (`The_List_Order`,
     1 = first; user's choice, Nov 9, 2026: every idea gets its best few, not one yardstick for all): each company's
     best place among the qualifying members of the lists it is on, in each list's own order, so each list's first
-    comes before any list's second; a tie goes to the higher owner yield on the share price. Left out: a company whose check failed on any source; one that comes only
-    from Balance sheet plays (checked on its book) without a passing earnings check (`Check_Earnings_Pass`); the
-    kinds of `THE_LIST_LEFT_OUT`."""
+    comes before any list's second; a tie goes to the higher owner yield on the share price. `The_List_Why` names
+    each list with that place ("Cheapest #2 · Balance sheet plays #1"). Left out: a company whose check failed on any
+    source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
+    (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; a share down more than `THE_LIST_MIN_MOMENTUM` % over
+    6 months; net cash at least `Settings.net_cash_min_pct` % of market cap with management under
+    `THE_LIST_CASH_MGMT`."""
     parts = []
     for name in THE_LIST_SOURCES:
         tab = TAB[name]
@@ -228,7 +239,9 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
             parts.append(shown.assign(_From=tab.label or tab.name, _Book=grading.check_kind(name) == grading.BOOK))
 
     def empty() -> pd.DataFrame:
-        return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
+        return df.iloc[0:0].assign(
+            The_List_From=None, The_List_Why=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None
+        )
 
     if not parts:
         return empty()
@@ -244,14 +257,23 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     # No banks, insurers, REITs or holdings (user's choices, Nov 9, 2026); fee businesses such as Visa or Moody's stay.
     model = both.get("Business_Model", pd.Series(None, index=both.index, dtype=object))
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
+    both = both[~(sc._num(both, "Momentum_6M") < THE_LIST_MIN_MOMENTUM)]  # falling knives out; a blank passes
+    hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
+    both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
     if both.empty:
         return empty()
     # Place in its list among the members that qualify here (a list whose first rows fail keeps its seats).
     both = both.assign(_Place=both.groupby("_From", sort=False).cumcount())
     sources = both.groupby("Ticker", sort=False)["_From"].agg(" · ".join)
+    why = (
+        both.assign(_Why=both["_From"] + " #" + (both["_Place"] + 1).astype(str))
+        .groupby("Ticker", sort=False)["_Why"]
+        .agg(" · ".join)
+    )
     place = both.groupby("Ticker", sort=False)["_Place"].min()
     out = both.drop_duplicates("Ticker").drop(columns=["_From", "_Book", "_Place"])
-    out = out.assign(The_List_From=out["Ticker"].map(sources), _Place=out["Ticker"].map(place),
+    out = out.assign(The_List_From=out["Ticker"].map(sources), The_List_Why=out["Ticker"].map(why),
+                     _Place=out["Ticker"].map(place),
                      _Yield=-pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce"))  # fmt: skip
     out = out.sort_values(["_Place", "_Yield"], kind="stable", na_position="last").drop(columns=["_Place", "_Yield"])
     # Counted over every qualifier before the cut: the "No dividend tax" rows (its members at 0% withholding,

@@ -386,3 +386,37 @@ def test_the_score_lists_walk_down_until_ten_pass_every_test(monkeypatch):
     assert len(hl.cheap_and_good_list(none_pass, 20)) == n  # all the way down, never past the last row
     assert len(hl.cheap_and_good_list(pd.concat([df.assign(Check_Earnings_Pass=False)] * 3, ignore_index=True)
                                       .assign(Rank=range(1, 3 * n + 1)), 20)) == hl.WALK_MAX_ROWS  # fmt: skip
+
+
+def test_the_list_leaves_out_falling_knives_and_cash_hoards_under_weak_management(monkeypatch):
+    # User's choices, Nov 9, 2026: a share down more than 20% in 6 months is out (a blank passes); net cash of at
+    # least 25% of the market cap needs management graded at least 4, in any country.
+    rows = pd.DataFrame([_row("FELL", 9.0, Momentum_6M=-25.0), _row("DIP", 8.0, Momentum_6M=-10.0),
+                         _row("BLANK", 7.0, Momentum_6M=None), _row("HOARD", 6.0, Net_Cash_to_Cap=40.0),
+                         _row("HOARD4", 5.0, mgmt=4.0, Net_Cash_to_Cap=40.0),
+                         _row("SOME", 4.0, Net_Cash_to_Cap=10.0)])  # fmt: skip
+    hl = _sources(monkeypatch, {"Compounders": rows})
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["DIP", "BLANK", "HOARD4", "SOME"]
+
+
+def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch):
+    cheap = pd.DataFrame([_row("A", 9.0, Rank=1), _row("B", 8.0, Rank=2)])
+    book = pd.DataFrame([_row("B", 8.0, Check_Earnings_Pass=True)])
+    hl = _sources(monkeypatch, {"Cheapest": cheap.rename(columns={"Rank": "Value_Rank"}), "Below book": book})
+    why = hl.the_list(pd.DataFrame(), 20).set_index("Ticker")["The_List_Why"]
+    assert why["A"] == "Cheapest #1" and why["B"] == "Cheapest #2 · Balance sheet plays #1"
+
+
+def test_the_lists_mix_sets_its_shares_against_the_markets():
+    from fq.report.html import list_mix
+
+    countries = ["Japan"] * 4 + ["United States"] * 3 + ["Hong Kong"] * 2 + ["Greece"]
+    currency = {"Japan": "JPY", "United States": "USD", "Hong Kong": "HKD", "Greece": "EUR"}
+    rows = pd.DataFrame({"country": countries, "currency": [currency[c] for c in countries],
+                         "Market Cap": [0.5] * 4 + [50.0] * 3 + [1.0] * 2 + [0.2]})  # fmt: skip
+    market = pd.DataFrame({"country": ["United States", "Japan"], "currency": ["USD", "JPY"],
+                           "Market Cap": [90.0, 10.0]})  # fmt: skip
+    mix = {m["label"]: m["text"] for m in list_mix(rows, market)}
+    assert mix["Countries"] == ("Japan 40% (market 10%); United States 30% (market 90%); Hong Kong 20% (market 0%); "
+                                "other 10% (market 0%)")  # fmt: skip
+    assert mix["Size"].startswith("Small 60%") and mix["Currencies"].startswith("JPY 40% (market 10%)")
