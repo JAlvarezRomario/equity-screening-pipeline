@@ -594,6 +594,10 @@ CHECK_TOPICS = {
 CHECK_STATUSES = ("ok", "caution", "fail")
 # The earnings check fails on a caution on both of these (user's rule, Nov 8, 2026): two flattering forces at once.
 TWO_CAUTIONS = ("Cycle", "One-offs and accounting")
+# In an industry AI substitutes or disrupts (`lists/ai_fragile.txt`, the screen the score lists skip), a caution on AI
+# and robotics fails the earnings check (user's rule, Nov 9, 2026: Artner, staffing, passed on an AI caution): there
+# the company must show why it is safe.
+AI_FRAGILE_FILE = "ai_fragile.txt"
 # The pill of a failing topic (`parse_check`): what the reader sees beside the ticker.
 TOPIC_TAGS = {"Cycle": "peak earnings", "One-offs and accounting": "one-offs", "AI and robotics": "AI risk",
               "Net cash": "cash catch", "Assets carried high": "book overstated", "Hidden liabilities": "book overstated",
@@ -649,8 +653,15 @@ _BOILERPLATE = re.compile(
 )
 
 
-def check_kind(list_name: str) -> str:
-    """The check that judges a member of the stored tab `list_name`: its book on `BOOK_LISTS`, else its earnings."""
+# Lists drawn from companies that already passed their own list's check (The List, Nov 9, 2026): no check of their own.
+PRE_CHECKED_LISTS = frozenset({"The List"})
+
+
+def check_kind(list_name: str) -> str | None:
+    """The check that judges a member of the stored tab `list_name`: its book on `BOOK_LISTS`, else its earnings;
+    None on `PRE_CHECKED_LISTS`, whose members passed their own list's check already."""
+    if list_name in PRE_CHECKED_LISTS:
+        return None
     return BOOK if list_name in BOOK_LISTS else EARNINGS
 
 
@@ -738,11 +749,21 @@ def check_prompt(kind: str, company: str, ticker: str, figures: str, today: pd.T
             .replace("{{COMPANY_FIGURES}}", figures))  # fmt: skip
 
 
-def parse_check(text: str, kind: str) -> dict | None:
+def ai_fragile(row) -> bool:
+    """True when the company's Yahoo industry is on `lists/ai_fragile.txt` (the AI screen of the screened lists)."""
+    from fq.universe import _read_lines, industry_key
+
+    industry = row.get("industry") if hasattr(row, "get") else None
+    keys = {industry_key(line.split("#")[0].strip()) for line in _read_lines(AI_FRAGILE_FILE)}
+    return isinstance(industry, str) and industry_key(industry) in keys
+
+
+def parse_check(text: str, kind: str, fragile: bool = False) -> dict | None:
     """The verdict block of a check's answer (the last JSON object in it), checked and tidied: `Pass` (bool),
     `Headline`, `Tag` (one of `CHECK_TAGS`, failing checks only), `Topics` (name, status, line; only the topics of
-    `CHECK_TOPICS`, in their order) and `Why` (markdown bullets). None when no readable verdict is found: the check is
-    then not stored as made, so it is asked again, and it never counts as a pass."""
+    `CHECK_TOPICS`, in their order) and `Why` (markdown bullets). `fragile` (an AI-fragile industry, `ai_fragile`)
+    makes a caution on AI and robotics a fail. None when no readable verdict is found: the check is then not stored as
+    made, so it is asked again, and it never counts as a pass."""
     blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text or "", flags=re.DOTALL)
     candidates = blocks or re.findall(r"(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})", text or "", flags=re.DOTALL)
     for raw in reversed(candidates):
@@ -773,6 +794,9 @@ def parse_check(text: str, kind: str) -> dict | None:
         # record (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
         if "fail" in status.values() or (kind == EARNINGS and all(status.get(n) == "caution" for n in TWO_CAUTIONS)):
             failed = True
+        ai_rule = kind == EARNINGS and fragile and status.get("AI and robotics") == "caution"
+        if ai_rule:
+            failed = True
 
         # The pill names a topic that was asked (Nov 8, 2026: Haidilao failed on its cycle, Redeia on two cautions,
         # both tagged "cash catch" with no cash question): the first failing topic, else the model's tag when its
@@ -784,7 +808,13 @@ def parse_check(text: str, kind: str) -> dict | None:
 
         asked = {TOPIC_TAGS[t["name"]] for t in topics if t["name"] in TOPIC_TAGS}
         if failed:
-            tag = first("fail") or (tag if tag in asked else None) or first("caution") or CHECK_TAGS[kind][0]
+            tag = (
+                first("fail")
+                or (tag if tag in asked else None)
+                or ("AI risk" if ai_rule else None)
+                or first("caution")
+                or CHECK_TAGS[kind][0]
+            )
         return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
                 "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
                 "Why": str(why or "").strip()}  # fmt: skip
@@ -796,7 +826,7 @@ def _clean_text(value) -> str:
 
 
 def check_company(client, ticker: str, company: str, figures: str, kind: str, today: pd.Timestamp,
-                  cash: bool = False) -> dict:  # fmt: skip
+                  cash: bool = False, fragile: bool = False) -> dict:  # fmt: skip
     """One check: one pass of `CHECK_MODEL`, asked once more when its answer has no readable verdict; without one the
     check is not made (an error), so it stays due."""
     prompt = check_prompt(kind, company, ticker, figures, today, cash)
@@ -804,7 +834,7 @@ def check_company(client, ticker: str, company: str, figures: str, kind: str, to
     for _ in range(2):
         text, use = _call(client, CHECK_MODEL, prompt, CHECK_OUTPUT_TOKENS, f"{ticker} {kind} check")
         usage.append(use)
-        parsed = parse_check(text, kind)
+        parsed = parse_check(text, kind, fragile)
         if parsed is not None:
             break
     else:
@@ -896,7 +926,7 @@ def run_checks(todo: list[tuple[str, str]], ranked: pd.DataFrame, notes: dict[st
         name = row.get("shortName") if isinstance(row.get("shortName"), str) else ticker
         cash = kind == EARNINGS and asks_about_cash(row)
         figures = check_input(row, notes.get(ticker, []), kind)
-        result = check_company(client, ticker, name, figures, kind, today, cash)
+        result = check_company(client, ticker, name, figures, kind, today, cash, ai_fragile(row))
         result["Y0_End"] = pd.to_datetime(row.get("PeriodEnd_Y0"), errors="coerce")
         with lock:
             new.append(result)

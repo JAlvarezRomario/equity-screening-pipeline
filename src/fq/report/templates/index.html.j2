@@ -84,7 +84,7 @@
   </details>
   <div class="tabs" role="tablist" aria-label="Highlights" hidden>
     {#- One block per group: its heading on top, its lists in a row below. -#}
-    {% for t in tabs %}{% if loop.first or t.group != loop.previtem.group %}{% if not loop.first %}</div></div>{% endif %}<div class="tab-set" role="presentation"><span class="tab-group" aria-hidden="true">{{ groups[t.group].heading }}</span><div class="tab-row" role="presentation">{% endif %}<button type="button" role="tab" data-panel="{{ t.panel }}">{{ t.name }}</button>{% if loop.last %}</div></div>{% endif %}{% endfor %}
+    {% for t in tabs %}{% if loop.first or t.group != loop.previtem.group %}{% if not loop.first %}</div></div>{% endif %}<div class="tab-set" role="presentation"><span class="tab-group" aria-hidden="true">{{ groups[t.group].heading }}</span><div class="tab-row" role="presentation">{% endif %}<button type="button" role="tab" data-panel="{{ t.panel }}"{% if t.key == 'the_list' %} class="tab-main"{% endif %}>{{ t.name }}</button>{% if loop.last %}</div></div>{% endif %}{% endfor %}
   </div>
 
   {% for t in tabs %}

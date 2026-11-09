@@ -147,6 +147,9 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
         r["pills"].append(grade_pill(row))
         if (check := check_pill(row)) is not None:
             r["pills"].append(check)
+        if isinstance(row.get("The_List_From"), str):  # The List: the lists it came from
+            r["pills"] += [{"label": src, "cls": "pill-src", "why": f"On {src}, past its moat and management bar and "
+                            "the AI check of its numbers."} for src in row["The_List_From"].split(" · ")]  # fmt: skip
         missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
         if missing:
             r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",

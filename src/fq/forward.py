@@ -178,7 +178,7 @@ def apply_check_gate(cohort: pd.DataFrame, gate: pd.DataFrame) -> pd.DataFrame:
     failed = {(t, k) for t, k, p in rows if p is False or p == False}  # noqa: E712 - numpy bool
     kinds = cohort["List"].map(check_kind)
     out_rows = cohort["List"].ne(PORTFOLIO_LIST) & pd.Series(
-        [(t, k) in failed for t, k in zip(cohort["Ticker"], kinds, strict=True)], index=cohort.index
+        [k is not None and (t, k) in failed for t, k in zip(cohort["Ticker"], kinds, strict=True)], index=cohort.index
     )
     out = cohort.loc[~out_rows].reset_index(drop=True)
     out.attrs = {**cohort.attrs, "checked_out": cohort.loc[out_rows, "Ticker"].nunique()}

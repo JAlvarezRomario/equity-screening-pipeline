@@ -4,6 +4,14 @@
 {% macro rules(summary) %}<p class="list-summary">{{ summary }}</p>
     <details class="explain rules"><summary>Exact rules</summary><div class="chart-instruction">{{ caller() }}</div></details>{% endmacro %}
 
+{% macro the_list(r) %}{% call rules("The companies that passed every test: on one of the core lists, with a moat and management that hold up and numbers that are a fair basis for the years ahead. Ordered by what one share earns over its price.") %}<ul>
+  <li>Shown on Cheap and good, Cheapest, Best businesses, Balance sheet plays, Income or Compounders (each list's own figure tests, cuts and order; the pills name which).</li>
+  <li>Past that list's moat and management bar, graded 1 to 5 by an AI model (Gemini).</li>
+  <li>Past the AI check of its numbers: no cyclical peak, windfall or one-off carrying the record, no likely disruption by AI or robotics, no catch in idle cash; on Balance sheet plays, a book at most what the assets less the liabilities are worth.</li>
+  <li>A company not yet graded or checked waits outside until it is.</li>
+  <li>Ordered by owner yield on the share price: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
+</ul>{% endcall %}{% endmacro %}
+
 {% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of the two.") %}<ul>
   <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
   <li>Ties go to the better sum of the two positions.</li>

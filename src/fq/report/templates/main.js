@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
-            store.set('fq-tab', id);
+            store.set('fq-tab-2', id);
         };
         buttons.forEach((b, i) => {
             b.addEventListener('click', () => select(b.dataset.panel));
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 next.focus();
             });
         });
-        const saved = store.get('fq-tab');
+        const saved = store.get('fq-tab-2');
         card.classList.add('tabbed');
         tabs.hidden = false;
         select(buttons.some(b => b.dataset.panel === saved) ? saved : buttons[0].dataset.panel);

@@ -34,6 +34,8 @@ TOP_LIST_COLUMNS = [
 CHEAP_MIN_SHARE_YIELD = 6.0
 SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
 CHEAP_AND_GOOD_COLUMNS = [*TOP_LIST_COLUMNS, SHARE_YIELD_COLUMN]
+# The List (Nov 9, 2026): its order first, then the business yield and the usual columns.
+THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
 
 
 def cheap_enough(df: pd.DataFrame) -> pd.DataFrame:

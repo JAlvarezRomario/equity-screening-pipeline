@@ -245,3 +245,42 @@ def test_the_forward_test_freezes_the_checks_with_the_grades_and_gates_failed_me
     # A fails its earnings check, not its book one: out of Cheap and good, kept on Below book; B kept in the portfolio.
     assert out[["List", "Ticker"]].values.tolist() == [["Below book", "A"], [forward.PORTFOLIO_LIST, "B"]]
     assert out.attrs["checked_out"] == 2
+
+
+def test_the_list_holds_the_core_lists_members_past_both_bars_by_share_price_yield(cfg):
+    # User's choice, Nov 9, 2026: the companies that passed every test, shown first.
+    df = _ranked(cfg)
+    df["EPV_Per_Share_Yield"] = [7.0 + i for i in range(len(df))]  # over the cheap lists' bar, a distinct order
+    _graded(cfg, df, {}, {})
+    h = Highlights.compute(df, cfg)
+    cheap = h.shown("Cheap and good")["Ticker"].tolist()
+    assert len(cheap) >= 3 and h.shown("The List").empty  # nothing checked yet: nobody in
+    passed, failed = cheap[:2], cheap[2]
+    _checked(cfg, {**{(t, grading.EARNINGS): True for t in passed}, (failed, grading.EARNINGS): False})
+    h = Highlights.compute(df, cfg)
+    the_list = h.shown("The List")
+    assert set(the_list["Ticker"]) >= set(passed) and failed not in set(the_list["Ticker"])
+    yields = the_list["EPV_Per_Share_Yield"].tolist()
+    assert yields == sorted(yields, reverse=True)  # owner yield on the share price, highest first
+    assert the_list["The_List_From"].str.contains("Cheap and good").all() or len(set(the_list["Ticker"]) - set(cheap))
+    assert not any(t == "The List" for t, _ in [(n, k) for n, k in h.check_pool()])  # asks no check of its own
+    assert grading.check_kind("The List") is None
+    html = build_site(df, cfg).read_text(encoding="utf-8")
+    tabs = html.split('role="tablist"')[1].split('<section class="tab-panel"')[0]  # every row of tabs
+    assert tabs.index('data-panel="hl-the-list" class="tab-main"') < tabs.index('data-panel="hl-top-1"')
+    panel = html.split('id="hl-the-list"')[1].split("</section>")[0]
+    assert "pill-src" in panel and "passed every test" in panel
+
+
+def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():
+    # User's rule, Nov 9, 2026 (Artner, staffing, passed on an AI caution): there the company must earn an "ok".
+    topics = [{"name": "Cycle", "status": "ok", "line": "Structural shortage"},
+              {"name": "One-offs and accounting", "status": "caution", "line": "A small acquisition"},
+              {"name": "AI and robotics", "status": "caution", "line": "AI coding threatens billable hours"}]  # fmt: skip
+    assert grading.parse_check(_answer("pass", topics=topics), grading.EARNINGS)["Pass"] is True
+    out = grading.parse_check(_answer("pass", topics=topics), grading.EARNINGS, fragile=True)
+    assert out["Pass"] is False and out["Tag"] == "AI risk"
+    safe = [*topics[:2], {"name": "AI and robotics", "status": "ok", "line": "Physical work"}]
+    assert grading.parse_check(_answer("pass", topics=safe), grading.EARNINGS, fragile=True)["Pass"] is True
+    assert grading.ai_fragile(pd.Series({"industry": "Staffing & Employment Services"}))
+    assert not grading.ai_fragile(pd.Series({"industry": "Tools & Accessories"}))

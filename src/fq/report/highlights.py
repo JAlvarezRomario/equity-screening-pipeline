@@ -52,6 +52,7 @@ class Tab:
     ranked: bool = False  # a pure ranking: half the market would "qualify"
     funnel: Callable[[pd.DataFrame, float], list[tuple[str, int]]] | None = None  # counts after each test
     ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (not the pure scores)
+    checked: bool = True  # its rows carry the check of its kind (`with_check`); off for a list of checked lists
 
 
 def _plain(fn):
@@ -135,11 +136,52 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
     return out.assign(Grade_Pass=pd.Series(verdict, index=out.index, dtype=object), Grade_Bar=SHORTLIST_BAR)
 
 
+# The List (user's choice, Nov 9, 2026): the companies that passed every test. Each source list's rows as shown, those
+# past both that list's moat and management bar and its check (both True: a missing grade or check is not a pass),
+# once each, by owner yield on the share price (`EPV_Per_Share_Yield`), highest first.
+THE_LIST = "The List"
+THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
+THE_LIST_N = 200  # every member: the source lists show 20 each at most
+
+
+def _is_true(values) -> pd.Series:
+    return pd.Series([v is True or v == True for v in values], index=values.index, dtype=bool)  # noqa: E712
+
+
+def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
+    """The List: the members of `THE_LIST_SOURCES` (each tab's rows as shown, `Tab.n`) past both its moat and
+    management bar (`Grade_Pass`) and its check (`Check_Pass`), once each, with `The_List_From` naming the lists they
+    came from (as readers see them), ordered by owner yield on the share price (`The_List_Order`)."""
+    parts = []
+    for name in THE_LIST_SOURCES:
+        tab = TAB[name]
+        shown = _screened(tab)(df, tab.n, hurdle)
+        if shown.empty:
+            continue
+        none = pd.Series(None, index=shown.index, dtype=object)  # a frame without grades or checks: nobody passes
+        ok = shown[_is_true(shown.get("Grade_Pass", none)) & _is_true(shown.get("Check_Pass", none))]
+        parts.append(ok.assign(_From=tab.label or tab.name))
+    if not parts:
+        return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
+    both = pd.concat(parts)
+    sources = both.groupby("Ticker", sort=False)["_From"].agg(" · ".join)
+    out = both.drop_duplicates("Ticker").drop(columns="_From")
+    out = out.assign(The_List_From=out["Ticker"].map(sources))
+    order = pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce").rank(method="first", ascending=False)
+    return out.assign(The_List_Order=order).sort_values("The_List_Order", na_position="last").head(n)
+
+
 # The front page's rows of tabs (user's choice, Nov 3, 2026: 14 tabs side by side did not say where to start): key ->
 # (heading, the one line that says what such a list is for).
 # The rows by idea (user's choice, Nov 6, 2026; were Start here, By style, By kind, Raw scores).
 # Nov 7, 2026 (user's choice): Growth, Income and Balance sheet became one row, By style.
 GROUPS = {
+    # Nov 9, 2026 (user's choice): the answer, first and shown by default.
+    "list": (
+        "The List",
+        "Every company on Cheap and good, Cheapest, Best businesses, Balance sheet plays, Income or Compounders that "
+        "also passed both AI checks: its moat and management, and its numbers.",
+    ),
     "start": (
         "Start here",
         "The answer: cheap and good at once, and boring businesses worth research in depth (sound now, or in "
@@ -166,6 +208,8 @@ GROUPS = {
 # The tabs in the order the index page shows them, group by group; a company page lists its tabs in this order too.
 # fmt: off
 TABS: tuple[Tab, ...] = (
+    Tab(THE_LIST, "the_list", "hl-the-list", sc.THE_LIST_COLUMNS, the_list, group="list", n=THE_LIST_N,
+        sort="The_List_Order", checked=False),
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
         ranked=True, ai_screen=False),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
@@ -238,6 +282,8 @@ def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     """`tab.screen`, drawn only from companies past the AI screen (`screens.ai_resilient`) unless `tab.ai_screen` is
     off (the pure score rankings: Cheap and good, Cheapest and Best businesses; user's choice, Nov 4, 2026); every
     tab's rows then carry the check of its kind (`with_check`)."""
+    if not tab.checked:
+        return tab.screen
     if not tab.ai_screen:
         return lambda df, n, hurdle: with_check(tab.screen(df, n, hurdle), tab.name)
     return lambda df, n, hurdle: with_check(tab.screen(df[sc.ai_resilient(df)], n, hurdle), tab.name)
@@ -372,11 +418,8 @@ class Highlights:
         management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere."""
         pub = self.published()
         passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True)]  # noqa: E712
-        return list(
-            dict.fromkeys(
-                (t, grading.check_kind(name)) for t, name in zip(passed["Ticker"], passed["List"], strict=True)
-            )
-        )
+        pairs = ((t, grading.check_kind(name)) for t, name in zip(passed["Ticker"], passed["List"], strict=True))
+        return list(dict.fromkeys((t, k) for t, k in pairs if k is not None))
 
 
 def published_lists(df: pd.DataFrame, cfg: Settings, bench: pd.DataFrame | None = None) -> pd.DataFrame:

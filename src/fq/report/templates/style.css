@@ -166,6 +166,10 @@ html.light .icon-moon { display: none !important; }
 }
 .tabs button:hover { color: var(--text); }
 .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+/* The List (Nov 9, 2026): the answer, its tab set apart from the others. */
+.tabs button.tab-main { font-weight: 650; color: var(--text); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.tabs button.tab-main[aria-selected="true"] { color: #fff; box-shadow: none; }
+.flag-tag.pill-src { border-color: var(--border); color: var(--muted); }
 /* Each group's lists in one row under its heading: wrapped on wide screens, one swipeable strip on phones. */
 .tab-row { display: flex; flex-wrap: wrap; gap: 0.25em; }
 @media (max-width: 759px) { .tab-row { flex-wrap: nowrap; overflow-x: auto; } }
