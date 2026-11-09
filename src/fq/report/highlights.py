@@ -181,9 +181,13 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # also needs its earnings checked, as The List is ordered by them; holdings left out with banks, insurers and REITs;
 # the best 25 shown (user's choice), the count of all that qualify above them; ordered by each company's best place on its lists,
 # so each idea gets its best few (round robin), the share-price yield breaking ties.
+# Later the same day (user's choices): five sources only (Boring businesses and Income out: 62 -> 53 qualified), and
+# both grades at least `THE_LIST_MIN_GRADE` (3.25: 53 -> 43; a 3.0 on either is "holds up", not more). A rule that
+# any caution of the check fails was rejected: it left 4, none of them cheap.
 THE_LIST = "The List"
-THE_LIST_SOURCES = ("Cheap and good", SHORTLIST, "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
-THE_LIST_N = 25  # user's choice, Nov 9, 2026: three or four of each source list; the page counts every qualifier
+THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Compounders")
+THE_LIST_N = 25  # user's choice, Nov 9, 2026: five turns of the five source lists; the page counts every qualifier
+THE_LIST_MIN_GRADE = 3.25  # moat and management both at least this, whatever the source list's own bar
 # Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
 THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
@@ -197,12 +201,12 @@ def _is_false(values) -> pd.Series:
 
 
 def _graded_floor(rows: pd.DataFrame) -> pd.Series:
-    """Moat and management both at least `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`), True only when
-    graded: the floor every member of The List clears, whatever its source's bar."""
+    """Moat and management both at least `THE_LIST_MIN_GRADE`, False when ungraded: the floor every member of The
+    List clears, whatever its source's bar."""
     blank = pd.Series(np.nan, index=rows.index)
-    moat, mgmt = rows.get("Grade_Moat", blank), rows.get("Grade_Mgmt", blank)
-    return pd.Series([grading.passes_cheapest(m, g) is True for m, g in zip(moat, mgmt, strict=True)],
-                     index=rows.index, dtype=bool)  # fmt: skip
+    moat = pd.to_numeric(rows.get("Grade_Moat", blank), errors="coerce")
+    mgmt = pd.to_numeric(rows.get("Grade_Mgmt", blank), errors="coerce")
+    return ((moat >= THE_LIST_MIN_GRADE) & (mgmt >= THE_LIST_MIN_GRADE)).astype(bool)
 
 
 def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
@@ -263,8 +267,8 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The best 25 companies on Cheap and good, Boring businesses, Cheapest, Best businesses, Balance sheet plays, "
-        "Income or Compounders that also passed both AI checks: its moat and management, and its numbers.",
+        "The best 25 companies on Cheap and good, Cheapest, Best businesses, Balance sheet plays or Compounders that "
+        "also passed both AI checks: its moat and management, and its numbers.",
     ),
     "start": (
         "Start here",

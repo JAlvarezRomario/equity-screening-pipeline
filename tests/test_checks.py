@@ -251,7 +251,8 @@ def test_the_list_holds_the_core_lists_members_past_both_bars_by_share_price_yie
     # User's choice, Nov 9, 2026: the companies that passed every test, shown first.
     df = _ranked(cfg)
     df["EPV_Per_Share_Yield"] = [7.0 + i for i in range(len(df))]  # over the cheap lists' bar, a distinct order
-    _graded(cfg, df, {}, {})
+    good = {t: 3.5 for t in df["Ticker"]}  # over The List's floor of 3.25
+    _graded(cfg, df, good, good)
     h = Highlights.compute(df, cfg)
     cheap = h.shown("Cheap and good")["Ticker"].tolist()
     assert len(cheap) >= 3 and h.shown("The List").empty  # nothing checked yet: nobody in
@@ -305,9 +306,9 @@ def _row(ticker, yield_, moat=3.5, mgmt=3.5, grade=True, check=True, **more):
 def test_the_list_holds_one_grade_floor_and_a_failed_check_anywhere_keeps_a_company_out(monkeypatch):
     # Nov 9, 2026 review (user's approval): "either at least 4.25" lets weak management in on Income; a check failed on
     # one source is not hidden by a pass on another.
-    income = pd.DataFrame([_row("WEAK", 9.0, moat=4.5, mgmt=1.5), _row("OK", 8.0), _row("MIXED", 7.0)])
+    comp = pd.DataFrame([_row("WEAK", 9.0, moat=4.5, mgmt=1.5), _row("OK", 8.0), _row("MIXED", 7.0)])
     book = pd.DataFrame([_row("MIXED", 7.0, check=False, Check_Earnings_Pass=True)])
-    hl = _sources(monkeypatch, {"Income": income, "Below book": book})
+    hl = _sources(monkeypatch, {"Compounders": comp, "Below book": book})
     assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK"]
 
 
@@ -326,20 +327,29 @@ def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_t
     # User's choice, Nov 9, 2026: each idea gets its best few; one yield for all buried the compounders.
     cheap = pd.DataFrame([_row("C1", 20.0, Rank=1), _row("C2", 18.0, Rank=2), _row("C3", 16.0, Rank=3)])
     comp = pd.DataFrame([_row("K2", 3.0, Rank=9), _row("K1", 4.0, Rank=5)])  # out of order: its own order decides
-    income = pd.DataFrame([_row("FAIL", 30.0, check=False, Income_Order=1), _row("I1", 5.0, Income_Order=2)])
-    hl = _sources(monkeypatch, {"Cheap and good": cheap, "Compounders": comp, "Income": income})
+    best = pd.DataFrame([_row("FAIL", 30.0, check=False, Quality_Rank=1), _row("I1", 5.0, Quality_Rank=2)])
+    hl = _sources(monkeypatch, {"Cheap and good": cheap, "Compounders": comp, "Best businesses": best})
     out = hl.the_list(pd.DataFrame(), 20)
-    # Turn 1: C1, I1 (Income's first that qualifies), K1; turn 2: C2, K2; turn 3: C3.
+    # Turn 1: C1, I1 (Best businesses' first that qualifies), K1; turn 2: C2, K2; turn 3: C3.
     assert out["Ticker"].tolist() == ["C1", "I1", "K1", "C2", "K2", "C3"]
     assert out["The_List_Order"].tolist() == [1, 2, 3, 4, 5, 6]
 
 
-def test_the_list_shows_the_best_twenty_five_and_boring_businesses_is_a_source(monkeypatch):
+def test_the_list_shows_the_best_twenty_five_from_its_five_sources_with_both_grades_at_least_3_25(monkeypatch):
     rows = pd.DataFrame([_row(f"T{i}", 40.0 - i) for i in range(30)])
-    hl = _sources(monkeypatch, {"Shortlist": rows})
-    assert hl.THE_LIST_N == 25 and "Shortlist" in hl.THE_LIST_SOURCES
+    rows = pd.concat([rows, pd.DataFrame([_row("LOW", 99.0, moat=3.25, mgmt=3.0)])], ignore_index=True)
+    boring = pd.DataFrame([_row("BORING", 98.0)])  # Boring businesses and Income no longer feed it (Nov 9, 2026)
+    hl = _sources(monkeypatch, {"Compounders": rows, "Shortlist": boring, "Income": boring})
+    assert hl.THE_LIST_N == 25 and hl.THE_LIST_SOURCES == (
+        "Cheap and good",
+        "Cheapest",
+        "Best businesses",
+        "Below book",
+        "Compounders",
+    )
     out = hl.the_list(pd.DataFrame(), hl.THE_LIST_N)
-    assert len(out) == 25 and out["The_List_From"].eq("Boring businesses").all()
+    assert len(out) == 25 and out["The_List_From"].eq("Compounders").all()
+    assert not {"LOW", "BORING"} & set(out["Ticker"])
 
 
 def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():
