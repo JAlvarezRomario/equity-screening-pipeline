@@ -175,6 +175,7 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
 THE_LIST_N = 200  # every member: the source lists show 20 each at most
+THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate"})  # kinds (`screens.kind`) kept off The List
 
 
 def _is_true(values) -> pd.Series:
@@ -197,10 +198,17 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     if not parts:
         return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
     both = pd.concat(parts)
+    # No banks, insurers or REITs (user's choice, Nov 9, 2026); fee businesses such as Visa or Moody's stay.
+    model = both.get("Business_Model", pd.Series(None, index=both.index, dtype=object))
+    both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
+    if both.empty:
+        return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
     sources = both.groupby("Ticker", sort=False)["_From"].agg(" · ".join)
     out = both.drop_duplicates("Ticker").drop(columns="_From")
     out = out.assign(The_List_From=out["Ticker"].map(sources))
-    order = pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce").rank(method="first", ascending=False)
+    # The yield itself, negated, not a rank: the page merges this frame with its "No dividend tax" one, and ranks
+    # counted in two frames would interleave wrongly.
+    order = -pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce")
     return out.assign(The_List_Order=order).sort_values("The_List_Order", na_position="last").head(n)
 
 

@@ -272,6 +272,18 @@ def test_the_list_holds_the_core_lists_members_past_both_bars_by_share_price_yie
     assert "pill-src" in panel and "passed every test" in panel
 
 
+def test_the_list_leaves_out_banks_insurers_and_reits(monkeypatch):
+    # User's choice, Nov 9, 2026: no banks, insurers or REITs; fee businesses (Visa, Moody's) stay.
+    import fq.report.highlights as hl
+
+    monkeypatch.setattr(hl, "_screened", lambda tab: lambda rows, n, hurdle: rows.assign(Grade_Pass=True,
+                                                                                         Check_Pass=True))  # fmt: skip
+    df = pd.DataFrame({"Ticker": ["OP", "BK", "IN", "RE", "V"], "EPV_Per_Share_Yield": [5.0, 9.0, 8.0, 7.0, 3.0],
+                       "Business_Model": ["operating", "bank", "insurer", "operating", "client_cash"],
+                       "Rank_Group": [None, "financial", "financial", "real_estate", None]})  # fmt: skip
+    assert hl.the_list(df, 200)["Ticker"].tolist() == ["OP", "V"]
+
+
 def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():
     # User's rule, Nov 9, 2026 (Artner, staffing, passed on an AI caution): there the company must earn an "ok".
     topics = [{"name": "Cycle", "status": "ok", "line": "Structural shortage"},
