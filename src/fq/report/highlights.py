@@ -179,11 +179,11 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # at least `grading.CHEAPEST_MIN_BOTH`: a source's "either at least 4.25" route no longer lets weak management in);
 # a check failed on any source keeps the company out; a member from Balance sheet plays alone (checked on its book)
 # also needs its earnings checked, as The List is ordered by them; holdings left out with banks, insurers and REITs;
-# the best 20 shown, the count of all that qualify above them; ordered by each company's best place on its lists,
+# the best 25 shown (user's choice), the count of all that qualify above them; ordered by each company's best place on its lists,
 # so each idea gets its best few (round robin), the share-price yield breaking ties.
 THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", SHORTLIST, "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
-THE_LIST_N = TOP_N  # about 20 picks a reader can follow (CLAUDE.md purpose); the page counts every qualifier
+THE_LIST_N = 25  # user's choice, Nov 9, 2026: three or four of each source list; the page counts every qualifier
 # Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
 THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
@@ -263,7 +263,7 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The best 20 companies on Cheap and good, Boring businesses, Cheapest, Best businesses, Balance sheet plays, "
+        "The best 25 companies on Cheap and good, Boring businesses, Cheapest, Best businesses, Balance sheet plays, "
         "Income or Compounders that also passed both AI checks: its moat and management, and its numbers.",
     ),
     "start": (

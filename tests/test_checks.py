@@ -334,12 +334,12 @@ def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_t
     assert out["The_List_Order"].tolist() == [1, 2, 3, 4, 5, 6]
 
 
-def test_the_list_shows_the_best_twenty_and_boring_businesses_is_a_source(monkeypatch):
-    rows = pd.DataFrame([_row(f"T{i}", 30.0 - i) for i in range(25)])
+def test_the_list_shows_the_best_twenty_five_and_boring_businesses_is_a_source(monkeypatch):
+    rows = pd.DataFrame([_row(f"T{i}", 40.0 - i) for i in range(30)])
     hl = _sources(monkeypatch, {"Shortlist": rows})
-    assert hl.THE_LIST_N == 20 and "Shortlist" in hl.THE_LIST_SOURCES
+    assert hl.THE_LIST_N == 25 and "Shortlist" in hl.THE_LIST_SOURCES
     out = hl.the_list(pd.DataFrame(), hl.THE_LIST_N)
-    assert len(out) == 20 and out["The_List_From"].eq("Boring businesses").all()
+    assert len(out) == 25 and out["The_List_From"].eq("Boring businesses").all()
 
 
 def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():

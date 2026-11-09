@@ -17,7 +17,7 @@ from fq.report import screens as sc
 from fq.report.cards import check_pill, grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
-from fq.report.highlights import GROUPS, MIN_ALL_PASS, SHORTLIST, TABS, Highlights, Tab, fails
+from fq.report.highlights import GROUPS, MIN_ALL_PASS, SHORTLIST, TABS, THE_LIST_N, Highlights, Tab, fails
 from fq.report.links import slug
 from fq.settings import Settings
 from fq.universe import _read_lines, sovereign_spread
@@ -129,7 +129,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "downturns": "; ".join(
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
-        "min_pass": MIN_ALL_PASS,
+        "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N,
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
