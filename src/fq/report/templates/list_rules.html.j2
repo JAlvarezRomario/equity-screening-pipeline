@@ -78,15 +78,6 @@
   <li>The dividend not cut by more than {{ r.recession_fall }}% in a past recession ({{ r.recessions }}), nor in the last twelve months. A record too short to reach a recession passes.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro energy(r) %}{% call rules("Energy companies with mid-cycle returns and a balance sheet that survives a price fall. They stay in the rankings; this is a clean view of them.") %}<ul>
-  <li>Yahoo's Energy sector: oil and gas producers, integrated companies, pipelines, refiners, services and drilling, coal and uranium.</li>
-  <li>Value &ge; {{ r.energy_value }}, Quality &ge; {{ r.energy_quality }}, normal return on capital (ROIC) &ge; {{ r.energy_roic }}%.</li>
-  <li>Net cash, or net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity.</li>
-  <li>Not at peak margins (most of energy is cyclical and valued at mid-cycle earnings). Yahoo keeps only about four years of reports, which include the 2022 price spike, so a mid-cycle figure may still read high: the debt test is the guard.</li>
-  <li>The dividend not cut by more than {{ r.recession_fall }}% through a downturn ({{ r.recessions }}, and the oil price collapse of {{ r.downturns }}), nor in the last twelve months. A company that pays no dividend has no record and passes.</li>
-  <li>In combined rank order, not cut to the best {{ r.top }} (too few would pass).</li>
-</ul>{% endcall %}{% endmacro %}
-
 
 {% macro income(r) %}{% call rules("Dividends a foreign investor keeps (statutory withholding at most " ~ r.income_wht ~ "%), paid every year for at least a decade, never more than " ~ r.income_dip ~ "% below the year before, ordered by what they pay now plus how fast they can grow.") %}<ul>
   <li>Withholding tax on dividends for a foreign individual of {{ r.income_wht }}% or less, at the statutory rate before any treaty (one yardstick for every reader).</li>

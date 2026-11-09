@@ -154,8 +154,7 @@ GROUPS = {
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
         "By kind",
-        "Banks, insurers, REITs and utilities judged against their own kind, outside the rankings; "
-        "and energy, ranked, seen apart.",
+        "Banks, insurers, REITs and utilities judged against their own kind, outside the rankings.",
     ),
     "raw": (
         "Raw scores",
@@ -185,7 +184,6 @@ TABS: tuple[Tab, ...] = (
         group="kind", sort="Kind_Rank"),
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
         sort="Kind_Rank"),
-    Tab("Energy", "energy", "hl-energy", sc.ENERGY_COLUMNS, _plain(sc.energy_list), group="kind"),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="raw",
         sort="Value_Rank", ranked=True, ai_screen=False),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, best_business_list, group="raw",
@@ -198,7 +196,8 @@ RANKED_TABS = tuple(t.name for t in TABS if t.ranked)
 # Retired tabs the forward test still follows under their stored names (Nov 4, 2026: Nectar, Compounders and Better
 # every year gave way to Operating companies and Fast growers; Net-nets merged into Below book; Temporary trouble
 # retired, user's choice; Nov 7, 2026: Repeaters, Cannibals, Off the radar, Dividend growers, Dividend carry and Best
-# grades retired before the freeze; Nov 8, 2026: Net cash, now a pill; so none is stored), with the reader's name
+# grades retired before the freeze; Nov 8, 2026: Net cash, now a pill; Nov 9, 2026: Energy, user's choice, as the
+# check of the numbers left none of it standing; so none is stored), with the reader's name
 # where it differed.
 RETIRED_LABELS = {"Nectar": "Steady growers, net cash"}
 

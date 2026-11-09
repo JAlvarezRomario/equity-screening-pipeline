@@ -234,43 +234,6 @@ def utility_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return _kind_list(df, "utility", n, keep)
 
 
-# "Energy" (user's choice, Nov 5, 2026): energy stays in the rankings; this is a clean lens on it. Nearly all of it is
-# cyclical, valued at mid-cycle, and Yahoo's few annual reports hold the 2022 spike, so the list asks for mid-cycle
-# returns and a balance sheet that survives a price fall rather than the cheapest. Display only.
-ENERGY_SECTOR = "Energy"
-ENERGY_MIN_VALUE = 50.0  # (Nov 6, 2026; was 60 on the scale whose ranked median was 62)
-ENERGY_MIN_QUALITY = 50.0
-ENERGY_MIN_ROIC = 10.0  # normalised ROIC, %
-ENERGY_COLUMNS = [
-    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
-    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
-    ("Dividend Yield", "Dividend_Yield", ".1f", 1, "%"),
-    RECESSION_COLUMN,
-    ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
-def energy_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Ranked companies of Yahoo's Energy sector (producers, pipelines, refiners, services, coal, uranium) with Value
-    at least `ENERGY_MIN_VALUE`, Quality at least `ENERGY_MIN_QUALITY`, normalised ROIC at least `ENERGY_MIN_ROIC`,
-    net cash or the Shortlist's two debt tests (`_sound_balance_sheet`), and the dividend held through the downturns
-    on file, the 2015 oil price collapse included, and this year (`_dividend_held`; a company that pays none passes);
-    trusted as `ranking.top_n` (peak margins and distress out), not cut to the best fraction (too few would pass), in
-    combined rank order. Display only."""
-    sector = df["sector"] if "sector" in df.columns else pd.Series(None, index=df.index, dtype=object)
-    keep = (
-        (sector == ENERGY_SECTOR)
-        & (_num(df, "Value_Score") >= ENERGY_MIN_VALUE)
-        & (_num(df, "Quality_Score") >= ENERGY_MIN_QUALITY)
-        & (_num(df, "ROIC_Norm") >= ENERGY_MIN_ROIC)
-        & ((_num(df, "Net_Cash_to_Cap") > 0) | _sound_balance_sheet(df))
-        & _dividend_held(df, through_downturns=True)
-    )
-    return top_n(df[keep], "Rank", n)
-
-
 # The Below book list (`ranking.asset_play`; user's choice, Nov 7, 2026): priced below tangible book, net debt counted
 # (a holding on its book with goodwill), ordered by the discount.
 ASSET_PLAY_COLUMNS = [

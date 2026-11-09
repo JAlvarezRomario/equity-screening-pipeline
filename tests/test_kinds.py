@@ -1,5 +1,5 @@
 """The lists by kind (user's choice, Nov 5, 2026): banks, insurers, holdings and REITs ranked apart and judged against
-their own kind; energy ranked and seen apart; the quadrant draws ranked companies only."""
+their own kind; the quadrant draws ranked companies only (the Energy tab retired Nov 9, 2026)."""
 
 import numpy as np
 import pandas as pd
@@ -50,14 +50,6 @@ def test_real_estate_list_bounds_debt_and_never_tests_book():
     assert sc.real_estate_list(df).empty
 
 
-def test_energy_list_wants_mid_cycle_returns_and_a_sound_balance_sheet():
-    df = _frame(4, sector="Energy", Rank=[1.0, 2, 3, 4], ROIC_Norm=[15.0, 15, 5, 15], Net_Cash_to_Cap=[10.0, -50, 10, 5],
-                NetDebt_to_EBIT=[0.0, 6.0, 0.0, 0.0])  # fmt: skip
-    df.loc[3, "sector"] = "Industrials"
-    # T1 is in net debt above the Shortlist's bound, T2 earns too little on its capital, T3 is not energy.
-    assert sc.energy_list(df)["Ticker"].tolist() == ["T0"]
-
-
 def test_below_book_takes_holdings_by_their_kind_and_orders_by_the_discount():
     df = _frame(6, Rank_Group=["ranked"] * 5 + ["holding"], Business_Model=["operating"] * 5 + ["holding"],
                 Rank=[1.0, 2, 3, 4, 5, np.nan], Asset_Play=[True, False, False, False, False, True],
@@ -86,14 +78,10 @@ def test_lists_by_kind_leave_out_a_dividend_cut_paid_this_year():
     assert sc.bank_list(banks.assign(Dividend_Cut_Recent=False))["Ticker"].tolist() == ["T0"]
 
 
-def test_reits_and_energy_leave_out_a_downturn_fall_over_a_quarter_but_keep_a_blank():
+def test_reits_leave_out_a_downturn_fall_over_a_quarter_but_keep_a_blank():
     reits = _record(_frame(5, Rank_Group="real_estate", Business_Model="asset_heavy", Owner_Yield=6.0))
     assert sc.real_estate_list(reits.assign(Recession_Dividend_Fall=-40.0)).empty
     assert sc.real_estate_list(reits.assign(Recession_Dividend_Fall=np.nan))["Ticker"].tolist() == ["T0"]
-    energy = _record(_frame(2, sector="Energy", Rank=[1.0, 2], ROIC_Norm=15.0, Net_Cash_to_Cap=10.0,
-                            Value_Score=[90.0, 85.0], Quality_Score=80.0),
-                     Recession_Dividend_Fall=[-60.0, np.nan])  # fmt: skip
-    assert sc.energy_list(energy)["Ticker"].tolist() == ["T1"]  # T0 halved its dividend in a downturn; T1 pays none
 
 
 def test_a_benchmark_ranked_before_the_rank_groups_never_lends_a_bank_its_old_position():

@@ -69,8 +69,8 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "publishing, education, business services, internet content, gaming, health information, entertainment "
                  "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings (the two "
                  "named cheap also ask an owner yield on the share price above {cheap_yield}%); the other "
-                 "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists; "
-                 "Energy says how it picks). Each company a "
+                 "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists). "
+                 "Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
                  "{one} (Boring businesses, Temporary trouble, Cheapest and Best businesses set bars of their own), are the "
@@ -129,8 +129,6 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         ),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
-        "energy_value": g(sc.ENERGY_MIN_VALUE), "energy_quality": g(sc.ENERGY_MIN_QUALITY),
-        "energy_roic": g(sc.ENERGY_MIN_ROIC),
     }  # fmt: skip
 
 

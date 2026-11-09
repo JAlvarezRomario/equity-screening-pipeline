@@ -280,9 +280,9 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
     # Nov 8, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
-    # Low beta, Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities, Energy), Raw scores
-    # (Cheapest, Best businesses).
-    assert len(panels) == 14
+    # Low beta, Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities; Energy retired Nov 9,
+    # 2026), Raw scores (Cheapest, Best businesses).
+    assert len(panels) == 13
     assert all('class="list-count muted"' in p for p in panels)
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
     assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
@@ -299,6 +299,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
         "hl-dividend-growers",
         "hl-best-grades",
         "hl-net-cash",
+        "hl-energy",
     ):
         assert gone not in html
 
