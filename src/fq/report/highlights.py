@@ -71,27 +71,43 @@ TROUBLE_BAR = (f"both at least {grading.TROUBLE_MIN_BOTH:g} and either at least 
 CHEAPEST_BAR = f"both at least {grading.CHEAPEST_MIN_BOTH:g}, graded before it counts"
 BEST_BAR = f"both at least {grading.BEST_MIN_BOTH:g} and either above it, graded before it counts"
 WALK_WAITING = TOP_N  # ungraded companies a graded walk holds at once: the next grading run's batch
+# The score lists (Cheap and good, Cheapest, Best businesses; user's rule, Nov 9, 2026): at least this many of the rows
+# shown pass every test, the list's moat and management bar and the check of its numbers; while fewer do, the list
+# walks further down its ranking, a company not yet graded or checked counting as a pass until it is (so a walk
+# never runs ahead of the grading), and never past `WALK_MAX_ROWS` rows.
+MIN_ALL_PASS = 10
+WALK_MAX_ROWS = 60
+
+
+def _check_verdict(row_value) -> bool | None:
+    return None if row_value is None or (isinstance(row_value, float) and pd.isna(row_value)) else bool(row_value)
 
 
 def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str) -> pd.DataFrame:
     """Down a ranking (`ranking.top_n` on `rank_col`), the companies whose moat and management pass `verdict_of`
-    (True, False, or None when ungraded) until `n` of them; a company graded below is skipped and the next one taken.
-    Ungraded companies met on the way (at most `WALK_WAITING`) stay in the list, marked not graded, so the grading
-    (`Highlights.grade_pool`) reaches them and the list fills to `n` within a few runs. `Grade_Bar` is `bar`."""
+    (True, False, or None when ungraded) until `n` of them and, of those, at least `MIN_ALL_PASS` whose earnings
+    check is not a fail (`Check_Earnings_Pass`; a check not made yet counts as a pass until it is): a company graded
+    below is skipped and the next one taken; one that fails its check is kept, shaded. Ungraded companies met on the
+    way (at most `WALK_WAITING`) stay in the list, marked not graded, so the grading (`Highlights.grade_pool`) reaches
+    them and the list fills within a few runs. At most `WALK_MAX_ROWS` rows. `Grade_Bar` is `bar`."""
     ordered = top_n(df, rank_col, len(df))
-    moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else pd.Series(np.nan, index=ordered.index)
-    mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else pd.Series(np.nan, index=ordered.index)
-    keep, verdicts, passed, waiting = [], [], 0, 0
-    for i, m, g in zip(ordered.index, moat, mgmt, strict=True):
-        if passed >= n:
+    blank = pd.Series(np.nan, index=ordered.index)
+    moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
+    mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else blank
+    check = ordered["Check_Earnings_Pass"] if "Check_Earnings_Pass" in ordered.columns else blank
+    keep, verdicts, passed, sound, waiting = [], [], 0, 0, 0
+    for i, m, g, c in zip(ordered.index, moat, mgmt, check, strict=True):
+        if (passed >= n and sound >= min(MIN_ALL_PASS, n)) or len(keep) >= WALK_MAX_ROWS:
             break
         verdict = verdict_of(m, g)
         if verdict is None and waiting < WALK_WAITING:
             waiting += 1
+            sound += 1  # it may pass both: counted until it is graded and checked
             keep.append(i)
             verdicts.append(None)  # not graded yet: keeps its place, marked, as on every list
         elif verdict:
             passed += 1
+            sound += _check_verdict(c) is not False
             keep.append(i)
             verdicts.append(True)
     out = ordered.loc[keep]
@@ -101,20 +117,37 @@ def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str) 
 def cheapest_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """Cheapest (user's choice, Nov 7, 2026): down the Value ranking, moat and management both at least
     `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`), owner yield on the share price above
-    `screens.CHEAP_MIN_SHARE_YIELD` (Nov 8, 2026)."""
+    `screens.CHEAP_MIN_SHARE_YIELD` (Nov 8, 2026), until at least `MIN_ALL_PASS` pass the check too (Nov 9, 2026)."""
     return _graded_walk(sc.cheap_enough(df), n, "Value_Rank", grading.passes_cheapest, CHEAPEST_BAR)
 
 
 def cheap_and_good_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
-    """Cheap and good: the top of the combined ranking (`Rank`) whose owner yield on the share price is above
-    `screens.CHEAP_MIN_SHARE_YIELD` (user's choice, Nov 8, 2026)."""
-    return top_n(sc.cheap_enough(df), "Rank", n)
+    """Cheap and good: the top `n` of the combined ranking (`Rank`) whose owner yield on the share price is above
+    `screens.CHEAP_MIN_SHARE_YIELD` (user's choice, Nov 8, 2026), then further down while fewer than `MIN_ALL_PASS`
+    of them pass every test (Nov 9, 2026): the moat and management bar (`grading.passes`) and the earnings check, a
+    company not yet graded or checked counting as a pass until it is; at most `WALK_MAX_ROWS` rows. Those that fail
+    stay on the list, shaded."""
+    ordered = top_n(sc.cheap_enough(df), "Rank", len(df))
+    blank = pd.Series(np.nan, index=ordered.index)
+    moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
+    mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else blank
+    check = ordered["Check_Earnings_Pass"] if "Check_Earnings_Pass" in ordered.columns else blank
+    sound = [grading.passes(m, g) is not False and _check_verdict(c) is not False
+             for m, g, c in zip(moat, mgmt, check, strict=True)]  # fmt: skip
+    count, rows = 0, 0
+    for ok in sound:
+        if (rows >= n and count >= min(MIN_ALL_PASS, n)) or rows >= WALK_MAX_ROWS:
+            break
+        rows += 1
+        count += ok
+    return ordered.iloc[:rows]
 
 
 def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """Best businesses (user's choice, Nov 7, 2026: it absorbed Best grades): down the Quality ranking, moat and
-    management both at least `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best_walk`; `_graded_walk`).
-    Price plays no part: a raw score; Cheap and good is where price and quality meet."""
+    management both at least `grading.BEST_MIN_BOTH` and either above it (`grading.passes_best_walk`; `_graded_walk`),
+    until at least `MIN_ALL_PASS` pass the check too (Nov 9, 2026). Price plays no part: a raw score; Cheap and good is
+    where price and quality meet."""
     return _graded_walk(df, n, "Quality_Rank", grading.passes_best_walk, BEST_BAR)
 
 
@@ -211,7 +244,7 @@ TABS: tuple[Tab, ...] = (
     Tab(THE_LIST, "the_list", "hl-the-list", sc.THE_LIST_COLUMNS, the_list, group="list", n=THE_LIST_N,
         sort="The_List_Order", checked=False),
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
-        ranked=True, ai_screen=False),
+        ranked=True),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N),
@@ -229,9 +262,9 @@ TABS: tuple[Tab, ...] = (
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
         sort="Kind_Rank"),
     Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="raw",
-        sort="Value_Rank", ranked=True, ai_screen=False),
+        sort="Value_Rank", ranked=True),
     Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, best_business_list, group="raw",
-        sort="Quality_Rank", ranked=True, ai_screen=False),
+        sort="Quality_Rank", ranked=True),
 )
 # fmt: on
 TAB = {t.name: t for t in TABS}
@@ -280,8 +313,8 @@ def with_check(out: pd.DataFrame, list_name: str) -> pd.DataFrame:
 
 def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     """`tab.screen`, drawn only from companies past the AI screen (`screens.ai_resilient`) unless `tab.ai_screen` is
-    off (the pure score rankings: Cheap and good, Cheapest and Best businesses; user's choice, Nov 4, 2026); every
-    tab's rows then carry the check of its kind (`with_check`)."""
+    off (every tab since Nov 9, 2026, user's choice: the score lists too; they skipped it from Nov 4); every tab's rows
+    then carry the check of its kind (`with_check`)."""
     if not tab.checked:
         return tab.screen
     if not tab.ai_screen:

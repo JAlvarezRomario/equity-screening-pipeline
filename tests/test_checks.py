@@ -284,3 +284,25 @@ def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():
     assert grading.parse_check(_answer("pass", topics=safe), grading.EARNINGS, fragile=True)["Pass"] is True
     assert grading.ai_fragile(pd.Series({"industry": "Staffing & Employment Services"}))
     assert not grading.ai_fragile(pd.Series({"industry": "Tools & Accessories"}))
+
+
+def test_the_score_lists_walk_down_until_ten_pass_every_test(monkeypatch):
+    # User's rule, Nov 9, 2026: at least 10 of Cheap and good, Cheapest and Best businesses pass grade and check.
+    from fq.report import highlights as hl
+
+    n = 30
+    df = pd.DataFrame({"Ticker": [f"T{i}" for i in range(n)], "Rank": range(1, n + 1),
+                       "Value_Rank": range(1, n + 1), "EPV_Per_Share_Yield": 9.0,
+                       "Grade_Moat": 3.5, "Grade_Mgmt": 3.5,
+                       "Check_Earnings_Pass": [False] * 15 + [True] * 15})  # fmt: skip
+    monkeypatch.setattr(hl, "top_n", lambda d, col, k: d.sort_values(col).head(k))
+    cheap = hl.cheap_and_good_list(df, 20)
+    assert len(cheap) == 25 and cheap["Check_Earnings_Pass"].sum() == 10  # 15 fail first: 5 more down, 10 pass
+    walk = hl.cheapest_list(df, 20)
+    assert len(walk) == 25 and walk["Check_Earnings_Pass"].sum() == 10 and walk["Grade_Pass"].eq(True).all()
+    unchecked = df.assign(Check_Earnings_Pass=[False] * 15 + [None] * 15)
+    assert len(hl.cheap_and_good_list(unchecked, 20)) == 25  # not checked yet counts as a pass: the walk waits
+    none_pass = df.assign(Check_Earnings_Pass=False)
+    assert len(hl.cheap_and_good_list(none_pass, 20)) == n  # all the way down, never past the last row
+    assert len(hl.cheap_and_good_list(pd.concat([df.assign(Check_Earnings_Pass=False)] * 3, ignore_index=True)
+                                      .assign(Rank=range(1, 3 * n + 1)), 20)) == hl.WALK_MAX_ROWS  # fmt: skip

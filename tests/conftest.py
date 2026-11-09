@@ -18,7 +18,7 @@ def make_raw(cfg: Settings, n: int = 6, seed: int = 0, latest_end: str = "2025-1
         row = {
             "Ticker": f"T{i}.X" if i % 2 else f"T{i}",
             "shortName": f"Company <{i}> & Co",
-            "industry": "Software - Application",
+            "industry": "Tools & Accessories",  # not AI-fragile: every list may draw it (Nov 9, 2026)
             "country": "United States" if i % 2 else "Germany",
             "currentPrice": 50.0 + i,
             "marketCap": (3 + i) * 1e9,

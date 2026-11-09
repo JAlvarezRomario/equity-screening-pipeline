@@ -16,6 +16,7 @@
   <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
   <li>Ties go to the better sum of the two positions.</li>
   <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cheapest(r) %}{% call rules("The cheapest companies for what the business earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
@@ -25,6 +26,7 @@
   <li>Cyclicals at mid-cycle earnings, with no trend.</li>
   <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays.</li>
   <li>The Quality score is not considered.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, among those whose moat and management are graded among the best, whatever their price.") %}<ul>
@@ -32,6 +34,7 @@
   <li>The Quality score: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt; plus how much one share of the business grew and whether the share count shrank.</li>
   <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays).</li>
   <li>Price is not considered: a great business can still be too dear. Cheap and good is where price and quality meet.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro compounders(r) %}{% call rules("Businesses with high returns that grow smoothly without issuing shares, at a price that already pays: companies to hold for twenty years. Two routes in, one list.") %}<ul>

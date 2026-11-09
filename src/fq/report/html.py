@@ -17,7 +17,7 @@ from fq.report import screens as sc
 from fq.report.cards import check_pill, grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
-from fq.report.highlights import GROUPS, SHORTLIST, TABS, Highlights, Tab, fails
+from fq.report.highlights import GROUPS, MIN_ALL_PASS, SHORTLIST, TABS, Highlights, Tab, fails
 from fq.report.links import slug
 from fq.settings import Settings
 from fq.universe import _read_lines, sovereign_spread
@@ -64,7 +64,7 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day and business "
                  "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
                  "REITs and utilities are judged against their own kind in the By kind lists, holdings in Below "
-                 "book. Every list but Cheap and good, Cheapest and Best businesses also leaves out "
+                 "book. Every list also leaves out "
                  "the industries AI substitutes or disrupts (software, IT services, consulting, staffing, advertising, "
                  "publishing, education, business services, internet content, gaming, health information, entertainment "
                  "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings (the two "
@@ -75,7 +75,9 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "own knowledge and this site's figures: those with both grades at least {both}, or either at least "
                  "{one} (Boring businesses, Temporary trouble, Cheapest and Best businesses set bars of their own), are the "
                  "list; the others stay on it, folded away under the table, and none is replaced (Cheapest and Best "
-                 "businesses take the next one down instead). A grade changes no score and no rank.")  # fmt: skip
+                 "businesses take the next one down instead). Cheap and good, Cheapest and Best businesses walk "
+                 "further down their ranking until at least {min_pass} pass every test. A grade changes no score "
+                 "and no rank.")  # fmt: skip
 
 
 # Countries the Boring businesses rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.
@@ -127,6 +129,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "downturns": "; ".join(
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
+        "min_pass": MIN_ALL_PASS,
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
@@ -260,6 +263,7 @@ def build_site(
             cheap_yield=f"{sc.CHEAP_MIN_SHARE_YIELD:g}",
             both=f"{grading.MIN_BOTH:g}",
             one=f"{grading.MIN_ONE:g}",
+            min_pass=MIN_ALL_PASS,
         ),
         industries=sc.industry_averages(df, bench),
         headers=headers(columns, groups=True),

@@ -544,18 +544,23 @@ def grade_only(cfg: Settings, max_grades: int = 0, dry_run: bool = False, resynt
     which are then due themselves, so the lists are recomputed and graded again until a wave changes nothing, at most
     `GRADE_WAVES`. A cap (`max_grades`, also the checks' cap) or `dry_run` is one wave."""
     ranked, bench = load_benchmark_run(cfg)
-    waves = 0 if checks_only else 1 if (max_grades or dry_run or resynthesize_only) else GRADE_WAVES
+    waves = 1 if (max_grades or dry_run or resynthesize_only) else GRADE_WAVES
+    checking = (check or checks_only) and not resynthesize_only
     changed = 0
+    # Each wave grades, then checks (Nov 9, 2026): a failed check makes the score lists walk further down, onto
+    # companies due in turn, so a wave repeats until it changes nothing.
     for _ in range(waves):
-        h = Highlights.compute(ranked, cfg, bench)  # reads the grades saved so far
-        n = grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run,
-                            resynthesize_only=resynthesize_only, new_only=new_only)  # fmt: skip
+        n = 0
+        if not checks_only:
+            h = Highlights.compute(ranked, cfg, bench)  # reads the grades saved so far
+            n += grade_companies(cfg, ranked, h, max_grades=max_grades, dry_run=dry_run,
+                                 resynthesize_only=resynthesize_only, new_only=new_only)  # fmt: skip
+        if checking:
+            h = Highlights.compute(ranked, cfg, bench)  # who is checked follows the grades just made
+            n += check_companies(cfg, ranked, h, max_checks=max_grades, dry_run=dry_run)
         changed += n
-        if not n:
+        if not n or checks_only:
             break
-    if (check or checks_only) and not resynthesize_only:
-        h = Highlights.compute(ranked, cfg, bench)  # who is checked follows the grades just made
-        changed += check_companies(cfg, ranked, h, max_checks=max_grades, dry_run=dry_run)
     if changed and report:
         write_report(cfg, offline=True)
 

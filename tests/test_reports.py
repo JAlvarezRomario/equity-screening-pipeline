@@ -153,9 +153,9 @@ def test_industry_averages_over_the_benchmark(cfg):
 
     df = _ranked(cfg)
     df.loc[[0, 1], "industry"] = "Tools"
-    df.loc[[0, 1], "FCFy_Norm"] = [30.0, 0.0]  # Tools averages 15%, above every Software company
+    df.loc[[0, 1], "FCFy_Norm"] = [30.0, 0.0]  # Tools averages 15%, above every other company
     view = industry_averages(df)
-    assert [r["industry"] for r in view["rows"]] == ["Tools", "Software - Application"]  # highest FCF yield first
+    assert [r["industry"] for r in view["rows"]] == ["Tools", "Tools & Accessories"]  # highest FCF yield first
     assert view["rows"][0]["cells"][0] == "15.0%" and view["scope"] is None  # median of two = their midpoint
     assert view["headers"][2] == "FCF Yield Norm (median)"
 
@@ -872,7 +872,7 @@ def test_ai_screen_leaves_out_all_fragile_and_exposed_industries():
     assert list(ai_resilient(df)) == [False, False, False, False, False, True, True]
 
 
-def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_rankings(cfg):
+def test_ai_screen_applies_to_every_list_the_score_lists_too(cfg):
     from fq.ranking import trusted
     from fq.report.highlights import RANKED_TABS, TABS, Highlights
     from fq.report.screens import shortlist_funnel
@@ -885,13 +885,11 @@ def test_ai_screen_applies_to_every_screened_list_but_not_the_pure_score_ranking
     df.loc[fragile, "industry"] = "Consulting Services"
     df.loc[software, "industry"] = "Software - Application"
     h = Highlights.compute(df, cfg)
-    # All three pure-score rankings (`Cheap and good`, `Cheapest`, `Best businesses`) are unscreened for AI.
+    # User's choice, Nov 9, 2026: the three score rankings leave out AI-fragile industries too (unscreened Nov 4-9).
     assert set(RANKED_TABS) == {"Cheap and good", "Cheapest", "Best businesses"}
-    assert all(not t.ai_screen for t in TABS if t.ranked)
-    assert all(t.ai_screen for t in TABS if not t.ranked)
-    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])
-    assert df.loc[software, "Ticker"] in set(h.shown("Cheap and good")["Ticker"])
-    assert df.loc[fragile, "Ticker"] in set(h.shown("Cheapest")["Ticker"])
+    assert all(t.ai_screen for t in TABS)
+    for name in ("Cheap and good", "Cheapest", "Best businesses"):
+        assert not {df.loc[fragile, "Ticker"], df.loc[software, "Ticker"]} & set(h.shown(name)["Ticker"]), name
     # Every screened list excludes both Consulting Services and Software - Application.
     assert df.loc[fragile, "Ticker"] not in set(h.shown("Below book")["Ticker"])
     assert df.loc[software, "Ticker"] not in set(h.shown("Below book")["Ticker"])
