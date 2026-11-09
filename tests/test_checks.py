@@ -260,8 +260,7 @@ def test_the_list_holds_the_core_lists_members_past_both_bars_by_share_price_yie
     h = Highlights.compute(df, cfg)
     the_list = h.shown("The List")
     assert set(the_list["Ticker"]) >= set(passed) and failed not in set(the_list["Ticker"])
-    yields = the_list["EPV_Per_Share_Yield"].tolist()
-    assert yields == sorted(yields, reverse=True)  # owner yield on the share price, highest first
+    assert the_list["The_List_Order"].tolist() == list(range(1, len(the_list) + 1))
     assert the_list["The_List_From"].str.contains("Cheap and good").all() or len(set(the_list["Ticker"]) - set(cheap))
     assert not any(t == "The List" for t, _ in [(n, k) for n, k in h.check_pool()])  # asks no check of its own
     assert grading.check_kind("The List") is None
@@ -277,11 +276,70 @@ def test_the_list_leaves_out_banks_insurers_and_reits(monkeypatch):
     import fq.report.highlights as hl
 
     monkeypatch.setattr(hl, "_screened", lambda tab: lambda rows, n, hurdle: rows.assign(Grade_Pass=True,
-                                                                                         Check_Pass=True))  # fmt: skip
+                                                                                         Check_Pass=True,
+                                                                                         Grade_Moat=3.5,
+                                                                                         Grade_Mgmt=3.5))  # fmt: skip
     df = pd.DataFrame({"Ticker": ["OP", "BK", "IN", "RE", "V"], "EPV_Per_Share_Yield": [5.0, 9.0, 8.0, 7.0, 3.0],
                        "Business_Model": ["operating", "bank", "insurer", "operating", "client_cash"],
                        "Rank_Group": [None, "financial", "financial", "real_estate", None]})  # fmt: skip
     assert hl.the_list(df, 200)["Ticker"].tolist() == ["OP", "V"]
+
+
+def _sources(monkeypatch, frames):
+    """`highlights._screened` returning each source tab's given rows (`frames`: name -> frame), none for the rest."""
+    import fq.report.highlights as hl
+
+    def screened(tab):
+        rows = frames.get(tab.name)
+        return lambda df, n, hurdle: df.iloc[0:0] if rows is None else rows
+
+    monkeypatch.setattr(hl, "_screened", screened)
+    return hl
+
+
+def _row(ticker, yield_, moat=3.5, mgmt=3.5, grade=True, check=True, **more):
+    return {"Ticker": ticker, "EPV_Per_Share_Yield": yield_, "Grade_Moat": moat, "Grade_Mgmt": mgmt,
+            "Grade_Pass": grade, "Check_Pass": check, "Business_Model": "operating", "Rank_Group": "ranked", **more}  # fmt: skip
+
+
+def test_the_list_holds_one_grade_floor_and_a_failed_check_anywhere_keeps_a_company_out(monkeypatch):
+    # Nov 9, 2026 review (user's approval): "either at least 4.25" lets weak management in on Income; a check failed on
+    # one source is not hidden by a pass on another.
+    income = pd.DataFrame([_row("WEAK", 9.0, moat=4.5, mgmt=1.5), _row("OK", 8.0), _row("MIXED", 7.0)])
+    book = pd.DataFrame([_row("MIXED", 7.0, check=False, Check_Earnings_Pass=True)])
+    hl = _sources(monkeypatch, {"Income": income, "Below book": book})
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK"]
+
+
+def test_the_list_asks_a_balance_sheet_play_alone_for_its_earnings_check_and_leaves_out_holdings(monkeypatch):
+    book = pd.DataFrame([_row("WAIT", 9.0), _row("EARN", 8.0, Check_Earnings_Pass=True),
+                         _row("HOLD", 7.0, Check_Earnings_Pass=True, Rank_Group="holding"),
+                         _row("BOTH", 6.0)])  # fmt: skip
+    cheap = pd.DataFrame([_row("BOTH", 6.0)])  # its earnings were checked on Cheap and good
+    hl = _sources(monkeypatch, {"Below book": book, "Cheap and good": cheap})
+    out = hl.the_list(pd.DataFrame(), 20)
+    assert out["Ticker"].tolist() == ["EARN", "BOTH"]
+    assert out.set_index("Ticker").loc["BOTH", "The_List_From"] == "Cheap and good · Balance sheet plays"
+
+
+def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_ties(monkeypatch):
+    # User's choice, Nov 9, 2026: each idea gets its best few; one yield for all buried the compounders.
+    cheap = pd.DataFrame([_row("C1", 20.0, Rank=1), _row("C2", 18.0, Rank=2), _row("C3", 16.0, Rank=3)])
+    comp = pd.DataFrame([_row("K2", 3.0, Rank=9), _row("K1", 4.0, Rank=5)])  # out of order: its own order decides
+    income = pd.DataFrame([_row("FAIL", 30.0, check=False, Income_Order=1), _row("I1", 5.0, Income_Order=2)])
+    hl = _sources(monkeypatch, {"Cheap and good": cheap, "Compounders": comp, "Income": income})
+    out = hl.the_list(pd.DataFrame(), 20)
+    # Turn 1: C1, I1 (Income's first that qualifies), K1; turn 2: C2, K2; turn 3: C3.
+    assert out["Ticker"].tolist() == ["C1", "I1", "K1", "C2", "K2", "C3"]
+    assert out["The_List_Order"].tolist() == [1, 2, 3, 4, 5, 6]
+
+
+def test_the_list_shows_the_best_twenty_and_boring_businesses_is_a_source(monkeypatch):
+    rows = pd.DataFrame([_row(f"T{i}", 30.0 - i) for i in range(25)])
+    hl = _sources(monkeypatch, {"Shortlist": rows})
+    assert hl.THE_LIST_N == 20 and "Shortlist" in hl.THE_LIST_SOURCES
+    out = hl.the_list(pd.DataFrame(), hl.THE_LIST_N)
+    assert len(out) == 20 and out["The_List_From"].eq("Boring businesses").all()
 
 
 def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():

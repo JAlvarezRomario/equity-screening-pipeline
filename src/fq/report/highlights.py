@@ -53,6 +53,9 @@ class Tab:
     funnel: Callable[[pd.DataFrame, float], list[tuple[str, int]]] | None = None  # counts after each test
     ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (not the pure scores)
     checked: bool = True  # its rows carry the check of its kind (`with_check`); off for a list of checked lists
+    # Its "No dividend tax" rows: the tab re-run among zero-withholding companies (True), or its own members at 0%
+    # withholding (False: The List, whose sources' zero-withholding re-runs would hold companies nobody graded).
+    zero_rerun: bool = True
 
 
 def _plain(fn):
@@ -171,45 +174,85 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 
 # The List (user's choice, Nov 9, 2026): the companies that passed every test. Each source list's rows as shown, those
 # past both that list's moat and management bar and its check (both True: a missing grade or check is not a pass),
-# once each, by owner yield on the share price (`EPV_Per_Share_Yield`), highest first.
+# once each, each list's best in turn (round robin; the share-price yield breaking ties).
+# Nov 9, 2026 review (user's choices): Boring businesses joins the sources; one grade floor for every member (both
+# at least `grading.CHEAPEST_MIN_BOTH`: a source's "either at least 4.25" route no longer lets weak management in);
+# a check failed on any source keeps the company out; a member from Balance sheet plays alone (checked on its book)
+# also needs its earnings checked, as The List is ordered by them; holdings left out with banks, insurers and REITs;
+# the best 20 shown, the count of all that qualify above them; ordered by each company's best place on its lists,
+# so each idea gets its best few (round robin), the share-price yield breaking ties.
 THE_LIST = "The List"
-THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
-THE_LIST_N = 200  # every member: the source lists show 20 each at most
-THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate"})  # kinds (`screens.kind`) kept off The List
+THE_LIST_SOURCES = ("Cheap and good", SHORTLIST, "Cheapest", "Best businesses", "Below book", "Income", "Compounders")
+THE_LIST_N = TOP_N  # about 20 picks a reader can follow (CLAUDE.md purpose); the page counts every qualifier
+# Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
+THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
 
 def _is_true(values) -> pd.Series:
     return pd.Series([v is True or v == True for v in values], index=values.index, dtype=bool)  # noqa: E712
 
 
+def _is_false(values) -> pd.Series:
+    return pd.Series([v is False or v == False for v in values], index=values.index, dtype=bool)  # noqa: E712
+
+
+def _graded_floor(rows: pd.DataFrame) -> pd.Series:
+    """Moat and management both at least `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`), True only when
+    graded: the floor every member of The List clears, whatever its source's bar."""
+    blank = pd.Series(np.nan, index=rows.index)
+    moat, mgmt = rows.get("Grade_Moat", blank), rows.get("Grade_Mgmt", blank)
+    return pd.Series([grading.passes_cheapest(m, g) is True for m, g in zip(moat, mgmt, strict=True)],
+                     index=rows.index, dtype=bool)  # fmt: skip
+
+
 def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """The List: the members of `THE_LIST_SOURCES` (each tab's rows as shown, `Tab.n`) past both its moat and
-    management bar (`Grade_Pass`) and its check (`Check_Pass`), once each, with `The_List_From` naming the lists they
-    came from (as readers see them), ordered by owner yield on the share price (`The_List_Order`)."""
+    management bar (`Grade_Pass`) and its check (`Check_Pass`), and past the common grade floor (`_graded_floor`),
+    once each, with `The_List_From` naming the lists they came from (as readers see them). Order (`The_List_Order`,
+    1 = first; user's choice, Nov 9, 2026: every idea gets its best few, not one yardstick for all): each company's
+    best place among the qualifying members of the lists it is on, in each list's own order, so each list's first
+    comes before any list's second; a tie goes to the higher owner yield on the share price. Left out: a company whose check failed on any source; one that comes only
+    from Balance sheet plays (checked on its book) without a passing earnings check (`Check_Earnings_Pass`); the
+    kinds of `THE_LIST_LEFT_OUT`."""
     parts = []
     for name in THE_LIST_SOURCES:
         tab = TAB[name]
         shown = _screened(tab)(df, tab.n, hurdle)
-        if shown.empty:
-            continue
-        none = pd.Series(None, index=shown.index, dtype=object)  # a frame without grades or checks: nobody passes
-        ok = shown[_is_true(shown.get("Grade_Pass", none)) & _is_true(shown.get("Check_Pass", none))]
-        parts.append(ok.assign(_From=tab.label or tab.name))
-    if not parts:
+        if not shown.empty:
+            if tab.sort in shown.columns:  # the list's own order, as its page shows it
+                shown = shown.sort_values(tab.sort, kind="stable", na_position="last")
+            parts.append(shown.assign(_From=tab.label or tab.name, _Book=grading.check_kind(name) == grading.BOOK))
+
+    def empty() -> pd.DataFrame:
         return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
-    both = pd.concat(parts)
-    # No banks, insurers or REITs (user's choice, Nov 9, 2026); fee businesses such as Visa or Moody's stay.
+
+    if not parts:
+        return empty()
+    rows = pd.concat(parts)
+    none = pd.Series(None, index=rows.index, dtype=object)  # a frame without grades or checks: nobody passes
+    failed = set(rows.loc[_is_false(rows.get("Check_Pass", none)), "Ticker"])  # a failed check on any source
+    both = rows[_is_true(rows.get("Grade_Pass", none)) & _is_true(rows.get("Check_Pass", none)) & _graded_floor(rows)]
+    both = both[~both["Ticker"].isin(failed)]
+    # Only from a book-checked list: its earnings, which order The List, must be checked too.
+    book_only = both.groupby("Ticker", sort=False)["_Book"].transform("all").astype(bool)
+    earnings = both.get("Check_Earnings_Pass", pd.Series(None, index=both.index, dtype=object))
+    both = both[~book_only | _is_true(earnings)]
+    # No banks, insurers, REITs or holdings (user's choices, Nov 9, 2026); fee businesses such as Visa or Moody's stay.
     model = both.get("Business_Model", pd.Series(None, index=both.index, dtype=object))
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
     if both.empty:
-        return df.iloc[0:0].assign(The_List_From=None, The_List_Order=None, Grade_Pass=None, Check_Pass=None)
+        return empty()
+    # Place in its list among the members that qualify here (a list whose first rows fail keeps its seats).
+    both = both.assign(_Place=both.groupby("_From", sort=False).cumcount())
     sources = both.groupby("Ticker", sort=False)["_From"].agg(" · ".join)
-    out = both.drop_duplicates("Ticker").drop(columns="_From")
-    out = out.assign(The_List_From=out["Ticker"].map(sources))
-    # The yield itself, negated, not a rank: the page merges this frame with its "No dividend tax" one, and ranks
-    # counted in two frames would interleave wrongly.
-    order = -pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce")
-    return out.assign(The_List_Order=order).sort_values("The_List_Order", na_position="last").head(n)
+    place = both.groupby("Ticker", sort=False)["_Place"].min()
+    out = both.drop_duplicates("Ticker").drop(columns=["_From", "_Book", "_Place"])
+    out = out.assign(The_List_From=out["Ticker"].map(sources), _Place=out["Ticker"].map(place),
+                     _Yield=-pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce"))  # fmt: skip
+    out = out.sort_values(["_Place", "_Yield"], kind="stable", na_position="last").drop(columns=["_Place", "_Yield"])
+    # Counted over every qualifier before the cut: the "No dividend tax" rows (its members at 0% withholding,
+    # `Tab.zero_rerun`) come from the same uncut order, so the two frames interleave right.
+    return out.assign(The_List_Order=np.arange(1, len(out) + 1)).head(n)
 
 
 # The front page's rows of tabs (user's choice, Nov 3, 2026: 14 tabs side by side did not say where to start): key ->
@@ -220,8 +263,8 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "Every company on Cheap and good, Cheapest, Best businesses, Balance sheet plays, Income or Compounders that "
-        "also passed both AI checks: its moat and management, and its numbers.",
+        "The best 20 companies on Cheap and good, Boring businesses, Cheapest, Best businesses, Balance sheet plays, "
+        "Income or Compounders that also passed both AI checks: its moat and management, and its numbers.",
     ),
     "start": (
         "Start here",
@@ -250,7 +293,7 @@ GROUPS = {
 # fmt: off
 TABS: tuple[Tab, ...] = (
     Tab(THE_LIST, "the_list", "hl-the-list", sc.THE_LIST_COLUMNS, the_list, group="list", n=THE_LIST_N,
-        sort="The_List_Order", checked=False),
+        sort="The_List_Order", checked=False, zero_rerun=False),
     Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
         ranked=True),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
@@ -413,6 +456,9 @@ class Highlights:
     def shown(self, name: str, zero: bool = False) -> pd.DataFrame:
         """The rows tab `name` shows (`zero`: among zero-withholding companies only), in the list's own order."""
         pick, n = self.picks[name]
+        if zero and not TAB[name].zero_rerun:
+            members = pick(self.lists, len(self.lists))
+            return members[members["Dividend_WHT"] == 0].head(n)
         return pick(self.zero if zero else self.lists, n)
 
     def total(self, name: str) -> int:
@@ -456,11 +502,19 @@ class Highlights:
 
     def check_pool(self) -> list[tuple[str, str]]:
         """The (ticker, kind) checks the lists need: every company a tab shows that clears that tab's moat and
-        management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere."""
+        management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere; a
+        Balance sheet plays member on its earnings too, which The List orders by (`the_list`)."""
         pub = self.published()
         passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True)]  # noqa: E712
-        pairs = ((t, grading.check_kind(name)) for t, name in zip(passed["Ticker"], passed["List"], strict=True))
-        return list(dict.fromkeys((t, k) for t, k in pairs if k is not None))
+        kept_off = set(self.frame.loc[sc.kind(self.frame).isin(THE_LIST_LEFT_OUT), "Ticker"])  # never on The List
+        pairs = []
+        for t, name in zip(passed["Ticker"], passed["List"], strict=True):
+            kind = grading.check_kind(name)
+            if kind is not None:
+                pairs.append((t, kind))
+            if kind == grading.BOOK and name in THE_LIST_SOURCES and t not in kept_off:
+                pairs.append((t, grading.EARNINGS))
+        return list(dict.fromkeys(pairs))
 
 
 def published_lists(df: pd.DataFrame, cfg: Settings, bench: pd.DataFrame | None = None) -> pd.DataFrame:
