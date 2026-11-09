@@ -1,5 +1,5 @@
-# Yahoo industries left out of every screened highlight list (every tab except the three pure score rankings:
-# Cheap and good, Cheapest, Best businesses) so the screens focus on durable, boring businesses whose business model
+# Yahoo industries left out of every highlight list (every tab, the three score rankings too since Nov 9, 2026)
+# so the lists focus on durable, boring businesses whose business model
 # AI cannot easily substitute or disrupt (`report.screens.ai_resilient`).
 # Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`. Editable: one Yahoo industry per
 # line, as Yahoo spells it.

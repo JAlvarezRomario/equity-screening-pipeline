@@ -51,7 +51,7 @@ class Tab:
     heading: str | None = None  # the section heading, when not the name
     ranked: bool = False  # a pure ranking: half the market would "qualify"
     funnel: Callable[[pd.DataFrame, float], list[tuple[str, int]]] | None = None  # counts after each test
-    ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (not the pure scores)
+    ai_screen: bool = True  # drawn only from companies past `screens.ai_resilient` (every tab since Nov 9, 2026)
     checked: bool = True  # its rows carry the check of its kind (`with_check`); off for a list of checked lists
     # Its "No dividend tax" rows: the tab re-run among zero-withholding companies (True), or its own members at 0%
     # withholding (False: The List, whose sources' zero-withholding re-runs would hold companies nobody graded).
@@ -199,10 +199,15 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # Later the same day (user's choices): five sources only (Boring businesses and Income out: 62 -> 53 qualified), and
 # both grades at least `THE_LIST_MIN_GRADE` (3.25: 53 -> 43; a 3.0 on either is "holds up", not more). A rule that
 # any caution of the check fails was rejected: it left 4, none of them cheap.
+# Nov 10, 2026 (user's choices, after a review): the two raw-score lists out (Best businesses brought 9 of 25 at a
+# 2.8-4.5% yield, rank about 2,500; Cheapest a Quality 41), so The List draws only from lists that ask price and
+# quality together; and every member, whatever its source: owner yield on the share price at least
+# `THE_LIST_MIN_YIELD`, both grades above `THE_LIST_MIN_GRADE`, past the AI screen and the 6-month price floor.
 THE_LIST = "The List"
-THE_LIST_SOURCES = ("Cheap and good", "Cheapest", "Best businesses", "Below book", "Compounders")
-THE_LIST_N = 25  # user's choice, Nov 9, 2026: five turns of the five source lists; the page counts every qualifier
-THE_LIST_MIN_GRADE = 3.25  # moat and management both at least this, whatever the source list's own bar
+THE_LIST_SOURCES = ("Cheap and good", "Below book", "Compounders")
+THE_LIST_N = 25  # user's choice, Nov 9, 2026; the page counts every qualifier
+THE_LIST_MIN_GRADE = 3.0  # moat and management both strictly above this, whatever the source list's own bar
+THE_LIST_MIN_YIELD = 6.0  # `EPV_Per_Share_Yield`, %: at least this; a blank fails
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
 # holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
@@ -220,12 +225,12 @@ def _is_false(values) -> pd.Series:
 
 
 def _graded_floor(rows: pd.DataFrame) -> pd.Series:
-    """Moat and management both at least `THE_LIST_MIN_GRADE`, False when ungraded: the floor every member of The
-    List clears, whatever its source's bar."""
+    """Moat and management both strictly above `THE_LIST_MIN_GRADE`, False when ungraded: the floor every member of
+    The List clears, whatever its source's bar."""
     blank = pd.Series(np.nan, index=rows.index)
     moat = pd.to_numeric(rows.get("Grade_Moat", blank), errors="coerce")
     mgmt = pd.to_numeric(rows.get("Grade_Mgmt", blank), errors="coerce")
-    return ((moat >= THE_LIST_MIN_GRADE) & (mgmt >= THE_LIST_MIN_GRADE)).astype(bool)
+    return ((moat > THE_LIST_MIN_GRADE) & (mgmt > THE_LIST_MIN_GRADE)).astype(bool)
 
 
 def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
@@ -237,8 +242,11 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     comes before any list's second; a tie goes to the higher owner yield on the share price. `The_List_Why` names
     each list with that place ("Cheapest #2 · Balance sheet plays #1"). Left out: a company whose check failed on any
     source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
-    (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of market cap with management under
-    `THE_LIST_CASH_MGMT`."""
+    (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of
+    market cap with management under `THE_LIST_CASH_MGMT`; an owner yield on the share price under
+    `THE_LIST_MIN_YIELD` (a blank fails); an AI-fragile industry (`screens.ai_resilient`); a share down more than
+    `LIST_MIN_MOMENTUM` % over 6 months (a blank passes). The last two are the sources' rules already, stated here
+    so The List holds them whatever its sources do."""
     parts = []
     for name in THE_LIST_SOURCES:
         tab = TAB[name]
@@ -269,6 +277,11 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
     hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
     both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
+    both = both[
+        (sc._num(both, "EPV_Per_Share_Yield") >= THE_LIST_MIN_YIELD)
+        & sc.ai_resilient(both)
+        & ~(sc._num(both, "Momentum_6M") < LIST_MIN_MOMENTUM)
+    ]
     if both.empty:
         return empty()
     # Place in its list among the members that qualify here (a list whose first rows fail keeps its seats).
@@ -298,13 +311,13 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The best 25 companies on Cheap and good, Cheapest, Best businesses, Balance sheet plays or Compounders that "
-        "also passed both AI checks: its moat and management, and its numbers.",
+        "The best 25 companies on Cheap and good, Balance sheet plays or Compounders that earn at least "
+        f"{THE_LIST_MIN_YIELD:g}% on the share price and also passed both AI checks: its moat and management, and its "
+        "numbers.",
     ),
     "start": (
         "Start here",
-        "The answer: cheap and good at once, and boring businesses worth research in depth (sound now, or in "
-        "temporary trouble).",
+        "Cheap and good at once, and boring businesses worth research in depth (sound now, or in temporary trouble).",
     ),
     "style": (
         "By style",

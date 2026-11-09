@@ -447,9 +447,9 @@ def _owner_per_share(df: pd.DataFrame, years: list[str]) -> pd.DataFrame:
     return (owner / shares).rename(columns=lambda p: f"OE_PS_{p}")
 
 
-# AI screen for every screened highlight list (the three pure rankings Cheap and good, Cheapest and Best businesses
-# are not screened; user's choice, Nov 4, 2026): industries whose business model AI can substitute or disrupt
-# (`AI_FRAGILE`) stay out so the screens focus on boring, durable businesses. Display only; constants here, as the
+# AI screen for every highlight list (user's choice, Nov 4, 2026; the three score rankings Cheap and good, Cheapest
+# and Best businesses too since Nov 9, 2026): industries whose business model AI can substitute or disrupt
+# (`AI_FRAGILE`) stay out so the lists focus on boring, durable businesses. Display only; constants here, as the
 # Shortlist's, so the method fingerprint stays as it is.
 AI_FRAGILE = "ai_fragile.txt"
 FAST_AVOID_KEYS = frozenset({industry_key("Biotechnology")})
