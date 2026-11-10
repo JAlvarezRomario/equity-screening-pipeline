@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from fq import grading
-from fq.fx import FALLBACK_BORROW_RATE, get_borrow_rate, get_treasury_yield
+from fq.fx import FALLBACK_BORROW_RATE, FALLBACK_TREASURY_YIELD, get_borrow_rate, get_treasury_yield
 from fq.metrics.capital import NCAV_EXCLUDED_INDUSTRIES
 from fq.ranking import top_n
 from fq.report import screens as sc
@@ -202,12 +202,15 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # Nov 10, 2026 (user's choices, after a review): the two raw-score lists out (Best businesses brought 9 of 25 at a
 # 2.8-4.5% yield, rank about 2,500; Cheapest a Quality 41), so The List draws only from lists that ask price and
 # quality together; and every member, whatever its source: owner yield on the share price at least
-# `THE_LIST_MIN_YIELD`, both grades above `THE_LIST_MIN_GRADE`, past the AI screen and the 6-month price floor.
+# the 10-year Treasury yield (`Treasury_Yield`; user's choice, Nov 10, 2026, was 6% the same day: a share must earn
+# more than the risk-free bond), both grades above `THE_LIST_MIN_GRADE`, past the AI screen and the 6-month price floor.
 THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Below book", "Compounders")
 THE_LIST_N = 25  # user's choice, Nov 9, 2026; the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.0  # moat and management both strictly above this, whatever the source list's own bar
-THE_LIST_MIN_YIELD = 6.0  # `EPV_Per_Share_Yield`, %: at least this; a blank fails
+# A seat from Compounders asks this owner yield on the share price instead of the Treasury (user's choice, Nov 10,
+# 2026): a compounder's growth is part of its return, so it may yield less than the bond today.
+THE_LIST_COMPOUNDER_YIELD = 4.0
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
 # holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
@@ -233,6 +236,14 @@ def _graded_floor(rows: pd.DataFrame) -> pd.Series:
     return ((moat > THE_LIST_MIN_GRADE) & (mgmt > THE_LIST_MIN_GRADE)).astype(bool)
 
 
+def the_list_floor(rows: pd.DataFrame) -> pd.Series:
+    """The owner yield on the share price each source row of The List must reach: the 10-year Treasury yield
+    (`Treasury_Yield`, else `fx.FALLBACK_TREASURY_YIELD`), or `THE_LIST_COMPOUNDER_YIELD` for a row from Compounders."""
+    bond = sc._num(rows, "Treasury_Yield").fillna(FALLBACK_TREASURY_YIELD)
+    source = rows["_From"] if "_From" in rows.columns else pd.Series(None, index=rows.index, dtype=object)
+    return bond.where(source != TAB["Compounders"].name, THE_LIST_COMPOUNDER_YIELD)
+
+
 def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """The List: the members of `THE_LIST_SOURCES` (each tab's rows as shown, `Tab.n`) past both its moat and
     management bar (`Grade_Pass`) and its check (`Check_Pass`), and past the common grade floor (`_graded_floor`),
@@ -244,7 +255,8 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
     (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of
     market cap with management under `THE_LIST_CASH_MGMT`; an owner yield on the share price under
-    `THE_LIST_MIN_YIELD` (a blank fails); an AI-fragile industry (`screens.ai_resilient`); a share down more than
+    the 10-year Treasury yield (`Treasury_Yield`, stored by `Highlights.compute`; `fx.FALLBACK_TREASURY_YIELD` in a
+    frame without it), or `THE_LIST_COMPOUNDER_YIELD` for a seat from Compounders (a blank yield fails); an AI-fragile industry (`screens.ai_resilient`); a share down more than
     `LIST_MIN_MOMENTUM` % over 6 months (a blank passes). The last two are the sources' rules already, stated here
     so The List holds them whatever its sources do."""
     parts = []
@@ -278,7 +290,7 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
     both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
     both = both[
-        (sc._num(both, "EPV_Per_Share_Yield") >= THE_LIST_MIN_YIELD)
+        (sc._num(both, "EPV_Per_Share_Yield") >= the_list_floor(both))
         & sc.ai_resilient(both)
         & ~(sc._num(both, "Momentum_6M") < LIST_MIN_MOMENTUM)
     ]
@@ -311,8 +323,9 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The best 25 companies on Cheap and good, Balance sheet plays or Compounders that earn at least "
-        f"{THE_LIST_MIN_YIELD:g}% on the share price and also passed both AI checks: its moat and management, and its "
+        "The best 25 companies on Cheap and good, Balance sheet plays or Compounders that earn more on the share "
+        f"price than the 10-year Treasury pays ({THE_LIST_COMPOUNDER_YIELD:g}% for a compounder) and also passed both "
+        "AI checks: its moat and management, and its "
         "numbers.",
     ),
     "start": (
@@ -532,7 +545,8 @@ class Highlights:
         treasury = get_treasury_yield(cfg.data_dir / "treasury_yield.json")
         hurdle = sc.bond_hurdle(treasury)
         borrow = get_borrow_rate(cfg.data_dir / "borrow_rate.json")
-        frame = frame.assign(Borrow_Rate=borrow)  # Income's loan spread (shown), kept by every subset
+        # Income's loan spread (shown) and The List's yield floor, kept by every subset
+        frame = frame.assign(Borrow_Rate=borrow, Treasury_Yield=treasury)
         liquid = listable(frame, cfg, price_floor=False)
         return cls(frame, listable(frame, cfg), liquid, treasury, hurdle, highlight_picks(hurdle), borrow)
 

@@ -24,8 +24,8 @@ from fq.report.highlights import (
     SHORTLIST,
     TABS,
     THE_LIST_CASH_MGMT,
+    THE_LIST_COMPOUNDER_YIELD,
     THE_LIST_MIN_GRADE,
-    THE_LIST_MIN_YIELD,
     THE_LIST_N,
     Highlights,
     Tab,
@@ -98,11 +98,13 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
 SPREAD_EXAMPLES = ("Brazil", "South Africa", "India", "China", "Japan", "Germany")
 
 
-def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: float) -> dict:
+def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: float, treasury: float | None) -> dict:
     """The thresholds the tabs' sentences quote (`templates/list_rules.html.j2`), formatted once."""
     g = lambda v: f"{v:g}"  # noqa: E731
     return {
         "among": " among the benchmark's companies" if has_bench else "",
+        "treasury": "n/a" if treasury is None else f"{treasury:.2f}",
+        "the_list_compounder_yield": g(THE_LIST_COMPOUNDER_YIELD),
         "top": f"{cfg.highlight_top_fraction:.0%}",
         "n": g(sc.SHORTLIST_N), "fcf": g(sc.SHORTLIST_MIN_FCF_POS), "beneish": g(sc.SHORTLIST_MAX_BENEISH),
         "accruals": g(sc.SHORTLIST_MAX_ACCRUALS), "incremental": g(sc.SHORTLIST_MIN_INCREMENTAL_ROIC),
@@ -144,7 +146,6 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
-        "the_list_yield": g(THE_LIST_MIN_YIELD),
         "list_momentum": g(-LIST_MIN_MOMENTUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
@@ -316,7 +317,7 @@ def build_site(
         histograms=index_charts.histogram_divs(df, bench, held=held),
         tabs=tab_views(h),
         groups=tab_groups(top),
-        rule=_rule_values(cfg, h.hurdle, has_bench, h.borrow_rate),
+        rule=_rule_values(cfg, h.hurdle, has_bench, h.borrow_rate, h.treasury_yield),
         top_list_lead=TOP_LIST_LEAD,
         top_list_note=TOP_LIST_NOTE.format(
             top=top,

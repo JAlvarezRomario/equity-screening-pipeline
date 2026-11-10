@@ -411,13 +411,18 @@ def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch
 
 def test_the_list_asks_every_member_a_yield_on_the_share_price_grades_above_3_no_ai_risk_no_fall(monkeypatch):
     # User's choices, Nov 10, 2026: the raw-score lists no longer feed it, and every member, whatever its source,
-    # earns at least 6% on the share price, has both grades above 3, is past the AI screen and the price floor.
-    comp = pd.DataFrame([_row("OK", 9.0), _row("THIN", 5.9), _row("BLANK", None), _row("THREE", 8.0, mgmt=3.0),
-                         _row("SOFT", 8.5, industry="Software - Application"), _row("FELL", 8.2, Momentum_6M=-25.0),
-                         _row("DIP", 7.0, Momentum_6M=-15.0)])  # fmt: skip
+    # earns at least the 10-year Treasury yield on the share price (was 6% the same day; 4% for a seat from
+    # Compounders), has both grades above 3, is past the AI screen and the price floor.
+    cheap = pd.DataFrame([_row("OK", 9.0), _row("THIN", 4.4), _row("BLANK", None), _row("THREE", 8.0, mgmt=3.0),
+                          _row("SOFT", 8.5, industry="Software - Application"), _row("FELL", 8.2, Momentum_6M=-25.0),
+                          _row("DIP", 7.0, Momentum_6M=-15.0)]).assign(Treasury_Yield=4.5)  # fmt: skip
+    comp = pd.DataFrame([_row("GROWS", 4.2), _row("SLOW", 3.9)]).assign(Treasury_Yield=4.5)
     raw = pd.DataFrame([_row("QUALITY", 12.0), _row("VALUE", 11.0)])
-    hl = _sources(monkeypatch, {"Compounders": comp, "Best businesses": raw, "Cheapest": raw})
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "DIP"]
+    sources = {"Cheap and good": cheap, "Compounders": comp, "Best businesses": raw, "Cheapest": raw}
+    hl = _sources(monkeypatch, sources)
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "GROWS", "DIP"]
+    hl = _sources(monkeypatch, {"Cheap and good": cheap.assign(Treasury_Yield=7.5)})
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK"]  # the bond moves the floor
 
 
 def test_the_lists_mix_sets_its_shares_against_the_markets():
