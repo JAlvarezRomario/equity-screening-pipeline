@@ -88,6 +88,15 @@ def tags(row: pd.Series) -> list[dict]:
         )
     if flag("Insufficient_Data"):
         add("insufficient data", "Not enough data to score Value or Quality: not ranked.")
+    record = short_record(row)
+    if record:
+        add("short record", f"{record}: on no list until the record is longer (a new issue's seller picks the date and "
+            "the figures). Scored and ranked as usual.")  # fmt: skip
+    fell = pd.to_numeric(row.get("Momentum_6M"), errors="coerce")
+    if fell < FALLEN_PILL_MIN:  # no badge: the company page shows the 6-month change as a chip
+        out.append({"word": f"down {-fell:.0f}% in 6m", "why": "The share fell this much over 6 months: shown, never "
+                    "tested. Read why before buying; the figures may not show it yet.", "cls": "", "mark": "",
+                    "badge": False})  # fmt: skip
     if isinstance(row.get("Model_Review"), str):
         add("model to confirm", f"{row['Model_Review']}. Scored, but out of the highlight lists until the business "
             "model is confirmed.")  # fmt: skip
@@ -106,6 +115,23 @@ def company_flags(row: pd.Series) -> list[tuple[str, str]]:
     return [(t["word"][0].upper() + t["word"][1:], t["why"]) for t in tags(row) if t.get("badge", True)]
 
 
+def short_record(row: pd.Series) -> str:
+    """Why one company fails the lists' record test (`screens.has_record`), or "" when it passes."""
+    from fq.report import screens as sc  # screens imports format, which imports this module
+
+    frame = row.to_frame().T
+    if bool(sc.has_record(frame).iloc[0]):
+        return ""
+    years, listed = int(sc.roic_years(frame).iloc[0]), sc.listed_years(frame).iloc[0]
+    parts = [f"{years} annual report{'s' if years != 1 else ''} with a return on capital"]
+    if pd.notna(listed):
+        parts.append(f"share counts or dividends over {listed:.0f} year{'s' if listed != 1 else ''}")
+    return " and ".join(parts)
+
+
+# A share down more than this % over 6 months carries a pill (Nov 10, 2026: shown, never tested, since the lists'
+# price floor went).
+FALLEN_PILL_MIN = -20.0
 BUYBACK_PILL_MIN = 2.0  # %/yr: a compounder that also shrinks its share count (the former Compounder-cannibals tab)
 NET_NET_PILL_MIN = 100.0  # NCAV / price, %: the "net-net" pill (Graham)
 WHT0_PILL = ("No withholding tax on dividends paid to non-resident individuals in its country (statutory rate, "

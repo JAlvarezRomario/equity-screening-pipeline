@@ -56,9 +56,6 @@ class Tab:
     # Its "No dividend tax" rows: the tab re-run among zero-withholding companies (True), or its own members at 0%
     # withholding (False: The List, whose sources' zero-withholding re-runs would hold companies nobody graded).
     zero_rerun: bool = True
-    # Drawn only from shares not down more than `LIST_MIN_MOMENTUM` over 6 months (False: Temporary trouble, whose
-    # point is a business in trouble now, which a fallen price usually shows; user's choice, Nov 9, 2026).
-    price_floor: bool = True
     # A ranked walk's eligible companies (the count above it), when not what the walk returns (it stops at a row cap).
     eligible: Callable[[pd.DataFrame], pd.DataFrame] | None = None
 
@@ -204,13 +201,14 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # quality together; and every member, whatever its source: owner yield on the share price at least
 # the 10-year Treasury yield (`Treasury_Yield`; user's choice, Nov 10, 2026, was 6% the same day: a share must earn
 # more than the risk-free bond), both grades above `THE_LIST_MIN_GRADE`, past the AI screen and the 6-month price floor.
+# Later the same day, after a review "as Graham, Buffett, Munger and Greenblatt" (user's choices): one floor for every
+# seat, the Treasury plus the home country's sovereign spread (`Sovereign_Spread`, as Boring businesses asks; the 4%
+# seat for Compounders is gone: growth is Quality's, counted once), no target count (the page says how many passed),
+# and "nothing breaking now" (`screens.nothing_breaking`) in place of the price floor.
 THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Below book", "Compounders")
-THE_LIST_N = 25  # user's choice, Nov 9, 2026; the page counts every qualifier
+THE_LIST_N = 25  # a row cap, not a target (Nov 10, 2026); the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.0  # moat and management both strictly above this, whatever the source list's own bar
-# A seat from Compounders asks this owner yield on the share price instead of the Treasury (user's choice, Nov 10,
-# 2026): a compounder's growth is part of its return, so it may yield less than the bond today.
-THE_LIST_COMPOUNDER_YIELD = 4.0
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
 # holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
@@ -237,11 +235,11 @@ def _graded_floor(rows: pd.DataFrame) -> pd.Series:
 
 
 def the_list_floor(rows: pd.DataFrame) -> pd.Series:
-    """The owner yield on the share price each source row of The List must reach: the 10-year Treasury yield
-    (`Treasury_Yield`, else `fx.FALLBACK_TREASURY_YIELD`), or `THE_LIST_COMPOUNDER_YIELD` for a row from Compounders."""
+    """The owner yield on the share price every member of The List must reach: the 10-year Treasury yield
+    (`Treasury_Yield`, else `fx.FALLBACK_TREASURY_YIELD`) plus the home country's sovereign spread
+    (`Sovereign_Spread`, `universe.sovereign_spread`; a blank counts as 0, the US)."""
     bond = sc._num(rows, "Treasury_Yield").fillna(FALLBACK_TREASURY_YIELD)
-    source = rows["_From"] if "_From" in rows.columns else pd.Series(None, index=rows.index, dtype=object)
-    return bond.where(source != TAB["Compounders"].name, THE_LIST_COMPOUNDER_YIELD)
+    return bond + sc._num(rows, "Sovereign_Spread").fillna(0.0)
 
 
 def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
@@ -254,11 +252,10 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     each list with that place ("Cheapest #2 · Balance sheet plays #1"). Left out: a company whose check failed on any
     source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
     (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of
-    market cap with management under `THE_LIST_CASH_MGMT`; an owner yield on the share price under
-    the 10-year Treasury yield (`Treasury_Yield`, stored by `Highlights.compute`; `fx.FALLBACK_TREASURY_YIELD` in a
-    frame without it), or `THE_LIST_COMPOUNDER_YIELD` for a seat from Compounders (a blank yield fails); an AI-fragile industry (`screens.ai_resilient`); a share down more than
-    `LIST_MIN_MOMENTUM` % over 6 months (a blank passes). The last two are the sources' rules already, stated here
-    so The List holds them whatever its sources do."""
+    market cap with management under `THE_LIST_CASH_MGMT`; an owner yield on the share price under `the_list_floor`
+    (the 10-year Treasury, stored by `Highlights.compute`, plus the country's sovereign spread; a blank yield fails);
+    something breaking now (`screens.nothing_breaking`); an AI-fragile industry (`screens.ai_resilient`, the sources'
+    rule already, stated here so The List holds it whatever its sources do)."""
     parts = []
     for name in THE_LIST_SOURCES:
         tab = TAB[name]
@@ -292,7 +289,7 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     both = both[
         (sc._num(both, "EPV_Per_Share_Yield") >= the_list_floor(both))
         & sc.ai_resilient(both)
-        & ~(sc._num(both, "Momentum_6M") < LIST_MIN_MOMENTUM)
+        & sc.nothing_breaking(both)
     ]
     if both.empty:
         return empty()
@@ -323,14 +320,13 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The best 25 companies on Cheap and good, Balance sheet plays or Compounders that earn more on the share "
-        f"price than the 10-year Treasury pays ({THE_LIST_COMPOUNDER_YIELD:g}% for a compounder) and also passed both "
-        "AI checks: its moat and management, and its "
-        "numbers.",
+        "The companies on Cheap and good, Balance sheet plays or Compounders that earn more on the share price than "
+        "the 10-year Treasury plus their country's risk, with nothing breaking now, and that passed both AI checks: "
+        "their moat and management, and their numbers. However many that is: there is no target.",
     ),
     "start": (
         "Start here",
-        "Cheap and good at once, and boring businesses worth research in depth (sound now, or in temporary trouble).",
+        "Cheap and good at once, and boring businesses worth research in depth (sound now, or in trouble now).",
     ),
     "style": (
         "By style",
@@ -360,7 +356,7 @@ TABS: tuple[Tab, ...] = (
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N,
-        price_floor=False),
+        label="In trouble now"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
     Tab("Low beta", "low_beta", "hl-low-beta", sc.LOW_BETA_COLUMNS, _plain(sc.low_beta_list), sort="Low_Beta_Order"),
@@ -497,20 +493,19 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     return df
 
 
-# A share that fell more than this % over 6 months (`Momentum_6M`) is on no list (user's choice, Nov 9, 2026: first on
-# The List, the same day on every list: a falling price can be news the figures do not show yet). Display only: the
-# second place the price path is read, after Low beta's beta, never a score, rank or flag; a blank passes. On The
-# List, 8 of 43 on Nov 9, 2026.
-LIST_MIN_MOMENTUM = -20.0
+# Nov 9, 2026: a share down more than 20% over 6 months was on no list (but Temporary trouble). Removed Nov 10, 2026
+# (user's choice, after a review "as Graham, Buffett, Munger and Greenblatt"): it removed 201 of the best fifth, the
+# cheaper ones (median Value 82 against 75), and let Mr. Market veto a list; The List asks "nothing breaking now"
+# instead (`screens.nothing_breaking`), and a fall shows as a pill (`pills.FALLEN_PILL_MIN`).
 
 
-def listable(df: pd.DataFrame, cfg: Settings, price_floor: bool = True) -> pd.DataFrame:
+def listable(df: pd.DataFrame, cfg: Settings) -> pd.DataFrame:
     """The rows a highlight list may show: median daily traded value (`Traded_Value_USD`) at least
-    `list_min_traded_usd`, a slice nobody can buy beats nothing, and (`price_floor`) a share price not down more than
-    `LIST_MIN_MOMENTUM` % over 6 months (`Momentum_6M`); a missing figure passes. The full ranking keeps all."""
+    `list_min_traded_usd`, a slice nobody can buy beats nothing (a missing figure passes), and a record
+    (`screens.has_record`: about 4 annual returns and 5 years listed, Nov 10, 2026). The full ranking keeps all."""
     traded = pd.to_numeric(df["Traded_Value_USD"], errors="coerce") if "Traded_Value_USD" in df.columns else None
     keep = pd.Series(True, index=df.index) if traded is None else ~(traded < cfg.list_min_traded_usd)
-    return df[keep & ~(price_floor & (sc._num(df, "Momentum_6M") < LIST_MIN_MOMENTUM))]
+    return df[keep & sc.has_record(df)]
 
 
 @dataclass
@@ -521,23 +516,19 @@ class Highlights:
 
     frame: pd.DataFrame
     lists: pd.DataFrame
-    liquid: pd.DataFrame  # `lists` without the price floor (`Tab.price_floor` False)
     treasury_yield: float | None
     hurdle: float
     picks: dict[str, tuple[Pick, int]]
     borrow_rate: float = FALLBACK_BORROW_RATE  # what a euro margin loan costs, % (`fx.get_borrow_rate`)
     zero: pd.DataFrame = field(init=False)
-    liquid_zero: pd.DataFrame = field(init=False)
 
     def __post_init__(self) -> None:
         self.zero = self.lists[self.lists["Dividend_WHT"] == 0]
-        self.liquid_zero = self.liquid[self.liquid["Dividend_WHT"] == 0]
 
     def _rows(self, name: str, zero: bool = False) -> pd.DataFrame:
-        """The rows tab `name` may draw from: with or without the price floor (`Tab.price_floor`), zero-withholding
-        only when `zero`."""
-        floor = TAB[name].price_floor
-        return (self.zero if floor else self.liquid_zero) if zero else (self.lists if floor else self.liquid)
+        """The rows tab `name` may draw from: `lists`, zero-withholding only when `zero` (every tab the same since the
+        price floor went, Nov 10, 2026)."""
+        return self.zero if zero else self.lists
 
     @classmethod
     def compute(cls, df: pd.DataFrame, cfg: Settings, bench: pd.DataFrame | None = None) -> Highlights:
@@ -547,8 +538,7 @@ class Highlights:
         borrow = get_borrow_rate(cfg.data_dir / "borrow_rate.json")
         # Income's loan spread (shown) and The List's yield floor, kept by every subset
         frame = frame.assign(Borrow_Rate=borrow, Treasury_Yield=treasury)
-        liquid = listable(frame, cfg, price_floor=False)
-        return cls(frame, listable(frame, cfg), liquid, treasury, hurdle, highlight_picks(hurdle), borrow)
+        return cls(frame, listable(frame, cfg), treasury, hurdle, highlight_picks(hurdle), borrow)
 
     def shown(self, name: str, zero: bool = False) -> pd.DataFrame:
         """The rows tab `name` shows (`zero`: among zero-withholding companies only), in the list's own order."""

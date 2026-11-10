@@ -19,12 +19,10 @@ from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_compa
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
 from fq.report.highlights import (
     GROUPS,
-    LIST_MIN_MOMENTUM,
     MIN_ALL_PASS,
     SHORTLIST,
     TABS,
     THE_LIST_CASH_MGMT,
-    THE_LIST_COMPOUNDER_YIELD,
     THE_LIST_MIN_GRADE,
     THE_LIST_N,
     Highlights,
@@ -69,13 +67,14 @@ def _write_index(index: str, out_dir: Path) -> None:
 RANKING_EAGER_ROWS = 500
 
 # The one sentence shown under the Highlights heading; `TOP_LIST_NOTE` follows it in a fold.
-TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking, and shares down more than "
-                 f"{-LIST_MIN_MOMENTUM:g}% over 6 months. Those that fall short on the moat and "
+TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking, and companies with fewer than "
+                 f"{sc.RECORD_MIN_YEARS} annual reports or listed under {sc.LISTED_MIN_YEARS} years. Those that fall "
+                 "short on the moat and "
                  "management grade (see above), or whose numbers an AI check finds flattered, are folded away under "
                  "each list, not deleted.")  # fmt: skip
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
-                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day, shares down more than {momentum}% over 6 months (a falling price can be news the figures do not show yet; with Low beta's beta, the only places the share price is read, never in a score or rank) and business "
+                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day, companies with fewer than {record_years} annual reports on file or a share or dividend history under {listed_years} years (a new issue's seller picks the date and the figures), and business "
                  "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
                  "REITs and utilities are judged against their own kind in the By kind lists, holdings in Below "
                  "book. Every list also leaves out "
@@ -87,7 +86,7 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "Each company a "
                  "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
                  "own knowledge and this site's figures: those with both grades at least {both} (Boring businesses, "
-                 "Temporary trouble, Cheapest and Best businesses set bars of their own), are the list; the others "
+                 "In trouble now, Cheapest and Best businesses set bars of their own), are the list; the others "
                  "stay on it, folded away under the table, and the list takes the next company that qualifies in "
                  "their place, so its rows that pass stay full while enough qualify. Cheap and good, Cheapest and "
                  "Best businesses walk further down their ranking until at least {min_pass} pass every test. A grade changes no score "
@@ -104,7 +103,6 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
     return {
         "among": " among the benchmark's companies" if has_bench else "",
         "treasury": "n/a" if treasury is None else f"{treasury:.2f}",
-        "the_list_compounder_yield": g(THE_LIST_COMPOUNDER_YIELD),
         "top": f"{cfg.highlight_top_fraction:.0%}",
         "n": g(sc.SHORTLIST_N), "fcf": g(sc.SHORTLIST_MIN_FCF_POS), "beneish": g(sc.SHORTLIST_MAX_BENEISH),
         "accruals": g(sc.SHORTLIST_MAX_ACCRUALS), "incremental": g(sc.SHORTLIST_MIN_INCREMENTAL_ROIC),
@@ -120,7 +118,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "grade_best": g(grading.BEST_MIN_BOTH), "cheapest_both": g(grading.CHEAPEST_MIN_BOTH),
         "cheap_yield": g(sc.CHEAP_MIN_SHARE_YIELD),
         "beta_max": g(sc.LOW_BETA_MAX), "beta_revenue": g(-sc.LOW_BETA_MIN_REVENUE_WORST),
-        "beta_gm_sd": g(sc.LOW_BETA_MAX_GROSS_MARGIN_SD), "beta_roic_var": g(sc.LOW_BETA_MAX_ROIC_VARIABILITY),
+        "beta_gm_sd": g(sc.LOW_BETA_MAX_GROSS_MARGIN_SD), "beta_roic": g(sc.LOW_BETA_MIN_ROIC), "beta_roic_var": g(sc.LOW_BETA_MAX_ROIC_VARIABILITY),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "asset_min_roic": g(cfg.asset_play_min_roic),
         "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),
@@ -146,7 +144,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
-        "list_momentum": g(-LIST_MIN_MOMENTUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
+        "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
@@ -322,7 +320,8 @@ def build_site(
         top_list_note=TOP_LIST_NOTE.format(
             top=top,
             liquid=f"${cfg.list_min_traded_usd / 1e3:,.0f}k",
-            momentum=f"{-LIST_MIN_MOMENTUM:g}",
+            record_years=sc.RECORD_MIN_YEARS,
+            listed_years=sc.LISTED_MIN_YEARS,
             cheap_yield=f"{sc.CHEAP_MIN_SHARE_YIELD:g}",
             both=f"{grading.MIN_BOTH:g}",
             min_pass=MIN_ALL_PASS,

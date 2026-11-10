@@ -904,11 +904,11 @@ def test_low_beta_keeps_a_steady_share_and_leaves_out_each_failure():
     ok = {"Financial_Mode": False, "Cyclical": False, "beta": 0.3, "EPV_Per_Share_Yield": 9.0, "Revenue_Worst_Change": 2.0,
           "FCF_Positive_Share": 100.0, "Owner_Trend": 1.0, "Gross_Margin_StdDev": 1.0, "ROIC_Variability": 0.02,
           "NetDebt_to_EBIT": 0.5, "Net_Debt": -1.0, "Rank": 1.0, "In_Best_Fraction": True, "industry": "Packaged Foods",
-          "Data_Suspect": False}  # fmt: skip
+          "Data_Suspect": False, "ROIC_Norm": 15.0}  # fmt: skip
     fails = {"HIGHBETA": {"beta": 0.6}, "NOBETA": {"beta": np.nan}, "CYCLE": {"Cyclical": True},
              "SALESFELL": {"Revenue_Worst_Change": -8.0}, "EVCHEAP": {"EPV_Per_Share_Yield": 6.0},
              "BUMPY": {"Gross_Margin_StdDev": 4.0}, "LOSSYEAR": {"FCF_Positive_Share": 80.0},
-             "BANK": {"Financial_Mode": True}}  # fmt: skip
+             "BANK": {"Financial_Mode": True}, "LOWROIC": {"ROIC_Norm": 9.0}}  # fmt: skip
     rows = [{**ok, "Ticker": "STEADY"}] + [{**ok, **change, "Ticker": t} for t, change in fails.items()]
     df = pd.DataFrame(rows)
     assert low_beta_list(df)["Ticker"].tolist() == ["STEADY"]

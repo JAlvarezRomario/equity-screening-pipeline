@@ -53,8 +53,11 @@ def test_real_estate_list_bounds_debt_and_never_tests_book():
 def test_below_book_takes_holdings_by_their_kind_and_orders_by_the_discount():
     df = _frame(6, Rank_Group=["ranked"] * 5 + ["holding"], Business_Model=["operating"] * 5 + ["holding"],
                 Rank=[1.0, 2, 3, 4, 5, np.nan], Asset_Play=[True, False, False, False, False, True],
-                Effective_NAV_to_Price=[110.0, np.nan, np.nan, np.nan, np.nan, 140.0])  # fmt: skip
+                Effective_NAV_to_Price=[110.0, np.nan, np.nan, np.nan, np.nan, 140.0], EPV_Per_Share_Yield=7.0)  # fmt: skip
     assert sc.asset_play_list(df)["Ticker"].tolist() == ["T5", "T0"]  # the deeper discount first, rank or not
+    # Nov 10, 2026: no cyclical, and a ranked company above 6% on the share price (a holding stays on its book).
+    assert sc.asset_play_list(df.assign(EPV_Per_Share_Yield=5.0))["Ticker"].tolist() == ["T5"]
+    assert sc.asset_play_list(df.assign(Cyclical=True)).empty
 
 
 def test_quadrant_draws_ranked_companies_only():

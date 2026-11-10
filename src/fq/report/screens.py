@@ -9,6 +9,7 @@ import pandas as pd
 
 from fq.fx import FALLBACK_BORROW_RATE
 from fq.metrics.common import us_terms
+from fq.metrics.long_history import parse_history
 from fq.ranking import combined_order, rankable, top_n, trusted
 from fq.report.dividend_record import COLUMNS as RECORD_COLUMNS
 from fq.report.dividend_record import dividend_record
@@ -41,6 +42,51 @@ THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1,
 def cheap_enough(df: pd.DataFrame) -> pd.DataFrame:
     """The companies whose owner yield on the share price is above `CHEAP_MIN_SHARE_YIELD` (the lists named cheap)."""
     return df[_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD]
+
+
+# A list needs a record (user's choice, Nov 10, 2026, from a review "as Graham, Buffett, Munger and Greenblatt": a
+# company with one or two annual reports scored a median Quality of 62-65 against 50 for a full record, and a quarter
+# of the top 100 had listed since about 2021; the seller of a new issue picks the date and the figures). Display only.
+RECORD_MIN_YEARS = 4  # annual ROIC values on file, of the `Settings.n_years` Yahoo serves
+LISTED_MIN_YEARS = 5  # years spanned by the yearly share counts or dividends (`listed_years`): about how long listed
+# Tickers that pass anyway: an old business under a new ticker (a new holding company, a spin-off with its history).
+RECORD_CONFIRMED = "record_confirmed.txt"
+
+
+@cache
+def _record_confirmed() -> frozenset[str]:
+    return frozenset(line.split()[0].upper() for line in _read_lines(RECORD_CONFIRMED))
+
+
+def roic_years(df: pd.DataFrame) -> pd.Series:
+    """How many annual `ROIC_<Y>` values a company has on file."""
+    return sum((_num(df, f"ROIC_{y}").notna().astype(int) for y in Settings().annual_years),
+               pd.Series(0, index=df.index))  # fmt: skip
+
+
+def _history_span(df: pd.DataFrame, col: str) -> pd.Series:
+    hist = df[col] if col in df.columns else pd.Series(None, index=df.index, dtype=object)
+    spans = [(s.index.max() - s.index.min()) if len(s := parse_history(v)) else np.nan for v in hist]
+    return pd.Series(spans, index=df.index, dtype=float)
+
+
+def listed_years(df: pd.DataFrame) -> pd.Series:
+    """About how long a company has been listed: the longer of the years its yearly share counts (`Shares_Hist`) and
+    its dividends per share (`DPS_Hist`) span, NaN without either. Both: Yahoo's share counts start late in some
+    markets (every Vietnamese company about 2023, Vinamilk listed 2006), while a dividend is paid only once listed."""
+    return pd.concat([_history_span(df, "Shares_Hist"), _history_span(df, "DPS_Hist")], axis=1).max(axis=1)
+
+
+def has_record(df: pd.DataFrame) -> pd.Series:
+    """At least `RECORD_MIN_YEARS` annual returns on file and a share history spanning at least `LISTED_MIN_YEARS`
+    (a blank history passes), or a ticker in `lists/record_confirmed.txt`: what every list asks
+    (`highlights.listable`). A frame with no annual ROIC column at all has no record to test, as `in_best_fraction`
+    keeps every row of a frame without `Rank`."""
+    tickers = df["Ticker"] if "Ticker" in df.columns else pd.Series("", index=df.index)
+    confirmed = tickers.astype(str).str.upper().isin(_record_confirmed())
+    has_roic = any(f"ROIC_{y}" in df.columns for y in Settings().annual_years)
+    enough = (roic_years(df) >= RECORD_MIN_YEARS) if has_roic else pd.Series(True, index=df.index)
+    return confirmed | (enough & ~(listed_years(df) < LISTED_MIN_YEARS))
 
 
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
@@ -253,10 +299,16 @@ def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """Flagged `Asset_Play` companies in the best fraction of the combined ranking, or holdings (no rank and too few
     for a best fifth of their own: the asset-play tests alone decide, user's choice, Nov 5, 2026), ordered by the
     discount to tangible book, net debt counted (`Effective_NAV_to_Price`, largest first; `Book_Order`, 1 = best;
-    user's choice, Nov 7, 2026: the list is named for the discount, so the discount orders it)."""
+    user's choice, Nov 7, 2026: the list is named for the discount, so the discount orders it). Not cyclical, and a
+    ranked company's owner yield on the share price above `CHEAP_MIN_SHARE_YIELD` (Nov 10, 2026)."""
     if "Asset_Play" not in df.columns:
         return df.head(0)
-    d = df[(df["Asset_Play"] == True) & (in_best_fraction(df) | (kind(df) == "holding"))]  # noqa: E712
+    holding = kind(df) == "holding"
+    # Not cyclical, and a ranked company paying above `CHEAP_MIN_SHARE_YIELD` on its share price (user's choice, Nov 10,
+    # 2026: ships, oil fields and car-parts plants are no liquid margin of safety, and their returns were read on a
+    # boom; a holding stays on its book).
+    sound = ~_flag(df, "Cyclical") & (holding | (_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD))
+    d = df[(df["Asset_Play"] == True) & (in_best_fraction(df) | holding) & sound]  # noqa: E712
     d = d.assign(Book_Order=_num(d, "Effective_NAV_to_Price").rank(method="first", ascending=False))
     return d.sort_values("Book_Order").head(n)
 
@@ -701,6 +753,8 @@ LOW_BETA_MIN_REVENUE_WORST = -5.0  # worst yearly revenue change on file, %
 LOW_BETA_MIN_FCF_POS = 100.0  # % of years with positive reported free cash flow
 LOW_BETA_MAX_GROSS_MARGIN_SD = 2.0  # gross margin standard deviation, pp
 LOW_BETA_MAX_ROIC_VARIABILITY = 0.04  # ROIC spread around its trend line (`ROIC_Variability`), x
+# Normalised ROIC, % (user's choice, Nov 10, 2026: Income's bar; a steady 7% business at a fair price is no bargain).
+LOW_BETA_MIN_ROIC = 10.0
 LOW_BETA_COLUMNS = [
     SHARE_YIELD_COLUMN,
     ("Beta", "beta", ".2f", 1, ""),
@@ -718,7 +772,7 @@ def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     (a blank fails); owner yield on the share price above `CHEAP_MIN_SHARE_YIELD`; a lasting business
     (`_lasting_business`: not cyclical, not at peak margins, a dividend, when paid, not cut more than
     `RECESSION_MAX_FALL` % in a past recession; a company paying none passes on its figures) and a sound balance sheet
-    (`_sound_balance_sheet`); revenue never down more than `LOW_BETA_MIN_REVENUE_WORST` % in a year, free cash flow
+    (`_sound_balance_sheet`); normalised ROIC at least `LOW_BETA_MIN_ROIC`; revenue never down more than `LOW_BETA_MIN_REVENUE_WORST` % in a year, free cash flow
     positive in every year on file, owner earnings not trending down (`Owner_Trend` >= 0), gross margin and ROIC
     steady (`LOW_BETA_MAX_GROSS_MARGIN_SD`, `LOW_BETA_MAX_ROIC_VARIABILITY`); `in_best_fraction`. A blank steadiness
     figure fails: the list is about a record shown. Order (`Low_Beta_Order`): owner yield on the share price, highest
@@ -727,6 +781,7 @@ def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         ~_flag(df, "Financial_Mode")
         & (_num(df, "beta") < LOW_BETA_MAX)
         & (_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD)
+        & (_num(df, "ROIC_Norm") >= LOW_BETA_MIN_ROIC)
         & _lasting_business(df)
         & _sound_balance_sheet(df)
         & (_num(df, "Revenue_Worst_Change") >= LOW_BETA_MIN_REVENUE_WORST)
@@ -828,6 +883,21 @@ def untested(row: pd.Series) -> list[str]:
     return [name for col, name in UNTESTED_FIGURES.items() if pd.isna(pd.to_numeric(row.get(col), errors="coerce"))]
 
 
+def nothing_breaking(df: pd.DataFrame) -> pd.Series:
+    """Nothing breaking now: analysts' EPS estimates not cut more than `Settings.estimate_cut_pct` in 90 days, no
+    dividend cut paid in the last 12 months (`_dividend_held`), recent revenue and EBIT not down more than the
+    Dislocation minimums. A blank passes. Boring businesses asks it, Temporary trouble must fail it, and The List
+    asks it in place of a price floor (user's choice, Nov 10, 2026: the business, not the share price, says whether
+    something is breaking)."""
+    s = Settings()
+    return (
+        ~(_num(df, "EPS_Rev_90d") < s.estimate_cut_pct)
+        & _dividend_held(df)
+        & ~(_num(df, "Revenue_Change_Recent") < s.dislocation_revenue_change_min)
+        & ~(_num(df, "EBIT_Change_Recent") < s.dislocation_ebit_change_min)
+    )
+
+
 def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> list[tuple[str, pd.Series]]:
     """The Shortlist's conditions in funnel order, each (label, mask). A blank figure passes, as in every list: the
     operating tests are blank for banks, insurers and holdings, which get the equity / assets floor instead. `hurdle`
@@ -858,11 +928,7 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
          ~(num("Beneish_M") > SHORTLIST_MAX_BENEISH) & ~(num("Accruals") > SHORTLIST_MAX_ACCRUALS)),
         ("growth earns its keep", ~(num("Incremental_ROIC") < SHORTLIST_MIN_INCREMENTAL_ROIC)),
         ("sound balance sheet", _debt_bounded(df)),
-        (NOTHING_BREAKING,
-         ~(num("EPS_Rev_90d") < s.estimate_cut_pct)
-         & _dividend_held(df)  # no dividend cut paid in the last 12 months (Nov 5, 2026)
-         & ~(num("Revenue_Change_Recent") < s.dislocation_revenue_change_min)
-         & ~(num("EBIT_Change_Recent") < s.dislocation_ebit_change_min)),
+        (NOTHING_BREAKING, nothing_breaking(df)),
         ("AI: no fragile or exposed industry", ai_resilient(df)),
         ("a boring industry", _in_industries(df, BORING_INDUSTRIES)),
         ("recession: leaders only", ~(recession_prone | bank) | (leader & (bank | (net_debt <= 0)))),

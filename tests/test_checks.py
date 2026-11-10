@@ -392,13 +392,28 @@ def test_the_list_leaves_out_cash_hoards_under_weak_management(monkeypatch):
     assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "HOARD4", "SOME"]
 
 
-def test_no_list_shows_a_share_down_more_than_20_percent_in_6_months(cfg):
-    # User's choice, Nov 9, 2026 (first The List, then every list): a blank passes, as does a smaller fall.
+def test_lists_keep_fallen_shares_but_need_a_record(cfg, monkeypatch):
+    # User's choices, Nov 10, 2026: the 6-month price floor went (a fallen share stays, with a pill); a list needs
+    # 4 annual returns and 5 years of share counts (a blank history passes), unless the ticker is confirmed.
+    from fq.report import screens as sc
     from fq.report.highlights import listable
+    from fq.report.pills import tags
 
-    df = pd.DataFrame({"Ticker": ["FELL", "DIP", "BLANK", "THIN"], "Momentum_6M": [-25.0, -10.0, None, 5.0],
-                       "Traded_Value_USD": [1e9, 1e9, 1e9, 1.0]})  # fmt: skip
-    assert listable(df, cfg)["Ticker"].tolist() == ["DIP", "BLANK"]
+    old = '{"0": 10.0, "5": 10.0, "10": 10.0}'  # year numbers, not calendar years: only the span is read
+    new = '{"8": 10.0, "10": 10.0}'
+    roic = {f"ROIC_Y{i}": [15.0, 15.0, 15.0, 15.0, 15.0] for i in range(4)}
+    roic["ROIC_Y2"] = [15.0, None, 15.0, 15.0, 15.0]  # SHORT has 3 of 4
+    df = pd.DataFrame({"Ticker": ["FELL", "SHORT", "NEW", "BLANK", "THIN"], "Momentum_6M": [-25.0, 1.0, 1.0, None, 5.0],
+                       "Shares_Hist": [old, old, new, None, old], "Traded_Value_USD": [1e9, 1e9, 1e9, 1e9, 1.0],
+                       **roic})  # fmt: skip
+    assert listable(df, cfg)["Ticker"].tolist() == ["FELL", "BLANK"]
+    words = {t["word"] for t in tags(df.iloc[0])}
+    assert "down 25% in 6m" in words and "short record" not in words
+    assert "short record" in {t["word"] for t in tags(df.iloc[2])}
+    paid = df.assign(DPS_Hist=[None, None, old, None, None])  # dividends since long before the share counts start
+    assert listable(paid, cfg)["Ticker"].tolist() == ["FELL", "NEW", "BLANK"]
+    monkeypatch.setattr(sc, "_record_confirmed", lambda: frozenset({"NEW"}))  # an old business under a new ticker
+    assert listable(df, cfg)["Ticker"].tolist() == ["FELL", "NEW", "BLANK"]
 
 
 def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch):
@@ -409,20 +424,21 @@ def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch
     assert why["A"] == "Cheap and good #1" and why["B"] == "Cheap and good #2 · Balance sheet plays #1"
 
 
-def test_the_list_asks_every_member_a_yield_on_the_share_price_grades_above_3_no_ai_risk_no_fall(monkeypatch):
-    # User's choices, Nov 10, 2026: the raw-score lists no longer feed it, and every member, whatever its source,
-    # earns at least the 10-year Treasury yield on the share price (was 6% the same day; 4% for a seat from
-    # Compounders), has both grades above 3, is past the AI screen and the price floor.
+def test_the_list_asks_every_member_the_bond_plus_country_risk_grades_above_3_no_ai_risk_nothing_breaking(monkeypatch):
+    # User's choices, Nov 10, 2026: the raw-score lists no longer feed it; every member, whatever its source, earns at
+    # least the 10-year Treasury plus its country's sovereign spread on the share price (no 4% seat for Compounders),
+    # has both grades above 3, is past the AI screen, and nothing is breaking now; a fallen share is no reason.
     cheap = pd.DataFrame([_row("OK", 9.0), _row("THIN", 4.4), _row("BLANK", None), _row("THREE", 8.0, mgmt=3.0),
                           _row("SOFT", 8.5, industry="Software - Application"), _row("FELL", 8.2, Momentum_6M=-25.0),
-                          _row("DIP", 7.0, Momentum_6M=-15.0)]).assign(Treasury_Yield=4.5)  # fmt: skip
-    comp = pd.DataFrame([_row("GROWS", 4.2), _row("SLOW", 3.9)]).assign(Treasury_Yield=4.5)
+                          _row("RISKY", 5.0, Sovereign_Spread=1.0), _row("BREAKS", 7.5, EPS_Rev_90d=-20.0),
+                          _row("SALES", 7.2, Revenue_Change_Recent=-12.0)]).assign(Treasury_Yield=4.5)  # fmt: skip
+    comp = pd.DataFrame([_row("GROWS", 4.2), _row("BOND", 4.8)]).assign(Treasury_Yield=4.5)
     raw = pd.DataFrame([_row("QUALITY", 12.0), _row("VALUE", 11.0)])
     sources = {"Cheap and good": cheap, "Compounders": comp, "Best businesses": raw, "Cheapest": raw}
     hl = _sources(monkeypatch, sources)
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "GROWS", "DIP"]
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "BOND", "FELL"]
     hl = _sources(monkeypatch, {"Cheap and good": cheap.assign(Treasury_Yield=7.5)})
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK"]  # the bond moves the floor
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "FELL"]  # the bond moves the floor
 
 
 def test_the_lists_mix_sets_its_shares_against_the_markets():
@@ -452,12 +468,10 @@ def test_a_list_fills_past_its_failures_and_keeps_them_folded():
     assert len(hl._fill(many, 20)) == hl.WALK_MAX_ROWS and len(hl._fill(many, 100)) == 100  # the count is uncapped
 
 
-def test_temporary_trouble_keeps_fallen_shares_and_walks_count_their_eligible(cfg):
-    # User's choices, Nov 9, 2026: the price floor would gut the list built for trouble; a walk's count is its pool.
+def test_trouble_reads_in_trouble_now_and_walks_count_their_eligible():
+    # User's choices: a walk's count is its pool (Nov 9, 2026); the trouble list no longer claims the trouble is
+    # temporary, under its stored name (Nov 10, 2026).
     import fq.report.highlights as hl
 
-    assert hl.TAB["Temporary trouble"].price_floor is False
-    assert all(t.price_floor for t in hl.TABS if t.name != "Temporary trouble")
+    assert hl.label("Temporary trouble") == "In trouble now"
     assert all(t.eligible is not None for t in hl.TABS if t.ranked)
-    df = pd.DataFrame({"Ticker": ["FELL", "OK"], "Momentum_6M": [-40.0, 1.0], "Traded_Value_USD": [1e9, 1e9]})
-    assert hl.listable(df, cfg, price_floor=False)["Ticker"].tolist() == ["FELL", "OK"]

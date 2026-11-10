@@ -1,0 +1,5 @@
+# Tickers that pass the lists' record test (`report.screens.has_record`) although Yahoo serves fewer than 4 annual
+# returns or under 5 years of share counts or dividends: an old business under a new ticker (a new holding company, a spin-off
+# reporting its history). Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
+# One ticker per line, with the reason after a space and a hash.
+HLUN-B.CO  # H. Lundbeck: the B share listed 2024, the company decades before
