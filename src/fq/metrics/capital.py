@@ -206,7 +206,11 @@ def _value_base(df: pd.DataFrame, cfg: Settings) -> None:
     hidden = df["Value_Debt"] - df["Debt_At_Face"]
     overridden = df["Ticker"].str.upper().isin(set(model_overrides()))
     operating = df["Business_Model"].isin(("operating", "client_cash"))  # asset-heavy debt is plant, scored apart
-    df["Debt_Cost_Hidden"] = (hidden > df["Equity_Value"]) & operating & ~overridden
+    # ...unless no interest is reported at all (Nov 10, 2026: BOC Aviation, an aircraft lessor, left 17 B$ of debt out
+    # of Value and read a 17.7% owner yield; Hulic and Nippon REIT, SITE Centers read Value 98-99). An asset-heavy
+    # company that does report interest at a low rate (yen utilities under `debt_cost_floor`) is not flagged.
+    silent = (df["Business_Model"] == "asset_heavy") & rate.isna()
+    df["Debt_Cost_Hidden"] = (hidden > df["Equity_Value"]) & (operating | silent) & ~overridden
     at_face = df["Equity_Value"] + df["Net_Claims"].fillna(0)
     floor = df["Equity_Value"] * EV_FLOOR_SHARE
     ev_floored = (df["Manual_EV"] < df["marketCap"] * EV_FLOOR_SHARE) & ~df["Financial_Mode"]

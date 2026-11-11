@@ -479,6 +479,9 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     df = df.assign(Dividend_WHT=[dividend_wht(t, c) for t, c in zip(df["Ticker"], countries, strict=True)])
     df = df.assign(Sovereign_Spread=[sovereign_spread(c) for c in countries])  # the Boring businesses bond hurdle
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
+    # The record test (`screens.has_record`) once per report: every list, the pills and the company pages read it.
+    df = df.assign(Record_Years=sc.roic_years(df), Listed_Years=sc.listed_years(df))
+    df = df.assign(Has_Record=sc.has_record(df))
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
     df = sc.with_income_record(sc.with_dividend_record(df))  # judged once per report, not once per list call

@@ -117,12 +117,17 @@ def company_flags(row: pd.Series) -> list[tuple[str, str]]:
 
 def short_record(row: pd.Series) -> str:
     """Why one company fails the lists' record test (`screens.has_record`), or "" when it passes."""
-    from fq.report import screens as sc  # screens imports format, which imports this module
+    if "Has_Record" in row.index:  # stored once per report (`highlights.prepare`)
+        if row["Has_Record"] is not False and row["Has_Record"] != False:  # noqa: E712 - NaN or numpy bool
+            return ""
+        years, listed = int(row["Record_Years"]), pd.to_numeric(row["Listed_Years"], errors="coerce")
+    else:
+        from fq.report import screens as sc  # screens imports format, which imports this module
 
-    frame = row.to_frame().T
-    if bool(sc.has_record(frame).iloc[0]):
-        return ""
-    years, listed = int(sc.roic_years(frame).iloc[0]), sc.listed_years(frame).iloc[0]
+        frame = row.to_frame().T
+        if bool(sc.has_record(frame).iloc[0]):
+            return ""
+        years, listed = int(sc.roic_years(frame).iloc[0]), sc.listed_years(frame).iloc[0]
     parts = [f"{years} annual report{'s' if years != 1 else ''} with a return on capital"]
     if pd.notna(listed):
         parts.append(f"share counts or dividends over {listed:.0f} year{'s' if listed != 1 else ''}")

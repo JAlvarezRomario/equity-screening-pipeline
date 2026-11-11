@@ -81,7 +81,10 @@ def has_record(df: pd.DataFrame) -> pd.Series:
     """At least `RECORD_MIN_YEARS` annual returns on file and a share history spanning at least `LISTED_MIN_YEARS`
     (a blank history passes), or a ticker in `lists/record_confirmed.txt`: what every list asks
     (`highlights.listable`). A frame with no annual ROIC column at all has no record to test, as `in_best_fraction`
-    keeps every row of a frame without `Rank`."""
+    keeps every row of a frame without `Rank`. `highlights.prepare` stores it as `Has_Record` (with `Record_Years` and
+    `Listed_Years`) once per report, and a stored column is read as it is."""
+    if "Has_Record" in df.columns:
+        return df["Has_Record"].fillna(True).astype(bool)
     tickers = df["Ticker"] if "Ticker" in df.columns else pd.Series("", index=df.index)
     confirmed = tickers.astype(str).str.upper().isin(_record_confirmed())
     has_roic = any(f"ROIC_{y}" in df.columns for y in Settings().annual_years)

@@ -397,6 +397,7 @@ def test_lists_keep_fallen_shares_but_need_a_record(cfg, monkeypatch):
     # 4 annual returns and 5 years of share counts (a blank history passes), unless the ticker is confirmed.
     from fq.report import screens as sc
     from fq.report.highlights import listable
+    from fq.report.pills import short_record as pills_short
     from fq.report.pills import tags
 
     old = '{"0": 10.0, "5": 10.0, "10": 10.0}'  # year numbers, not calendar years: only the span is read
@@ -410,6 +411,11 @@ def test_lists_keep_fallen_shares_but_need_a_record(cfg, monkeypatch):
     words = {t["word"] for t in tags(df.iloc[0])}
     assert "down 25% in 6m" in words and "short record" not in words
     assert "short record" in {t["word"] for t in tags(df.iloc[2])}
+    stored = df.assign(Record_Years=sc.roic_years(df), Listed_Years=sc.listed_years(df))  # as `highlights.prepare`
+    stored = stored.assign(Has_Record=sc.has_record(stored))
+    assert listable(stored, cfg)["Ticker"].tolist() == ["FELL", "BLANK"]
+    for i in range(len(df)):
+        assert pills_short(df.iloc[i]) == pills_short(stored.iloc[i])
     paid = df.assign(DPS_Hist=[None, None, old, None, None])  # dividends since long before the share counts start
     assert listable(paid, cfg)["Ticker"].tolist() == ["FELL", "NEW", "BLANK"]
     monkeypatch.setattr(sc, "_record_confirmed", lambda: frozenset({"NEW"}))  # an old business under a new ticker

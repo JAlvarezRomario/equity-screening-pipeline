@@ -1113,6 +1113,19 @@ def test_lenders_and_insurers_filed_elsewhere_are_flagged(cfg):
     assert pd.isna(df.loc[2, "Model_Review"])
 
 
+def test_an_asset_heavy_company_reporting_no_interest_is_flagged_but_a_low_rate_is_not(cfg):
+    # Nov 10, 2026: a lessor or REIT with no interest row left its debt out of Value (BOC Aviation read 17.7%); a yen
+    # utility paying under `debt_cost_floor` reports its interest and is not a hidden cost.
+    raw = make_raw(cfg, n=3).assign(industry="Utilities - Regulated Electric")
+    for p in cfg.fiscal_years:
+        raw.loc[[0, 1], f"Total Debt_{p}"] = 2.5 * raw.loc[0, "marketCap"]
+        raw.loc[0, f"Interest Expense_{p}"] = np.nan  # no interest reported at all
+        raw.loc[1, f"Interest Expense_{p}"] = 0.005 * raw.loc[1, f"Total Debt_{p}"]  # 0.5%, reported
+    df = calculate_metrics(raw, cfg)
+    assert (df["Business_Model"] == "asset_heavy").all()
+    assert df.loc[0, "Debt_Cost_Hidden"] and not df.loc[1, "Debt_Cost_Hidden"]
+
+
 def test_spare_cash_does_not_dilute_gross_profitability(cfg):
     raw = make_raw(cfg, n=2)
     for p in cfg.fiscal_years:
