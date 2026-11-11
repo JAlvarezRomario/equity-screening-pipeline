@@ -279,10 +279,10 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Nov 8, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
-    # Low beta, Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities; Energy retired Nov 9,
-    # 2026), Raw scores (Cheapest, Best businesses).
-    assert len(panels) == 15  # The List first (Nov 9, 2026); Deep discount (Nov 11, 2026)
+    # Nov 11, 2026: The List; Start here (Cheap and good, Boring businesses), By style (Compounders, Income, Balance
+    # sheet plays, Deep discount), By kind (Banks and lenders, Insurers, Real estate, Utilities), Raw scores
+    # (Cheapest, Best businesses). Temporary trouble and Low beta retired Nov 11, 2026; Energy Nov 9, 2026.
+    assert len(panels) == 13
     assert all('class="list-count muted"' in p for p in panels)
     walks = ("hl-top-1", "hl-top-2", "hl-top-3", "hl-deep-discount")
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in walks)]
@@ -301,6 +301,8 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
         "hl-best-grades",
         "hl-net-cash",
         "hl-energy",
+        "hl-trouble",
+        "hl-low-beta",
     ):
         assert gone not in html
 
@@ -897,19 +899,11 @@ def test_ai_screen_applies_to_every_list_the_score_lists_too(cfg):
     assert any(label.startswith("AI:") for label, _ in shortlist_funnel(h.lists, h.hurdle))  # the step is counted
 
 
-def test_low_beta_keeps_a_steady_share_and_leaves_out_each_failure():
-    """Low beta (Nov 8, 2026): one row passing every gate (a non-payer: no dividend record) is kept; each other row
-    fails exactly one gate."""
-    from fq.report.screens import low_beta_list
+def test_the_lists_named_cheap_add_the_home_countrys_sovereign_spread():
+    """Nov 11, 2026 (user's choice): one price bar, 6% plus the country's spread (a blank spread counts as 0)."""
+    from fq.report.screens import cheap_enough
 
-    ok = {"Financial_Mode": False, "Cyclical": False, "beta": 0.3, "EPV_Per_Share_Yield": 9.0, "Revenue_Worst_Change": 2.0,
-          "FCF_Positive_Share": 100.0, "Owner_Trend": 1.0, "Gross_Margin_StdDev": 1.0, "ROIC_Variability": 0.02,
-          "NetDebt_to_EBIT": 0.5, "Net_Debt": -1.0, "Rank": 1.0, "In_Best_Fraction": True, "industry": "Packaged Foods",
-          "Data_Suspect": False, "ROIC_Norm": 15.0}  # fmt: skip
-    fails = {"HIGHBETA": {"beta": 0.6}, "NOBETA": {"beta": np.nan}, "CYCLE": {"Cyclical": True},
-             "SALESFELL": {"Revenue_Worst_Change": -8.0}, "EVCHEAP": {"EPV_Per_Share_Yield": 6.0},
-             "BUMPY": {"Gross_Margin_StdDev": 4.0}, "LOSSYEAR": {"FCF_Positive_Share": 80.0},
-             "BANK": {"Financial_Mode": True}, "LOWROIC": {"ROIC_Norm": 9.0}}  # fmt: skip
-    rows = [{**ok, "Ticker": "STEADY"}] + [{**ok, **change, "Ticker": t} for t, change in fails.items()]
-    df = pd.DataFrame(rows)
-    assert low_beta_list(df)["Ticker"].tolist() == ["STEADY"]
+    df = pd.DataFrame({"Ticker": ["US", "BR", "BLANK", "NOYIELD"], "EPV_Per_Share_Yield": [7.0, 7.0, 6.5, np.nan],
+                       "Sovereign_Spread": [0.0, 2.0, np.nan, 0.0]})  # fmt: skip
+    assert cheap_enough(df)["Ticker"].tolist() == ["US", "BLANK"]
+    assert cheap_enough(df.drop(columns="Sovereign_Spread"))["Ticker"].tolist() == ["US", "BR", "BLANK"]

@@ -335,15 +335,20 @@ def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_t
     assert out["The_List_Order"].tolist() == [1, 2, 3, 4, 5, 6]
 
 
-def test_the_list_shows_the_best_twenty_five_from_its_three_sources_with_both_grades_above_3(monkeypatch):
+def test_the_list_shows_the_best_twenty_five_from_its_five_sources_with_both_grades_above_3(monkeypatch):
+    # Nov 11, 2026 (user's choice): Boring businesses and Income feed it again; the raw scores still do not.
     rows = pd.DataFrame([_row(f"T{i}", 40.0 - i) for i in range(30)])
     rows = pd.concat([rows, pd.DataFrame([_row("LOW", 99.0, moat=3.25, mgmt=3.0)])], ignore_index=True)
-    boring = pd.DataFrame([_row("BORING", 98.0)])  # Boring businesses and Income no longer feed it (Nov 9, 2026)
-    hl = _sources(monkeypatch, {"Compounders": rows, "Shortlist": boring, "Income": boring})
-    assert hl.THE_LIST_N == 25 and hl.THE_LIST_SOURCES == ("Cheap and good", "Below book", "Compounders")
+    boring = pd.DataFrame([_row("BORING", 98.0)])
+    raw = pd.DataFrame([_row("RAW", 97.0)])
+    hl = _sources(monkeypatch, {"Compounders": rows, "Shortlist": boring, "Income": boring, "Cheapest": raw})
+    assert hl.THE_LIST_N == 25
+    assert hl.THE_LIST_SOURCES == ("Cheap and good", "Shortlist", "Compounders", "Income", "Below book")
     out = hl.the_list(pd.DataFrame(), hl.THE_LIST_N)
-    assert len(out) == 25 and out["The_List_From"].eq("Compounders").all()
-    assert not {"LOW", "BORING"} & set(out["Ticker"])
+    assert len(out) == 25 and out["Ticker"].iloc[0] == "BORING"  # each list's first, the higher yield first
+    assert out.set_index("Ticker").loc["BORING", "The_List_From"] == "Boring businesses · Income"
+    assert out["The_List_From"].iloc[1:].eq("Compounders").all()
+    assert not {"LOW", "RAW"} & set(out["Ticker"])
 
 
 def test_an_ai_caution_fails_only_in_an_ai_fragile_industry():
@@ -474,13 +479,14 @@ def test_a_list_fills_past_its_failures_and_keeps_them_folded():
     assert len(hl._fill(many, 20)) == hl.WALK_MAX_ROWS and len(hl._fill(many, 100)) == 100  # the count is uncapped
 
 
-def test_trouble_reads_in_trouble_now_and_walks_count_their_eligible():
-    # User's choices: a walk's count is its pool (Nov 9, 2026); the trouble list no longer claims the trouble is
-    # temporary, under its stored name (Nov 10, 2026).
+def test_walks_count_their_eligible_and_the_retired_lists_are_gone():
+    # User's choices: a walk's count is its pool (Nov 9, 2026); Temporary trouble and Low beta retired before the
+    # forward test's freeze (Nov 11, 2026).
     import fq.report.highlights as hl
 
-    assert hl.label("Temporary trouble") == "In trouble now"
     assert all(t.eligible is not None for t in hl.TABS if t.ranked)
+    assert not {"Temporary trouble", "Low beta"} & set(hl.TAB_ORDER)
+    assert len(hl.TABS) == 13
 
 
 def _deep(ticker, bv=250.0, nav=225.0, model="operating", book=True, mgmt=3.5, **more):

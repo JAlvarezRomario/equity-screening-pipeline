@@ -357,28 +357,16 @@ def test_the_untested_pill_counts_data_holes_not_blanks_by_design():
     assert sc.untested(row) == ["Beneish M-score"]  # incremental ROIC and estimates may be blank by design
 
 
-def test_temporary_trouble_turns_over_nothing_breaking_now_and_must_be_graded():
-    import numpy as np
-
+def test_boring_businesses_asks_nothing_breaking_now(monkeypatch):
     from fq.report import screens as sc
 
-    assert grading.passes_trouble(3.0, 3.5) and not grading.passes_trouble(3.25, 3.25)
-    assert not grading.passes_trouble(2.75, 5.0) and not grading.passes_trouble(np.nan, 4.0)
     df = pd.DataFrame({"Ticker": ["FALLING", "FINE"], "Rank": [1.0, 2.0]})
-    gates = sc._shortlist_gates
-    try:
-        sc._shortlist_gates = lambda d, hurdle: [
-            ("a boring industry", pd.Series(True, index=d.index)),
-            (sc.NOTHING_BREAKING, d["Ticker"] == "FINE"),
-        ]
-        sc.in_best_fraction, best = (lambda d: pd.Series(True, index=d.index)), sc.in_best_fraction
-        try:
-            assert sc.trouble_list(df)["Ticker"].tolist() == ["FALLING"]
-            assert sc.shortlist_list(df)["Ticker"].tolist() == ["FINE"]
-        finally:
-            sc.in_best_fraction = best
-    finally:
-        sc._shortlist_gates = gates
+    monkeypatch.setattr(sc, "_shortlist_gates", lambda d, hurdle: [
+        ("a boring industry", pd.Series(True, index=d.index)),
+        (sc.NOTHING_BREAKING, d["Ticker"] == "FINE"),
+    ])  # fmt: skip
+    monkeypatch.setattr(sc, "in_best_fraction", lambda d: pd.Series(True, index=d.index))
+    assert sc.shortlist_list(df)["Ticker"].tolist() == ["FINE"]
 
 
 def test_cheapest_walks_down_value_skipping_low_grades_and_holding_the_ungraded():

@@ -68,11 +68,6 @@ def _hurdled(fn):
     return lambda df, n, hurdle: fn(df, n, hurdle=hurdle)
 
 
-TROUBLE = "Temporary trouble"
-TROUBLE_BAR = (f"both at least {grading.TROUBLE_MIN_BOTH:g} and either at least {grading.TROUBLE_MIN_TOP:g}, graded "
-               "before it counts")  # fmt: skip
-
-
 CHEAPEST_BAR = f"both at least {grading.CHEAPEST_MIN_BOTH:g}, graded before it counts"
 BEST_BAR = f"both at least {grading.BEST_MIN_BOTH:g} and either above it, graded before it counts"
 WALK_WAITING = TOP_N  # ungraded companies a graded walk holds at once: the next grading run's batch
@@ -190,15 +185,6 @@ def _eligible_quality(df: pd.DataFrame) -> pd.DataFrame:
     return top_n(df, "Quality_Rank", len(df))
 
 
-def _trouble(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
-    """Temporary trouble with `Grade_Pass` re-judged by its own bar (`grading.passes_trouble`: ungraded fails)."""
-    out = sc.trouble_list(df, n, hurdle=hurdle)
-    moat = out["Grade_Moat"] if "Grade_Moat" in out.columns else pd.Series(np.nan, index=out.index)
-    mgmt = out["Grade_Mgmt"] if "Grade_Mgmt" in out.columns else pd.Series(np.nan, index=out.index)
-    verdict = [grading.passes_trouble(m, g) for m, g in zip(moat, mgmt, strict=True)]
-    return out.assign(Grade_Pass=pd.Series(verdict, index=out.index, dtype=object), Grade_Bar=TROUBLE_BAR)
-
-
 def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
     """The Shortlist with `Grade_Pass` re-judged by its stricter gate and `Grade_Bar` naming it."""
     out = sc.shortlist_list(df, n, hurdle=hurdle)
@@ -229,8 +215,11 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # seat, the Treasury plus the home country's sovereign spread (`Sovereign_Spread`, as Boring businesses asks; the 4%
 # seat for Compounders is gone: growth is Quality's, counted once), no target count (the page says how many passed),
 # and "nothing breaking now" (`screens.nothing_breaking`) in place of the price floor.
+# Nov 11, 2026 (user's choice, after a review of the lists): The List held 5, 4 of them from Cheap and good, while
+# Boring businesses and Income, which ask price and quality together (the best fifth, a yield bar, a return floor),
+# held 13 companies past their grade and check that it never looked at. They are sources again; every bar above stays.
 THE_LIST = "The List"
-THE_LIST_SOURCES = ("Cheap and good", "Below book", "Compounders")
+THE_LIST_SOURCES = ("Cheap and good", "Shortlist", "Compounders", "Income", "Below book")
 THE_LIST_N = 25  # a row cap, not a target (Nov 10, 2026); the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.0  # moat and management both strictly above this, whatever the source list's own bar
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
@@ -344,18 +333,19 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The companies on Cheap and good, Balance sheet plays or Compounders that earn more on the share price than "
+        "The companies on Cheap and good, Boring businesses, Compounders, Income or Balance sheet plays that earn "
+        "more on the share price than "
         "the 10-year Treasury plus their country's risk, with nothing breaking now, and that passed both AI checks: "
         "their moat and management, and their numbers. However many that is: there is no target.",
     ),
     "start": (
         "Start here",
-        "Cheap and good at once, and boring businesses worth research in depth (sound now, or in trouble now).",
+        "Cheap and good at once, and boring businesses worth research in depth.",
     ),
     "style": (
         "By style",
-        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, a "
-        "steady business whose share moves little, or a price below what the balance sheet holds; each from the best "
+        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, or a "
+        "price below what the balance sheet holds; each from the best "
         "{top} of the combined ranking, but Deep discount: a book checked and holding at under two thirds of it.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
@@ -379,11 +369,8 @@ TABS: tuple[Tab, ...] = (
         ranked=True, eligible=_eligible_cheap("Rank")),
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
-    Tab(TROUBLE, "trouble", "hl-trouble", sc.SHORTLIST_COLUMNS, _trouble, group="start", n=sc.SHORTLIST_N,
-        label="In trouble now"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
-    Tab("Low beta", "low_beta", "hl-low-beta", sc.LOW_BETA_COLUMNS, _plain(sc.low_beta_list), sort="Low_Beta_Order"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
         sort="Book_Order", label="Balance sheet plays"),
     Tab("Deep discount", "deep_discount", "hl-deep-discount", sc.DEEP_DISCOUNT_COLUMNS, deep_discount_walk,
@@ -409,7 +396,9 @@ RANKED_TABS = tuple(t.name for t in TABS if t.ranked)
 # every year gave way to Operating companies and Fast growers; Net-nets merged into Below book; Temporary trouble
 # retired, user's choice; Nov 7, 2026: Repeaters, Cannibals, Off the radar, Dividend growers, Dividend carry and Best
 # grades retired before the freeze; Nov 8, 2026: Net cash, now a pill; Nov 9, 2026: Energy, user's choice, as the
-# check of the numbers left none of it standing; so none is stored), with the reader's name
+# check of the numbers left none of it standing; Nov 11, 2026: Temporary trouble (it could never feed The List and
+# is the riskiest idea for a 3-year holder) and Low beta (its beta gate measured geography more than risk, and was
+# the one price-path gate), before the freeze; so none is stored), with the reader's name
 # where it differed.
 RETIRED_LABELS = {"Nectar": "Steady growers, net cash"}
 
@@ -522,7 +511,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     return df
 
 
-# Nov 9, 2026: a share down more than 20% over 6 months was on no list (but Temporary trouble). Removed Nov 10, 2026
+# Nov 9, 2026: a share down more than 20% over 6 months was on no list (but Temporary trouble, retired since). Removed Nov 10, 2026
 # (user's choice, after a review "as Graham, Buffett, Munger and Greenblatt"): it removed 201 of the best fifth, the
 # cheaper ones (median Value 82 against 75), and let Mr. Market veto a list; The List asks "nothing breaking now"
 # instead (`screens.nothing_breaking`), and a fall shows as a pill (`pills.FALLEN_PILL_MIN`).

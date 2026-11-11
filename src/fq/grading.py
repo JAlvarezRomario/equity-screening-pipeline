@@ -51,9 +51,6 @@ SHORTLIST_MIN_TOP = 4.0
 BEST_MIN_BOTH = 4.0
 # Cheapest (user's choice, Nov 7, 2026): both grades at least CHEAPEST_MIN_BOTH, walking down the Value ranking.
 CHEAPEST_MIN_BOTH = 3.0
-# Temporary trouble (user's choice, Nov 7, 2026): both at least TROUBLE_MIN_BOTH and either at least TROUBLE_MIN_TOP.
-TROUBLE_MIN_BOTH = 3.0
-TROUBLE_MIN_TOP = 3.5
 
 MOAT_LABEL = "Economic Moat Score"
 MGMT_LABEL = "Management Quality Score"
@@ -97,14 +94,6 @@ def passes_cheapest(moat, mgmt) -> bool | None:
     if pd.isna(moat) or pd.isna(mgmt):
         return None
     return bool(moat >= CHEAPEST_MIN_BOTH and mgmt >= CHEAPEST_MIN_BOTH)
-
-
-def passes_trouble(moat, mgmt) -> bool:
-    """The Temporary trouble tab's bar: both grades reach `TROUBLE_MIN_BOTH` and either `TROUBLE_MIN_TOP`; False when
-    ungraded (the list must be graded: an ungraded member is shaded until `fq grade` reaches it)."""
-    if pd.isna(moat) or pd.isna(mgmt):
-        return False
-    return bool(moat >= TROUBLE_MIN_BOTH and mgmt >= TROUBLE_MIN_BOTH and max(moat, mgmt) >= TROUBLE_MIN_TOP)
 
 
 def passes_shortlist(moat, mgmt) -> bool | None:

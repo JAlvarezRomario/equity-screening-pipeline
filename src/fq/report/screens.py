@@ -30,7 +30,9 @@ TOP_LIST_COLUMNS = [
 ]  # fmt: skip
 
 # The lists named cheap (Cheap and good, Cheapest; user's choice, Nov 8, 2026): what one share earns after today's
-# interest at zero growth, over the share price (`EPV_Per_Share_Yield`), above this; a blank fails. The ranking
+# interest at zero growth, over the share price (`EPV_Per_Share_Yield`), above this plus the home country's sovereign
+# spread (`Sovereign_Spread`; Nov 11, 2026, user's choice: one price bar, as Boring businesses and The List ask, so
+# Cheap and good no longer gives seats The List then refuses on country risk); a blank yield fails. The ranking
 # stays on the yield over market cap plus debt, less spare cash.
 CHEAP_MIN_SHARE_YIELD = 6.0
 SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
@@ -39,9 +41,15 @@ CHEAP_AND_GOOD_COLUMNS = [*TOP_LIST_COLUMNS, SHARE_YIELD_COLUMN]
 THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
 
 
+def cheap_bar(df: pd.DataFrame) -> pd.Series:
+    """The owner yield on the share price above `CHEAP_MIN_SHARE_YIELD` plus the home country's sovereign spread
+    (`Sovereign_Spread`, a blank counts as 0, the US); a blank yield fails."""
+    return _num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD + _num(df, "Sovereign_Spread").fillna(0.0)
+
+
 def cheap_enough(df: pd.DataFrame) -> pd.DataFrame:
-    """The companies whose owner yield on the share price is above `CHEAP_MIN_SHARE_YIELD` (the lists named cheap)."""
-    return df[_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD]
+    """The companies past `cheap_bar` (the lists named cheap)."""
+    return df[cheap_bar(df)]
 
 
 # A list needs a record (user's choice, Nov 10, 2026, from a review "as Graham, Buffett, Munger and Greenblatt": a
@@ -303,14 +311,13 @@ def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     for a best fifth of their own: the asset-play tests alone decide, user's choice, Nov 5, 2026), ordered by the
     discount to tangible book, net debt counted (`Effective_NAV_to_Price`, largest first; `Book_Order`, 1 = best;
     user's choice, Nov 7, 2026: the list is named for the discount, so the discount orders it). Not cyclical, and a
-    ranked company's owner yield on the share price above `CHEAP_MIN_SHARE_YIELD` (Nov 10, 2026)."""
+    ranked company past `cheap_bar` (Nov 10, 2026; the country's spread since Nov 11)."""
     if "Asset_Play" not in df.columns:
         return df.head(0)
     holding = kind(df) == "holding"
-    # Not cyclical, and a ranked company paying above `CHEAP_MIN_SHARE_YIELD` on its share price (user's choice, Nov 10,
-    # 2026: ships, oil fields and car-parts plants are no liquid margin of safety, and their returns were read on a
-    # boom; a holding stays on its book).
-    sound = ~_flag(df, "Cyclical") & (holding | (_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD))
+    # Not cyclical, and a ranked company past `cheap_bar` (user's choice, Nov 10, 2026: ships, oil fields and car-parts
+    # plants are no liquid margin of safety, and their returns were read on a boom; a holding stays on its book).
+    sound = ~_flag(df, "Cyclical") & (holding | cheap_bar(df))
     d = df[(df["Asset_Play"] == True) & (in_best_fraction(df) | holding) & sound]  # noqa: E712
     d = d.assign(Book_Order=_num(d, "Effective_NAV_to_Price").rank(method="first", ascending=False))
     return d.sort_values("Book_Order").head(n)
@@ -389,7 +396,7 @@ def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: i
 SHORTLIST_N = 20
 # Boring businesses (the Shortlist's reader name since Nov 6, 2026): only industries that do not attract new capital.
 BORING_INDUSTRIES = "boring_industries.txt"
-NOTHING_BREAKING = "nothing breaking now"  # the gate Temporary trouble turns over (`trouble_list`)
+NOTHING_BREAKING = "nothing breaking now"  # the funnel label of `nothing_breaking`
 SHORTLIST_MIN_FCF_POS = 75.0  # % of years with positive reported free cash flow: the profit turns into cash
 SHORTLIST_MAX_BENEISH = -1.78  # Beneish M-score above it is the usual earnings-manipulation warning
 SHORTLIST_MAX_ACCRUALS = 5.0  # (net income - operating cash flow) / assets, %: earnings well ahead of cash
@@ -798,59 +805,6 @@ def income_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return top_n(out, "Income_Order", n)
 
 
-# "Low beta" (user's choice, Nov 8, 2026): a share that moves little with the market and a business whose figures
-# move little, at a price already paying. Beta is Yahoo's (5 years of monthly returns against the S&P 500): the one
-# list a price-path figure gates, never a score, rank or flag. For a non-US share it partly measures how little it
-# moves with Wall Street (in the benchmark, Nov 8, 2026: under 0.5 for 13% of the ranked US companies, 83-85% of the
-# Saudi and Thai ones). The steadiness bars land the list near 20 of the benchmark before the grade (28, Nov 8, 2026).
-LOW_BETA_MAX = 0.5  # Yahoo beta below this; a blank fails
-LOW_BETA_MIN_REVENUE_WORST = -5.0  # worst yearly revenue change on file, %
-LOW_BETA_MIN_FCF_POS = 100.0  # % of years with positive reported free cash flow
-LOW_BETA_MAX_GROSS_MARGIN_SD = 2.0  # gross margin standard deviation, pp
-LOW_BETA_MAX_ROIC_VARIABILITY = 0.04  # ROIC spread around its trend line (`ROIC_Variability`), x
-# Normalised ROIC, % (user's choice, Nov 10, 2026: Income's bar; a steady 7% business at a fair price is no bargain).
-LOW_BETA_MIN_ROIC = 10.0
-LOW_BETA_COLUMNS = [
-    SHARE_YIELD_COLUMN,
-    ("Beta", "beta", ".2f", 1, ""),
-    ("Worst Revenue Year", "Revenue_Worst_Change", "+.1f", 1, "%"),
-    ("Gross Margin SD", "Gross_Margin_StdDev", ".1f", 1, " pp"),
-    ("ROIC Variability", "ROIC_Variability", ".2f", 1, "x"),
-    ("Net Debt / EBIT", "NetDebt_to_EBIT", ".1f", 1, "x"),
-    RECESSION_COLUMN,
-    *TOP_LIST_COLUMNS,
-]  # fmt: skip
-
-
-def low_beta_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """The Low beta list. Gates: an operating company (no bank, insurer or holding); Yahoo `beta` below `LOW_BETA_MAX`
-    (a blank fails); owner yield on the share price above `CHEAP_MIN_SHARE_YIELD`; a lasting business
-    (`_lasting_business`: not cyclical, not at peak margins, a dividend, when paid, not cut more than
-    `RECESSION_MAX_FALL` % in a past recession; a company paying none passes on its figures) and a sound balance sheet
-    (`_sound_balance_sheet`); normalised ROIC at least `LOW_BETA_MIN_ROIC`; revenue never down more than `LOW_BETA_MIN_REVENUE_WORST` % in a year, free cash flow
-    positive in every year on file, owner earnings not trending down (`Owner_Trend` >= 0), gross margin and ROIC
-    steady (`LOW_BETA_MAX_GROSS_MARGIN_SD`, `LOW_BETA_MAX_ROIC_VARIABILITY`); `in_best_fraction`. A blank steadiness
-    figure fails: the list is about a record shown. Order (`Low_Beta_Order`): owner yield on the share price, highest
-    first. Trusted as `ranking.top_n`. Display only."""
-    keep = (
-        ~_flag(df, "Financial_Mode")
-        & (_num(df, "beta") < LOW_BETA_MAX)
-        & (_num(df, "EPV_Per_Share_Yield") > CHEAP_MIN_SHARE_YIELD)
-        & (_num(df, "ROIC_Norm") >= LOW_BETA_MIN_ROIC)
-        & _lasting_business(df)
-        & _sound_balance_sheet(df)
-        & (_num(df, "Revenue_Worst_Change") >= LOW_BETA_MIN_REVENUE_WORST)
-        & (_num(df, "FCF_Positive_Share") >= LOW_BETA_MIN_FCF_POS)
-        & (_num(df, "Owner_Trend") >= 0)
-        & (_num(df, "Gross_Margin_StdDev") <= LOW_BETA_MAX_GROSS_MARGIN_SD)
-        & (_num(df, "ROIC_Variability") <= LOW_BETA_MAX_ROIC_VARIABILITY)
-        & in_best_fraction(df)
-    )
-    out = with_dividend_record(df[keep])
-    out = out.assign(Low_Beta_Order=_num(out, "EPV_Per_Share_Yield").rank(method="first", ascending=False))
-    return top_n(out, "Low_Beta_Order", n)
-
-
 def _latest_value(df: pd.DataFrame, concept: str) -> pd.Series:
     """TTM, else the latest annual report (`Y0`)."""
     out = pd.Series(np.nan, index=df.index)
@@ -929,7 +883,7 @@ UNTESTED_FIGURES = {
     "FCF_Positive_Share": "years with positive free cash flow",
     "Gross_Margin_Held": "gross margin since the inflation peak",
 }
-UNTESTED_TABS = ("shortlist", "trouble", "compounders")  # `Tab.key`s whose rows carry the "untested" pill
+UNTESTED_TABS = ("shortlist", "compounders")  # `Tab.key`s whose rows carry the "untested" pill
 
 
 def untested(row: pd.Series) -> list[str]:
@@ -941,7 +895,7 @@ def untested(row: pd.Series) -> list[str]:
 def nothing_breaking(df: pd.DataFrame) -> pd.Series:
     """Nothing breaking now: analysts' EPS estimates not cut more than `Settings.estimate_cut_pct` in 90 days, no
     dividend cut paid in the last 12 months (`_dividend_held`), recent revenue and EBIT not down more than the
-    Dislocation minimums. A blank passes. Boring businesses asks it, Temporary trouble must fail it, and The List
+    Dislocation minimums. A blank passes. Boring businesses asks it, and The List
     asks it in place of a price floor (user's choice, Nov 10, 2026: the business, not the share price, says whether
     something is breaking)."""
     s = Settings()
@@ -992,23 +946,12 @@ def _shortlist_gates(df: pd.DataFrame, hurdle: float = BOND_HURDLE_FLOOR) -> lis
         # Earnings power at zero growth beats the Treasury and what more the company's own government pays to borrow
         # dollars (`Sovereign_Spread`, `universe.sovereign_spread`; user's choice, Nov 7, 2026; a frame without it: the
         # US's): `Owner_Yield`, no growth credited, so growth is the margin of safety, not part of the hurdle (Graham,
-        # Greenwald; Nov 7, 2026, as Temporary trouble already asked).
+        # Greenwald; Nov 7, 2026).
         ("beats the bond", ~(num("Owner_Yield") < hurdle + num("Sovereign_Spread").fillna(0.0))),
         ("durable returns",
          (num("ROIC_Norm") >= SHORTLIST_MIN_ROIC) & (num("Value_Score") >= SHORTLIST_MIN_VALUE)
          & (num("Quality_Score") >= SHORTLIST_MIN_QUALITY)),
     ]  # fmt: skip
-
-
-def trouble_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:
-    """Temporary trouble (user's choice, Nov 7, 2026; Lynch's "temporary trouble"): every test of `_shortlist_gates`
-    but `NOTHING_BREAKING`, which it must fail: a boring, cheap, good business whose sales, profit or estimates are
-    falling right now (3255.KL, Ambev, Tsingtao). `in_best_fraction`, trusted as `ranking.top_n`, in combined rank
-    order. Display only."""
-    keep = in_best_fraction(df)
-    for label, mask in _shortlist_gates(df, hurdle):
-        keep &= ~mask if label == NOTHING_BREAKING else mask
-    return top_n(df[keep], "Rank", n)
 
 
 def shortlist_list(df: pd.DataFrame, n: int = SHORTLIST_N, hurdle: float = BOND_HURDLE_FLOOR) -> pd.DataFrame:

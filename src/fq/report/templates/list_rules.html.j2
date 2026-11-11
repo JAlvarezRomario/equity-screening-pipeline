@@ -5,7 +5,7 @@
     <details class="explain rules"><summary>Exact rules</summary><div class="chart-instruction">{{ caller() }}</div></details>{% endmacro %}
 
 {% macro the_list(r) %}{% call rules("The companies that passed every test: on one of the core lists, with a moat and management that hold up and numbers that are a fair basis for the years ahead. Each list's best come first, so every idea is there.") %}<ul>
-  <li>Shown on Cheap and good, Balance sheet plays or Compounders (each list's own figure tests, cuts and order; the pills name which): lists that ask a fair price and a good business together. Cheapest and Best businesses, which look at one alone, do not feed it.</li>
+  <li>Shown on Cheap and good, Boring businesses, Compounders, Income or Balance sheet plays (each list's own figure tests, cuts and order; the pills name which): lists that ask a fair price and a good business together. Cheapest and Best businesses, which look at one alone, do not feed it.</li>
   <li>An owner yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest, over its price, at zero growth. One bar for every seat: growth is judged in Quality, and is the margin of safety, not part of the bar.</li>
   <li>Past that list's moat and management bar, graded 1 to 5 by an AI model (Gemini), and in any case both graded above {{ r.the_list_grade }}.</li>
   <li>Not in an industry AI substitutes or disrupts.</li>
@@ -14,7 +14,7 @@
   <li>No banks, insurers, REITs or holdings: their earnings and books read differently from an operating company's.</li>
   <li>With net cash of at least {{ r.net_cash_min }}% of the market value, management graded at least {{ r.the_list_cash_mgmt }}: cash a management never returns earns nothing for minority holders.</li>
   <li>A company not yet graded or checked waits outside until it is.</li>
-  <li>No target size: the page counts every company that passed, and shows at most {{ r.the_list_n }}, in turn: each list's first qualifying company, then each list's second, and so on (a company on several lists counts its best place), so cheap-and-good, compounding and balance-sheet ideas all have their best few. Each pill names the list and the place that earned the seat ("Cheap and good #2").</li>
+  <li>No target size: the page counts every company that passed, and shows at most {{ r.the_list_n }}, in turn: each list's first qualifying company, then each list's second, and so on (a company on several lists counts its best place), so cheap-and-good, boring, compounding, income and balance-sheet ideas all have their best few. Each pill names the list and the place that earned the seat ("Cheap and good #2").</li>
   <li>Over 5 years the mix of countries, sizes and currencies can move results as much as the picks: the line under the count sets The List's mix against the market's.</li>
   <li>Within a turn, the higher owner yield on the share price first: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
 </ul>{% endcall %}{% endmacro %}
@@ -22,14 +22,14 @@
 {% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of the two.") %}<ul>
   <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
   <li>Ties go to the better sum of the two positions.</li>
-  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
+  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}% plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
   <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cheapest(r) %}{% call rules("The cheapest companies for what the business earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
   <li>Down the Value ranking until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
   <li>The Value score: the normalised owner earnings of the business before interest (the cash it earns today in a normal year after everything it needs to stay as it is; no growth assumed), over market cap plus debt, less spare cash, so debt and cash do not change the rank.</li>
-  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}%: the same earnings after today's interest on debt or cash, over the share price.</li>
+  <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}% plus their home country's sovereign spread over the US: the same earnings after today's interest on debt or cash, over the share price.</li>
   <li>Cyclicals at mid-cycle earnings, with no trend.</li>
   <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays.</li>
   <li>The Quality score is not considered.</li>
@@ -63,7 +63,7 @@
   <li>Operating companies: bounded debt, free cash flow positive in most years, Quality &ge; 35. In the best {{ r.top }} of the combined ranking.</li>
   <li>Holdings: their book per share with its goodwill, since leaving goodwill out would value the companies a holding bought at zero. Equity at least 6% of assets, Quality &ge; 50 (too few holdings for a best fifth of their own).</li>
   <li>Both: Value &ge; 50, positive earnings power, no dilution.</li>
-  <li>Not cyclical: ships, oil fields and plants are no liquid margin of safety, and their returns on file were read in a boom. Operating companies also earn above {{ r.cheap_yield }}% on the share price (owner earnings after today's interest).</li>
+  <li>Not cyclical: ships, oil fields and plants are no liquid margin of safety, and their returns on file were read in a boom. Operating companies also earn above {{ r.cheap_yield }}% on the share price, plus their home country's sovereign spread over the US (owner earnings after today's interest).</li>
   <li>Ordered by the discount: tangible book (net debt counted) as a share of the price, largest first.</li>
   <li>Not here: banks and insurers (their own lists), REITs (the Real estate list: a REIT's book is cost under US accounting, fair value under international rules, so book does not compare) and asset managers (their value is the fees they earn, which no book records).</li>
 </ul><p>Net current assets (current assets less every liability; Graham's net-net test) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets). A net-net, priced below its net current assets, is also below its tangible book, so it enters by the same tests, return on capital included, and is marked with a <strong>net-net</strong> pill. Most net-nets lose money, and Graham bought them as a basket; this list keeps the rare one that earns.</p>{% endcall %}{% endmacro %}
@@ -120,16 +120,6 @@
   <li><strong>Spread over loan</strong> (shown, not tested): the yield after withholding less what a euro margin loan costs today, {{ r.borrow_rate }}% (the ECB's euro short-term rate plus 1.5% of broker margin and 0.5% of safety). Borrowing to buy adds risk: the loan, its interest and the price stay yours.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro low_beta(r) %}{% call rules("Steady businesses whose share has moved little with the market, at a price that already pays: for a holder who wants to sleep well, or who borrows against the holding.") %}<ul>
-  <li>Beta below {{ r.beta_max }}: Yahoo's, from 5 years of monthly returns against the S&amp;P 500. The only list a share's price path tests. For a share outside the US it partly says how little it moves with Wall Street, not how little it can fall, so the list leans to Asia and the Gulf.</li>
-  <li>Owner yield on the share price above {{ r.cheap_yield }}%: what one share earns in a normal year after today's interest on its debt or cash, over the share price. Ordered by it, highest first.</li>
-  <li>Steady figures in every year on file: revenue never down more than {{ r.beta_revenue }}% in a year, free cash flow positive every year, owner earnings not trending down, gross margin within {{ r.beta_gm_sd }} points (standard deviation) and return on capital steady (spread around its trend at most {{ r.beta_roic_var }}&times;). A missing figure fails.</li>
-  <li>Lasting: not cyclical, not at peak margins, past the AI screen; a dividend, when paid, not cut more than {{ r.recession_fall }}% in a past recession. A company paying none is judged on its figures.</li>
-  <li>Little debt: net debt at most {{ r.net_debt }}&times; operating profit or interest covered {{ r.cover }}&times;, and at most {{ r.net_debt_equity }}% of equity.</li>
-  <li>Normal return on capital (ROIC) of {{ r.beta_roic }}% or more: a steady business that earns little is no bargain at a fair price.</li>
-  <li>Operating companies only, from the best {{ r.top }} of the combined ranking.</li>
-</ul>{% endcall %}{% endmacro %}
-
 {% macro shortlist(r) %}{% call rules("Boring businesses worth researching in depth: dull, essential businesses in industries that do not attract new capital and that AI cannot easily replace; cheap, good, cleanly reported, and through stress tests for recession and debt.") %}<p>At most {{ r.n }} companies passing every test the figures allow, at once. A test whose figure is missing is passed.</p><ul>
   <li><strong>Ranked</strong>: profitable operating companies in the best {{ r.top }} of the combined ranking.</li>
   <li><strong>Growth without dilution</strong>: revenue per share not falling, shares not issued, owner earnings per share not shrinking, at least {{ r.incremental }}% earned on the capital added.</li>
@@ -144,10 +134,4 @@
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}).</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro trouble(r) %}{% call rules("Boring businesses in trouble now: every test of Boring businesses but one, nothing breaking now, which they fail. Sales, profit or analysts' estimates are falling right now. Whether the trouble is temporary is the research, not the list's answer.") %}<ul>
-  <li>Every other test of Boring businesses, as there: a boring industry past the AI screen, growing per share without dilution, cash-backed and clean earnings, a sound balance sheet, recession leaders only, the margin kept through inflation, owner earnings at zero growth (EPV) beating the bond, durable returns, the best {{ r.top }} of the combined ranking.</li>
-  <li>Nothing breaking now, failed: recent revenue down more than {{ r.revenue_fall }}% or operating profit (EBIT) down more than {{ r.ebit_fall }}% (the latest quarters against the year before), earnings estimates cut more than {{ r.estimate_cut }}% in 90 days, or a dividend cut paid in the last 12 months.</li>
-  <li>Graded before it counts: moat and management both at least {{ r.trouble_both }} and either at least {{ r.trouble_top }}; an ungraded company is folded away until graded.</li>
-  <li>In combined-rank order. Read why the numbers fall before buying: a temporary trouble and a broken business look alike at first.</li>
-</ul>{% endcall %}{% endmacro %}
 
