@@ -334,9 +334,8 @@ GROUPS = {
     "list": (
         "The List",
         "The companies on Cheap and good, Boring businesses, Compounders, Income or Balance sheet plays that earn "
-        "more on the share price than "
-        "the 10-year Treasury plus their country's risk, with nothing breaking now, and that passed both AI checks: "
-        "their moat and management, and their numbers. However many that is: there is no target.",
+        "more on the share price than the 10-year Treasury plus their country's risk, with nothing breaking now, "
+        "and that pass both AI checks: moat and management, and the numbers. No target: it shows however many pass.",
     ),
     "start": (
         "Start here",
@@ -345,8 +344,8 @@ GROUPS = {
     "style": (
         "By style",
         "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, or a "
-        "price below what the balance sheet holds; each from the best "
-        "{top} of the combined ranking, but Deep discount: a book checked and holding at under two thirds of it.",
+        "price below what the balance sheet holds. Each draws on the best {top} of the combined ranking; Deep "
+        "discount instead asks a price under two thirds of a checked book.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (

@@ -35,7 +35,7 @@
 <h1>Turning over the Rocks</h1>
 <p class="subtitle">{{ "{:,}".format(n_companies) }} listed companies{% if n_countries %} in {{ n_countries }} countries{% endif %}, measured with one yardstick: what a share earns for its owner against its price, and how good and lasting the business is. The few that are both cheap and good come first, cleaned of doubtful figures, checked on their moat and management, and followed month by month in a frozen forward test.</p>
 <nav class="page-sections">
-  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 2 November 2026 (bought at the 30 October close), followed month by month since, against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}
+  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 1 December 2026 (bought at the 30 November close), followed month by month against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}
 </nav>
 {% endblock %}
 {% block actions %}
@@ -66,8 +66,8 @@
   <details class="explain">
   <summary>Precise definitions</summary>
   <dl class="definitions">
-    <div><dt><span class="swatch swatch-v"></span>Value</dt><dd>What one share earns its owner today in a normal year (normalised owner earnings at zero growth: no growth is assumed, growth is Quality's), before interest, over the price of the business: market cap plus debt, less spare cash. Operating companies are compared with the whole market; banks, insurers and holdings with their own kind, as their yield is on equity, after debt.</dd></div>
-    <div><dt><span class="swatch swatch-q"></span>Quality</dt><dd>Mostly return on capital (ROIC; ROE for banks, insurers and holdings, banks' at a standard 8% equity/assets so thinner capital does not look better) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy leverage; also how much one share of the business grew and whether the share count shrank. Compared across the market; banks, insurers and holdings with their own kind.</dd></div>
+    <div><dt><span class="swatch swatch-v"></span>Value</dt><dd>What the business earns for its owners in a normal year (normalised owner earnings at zero growth: no growth is assumed, growth is Quality's), before interest, over the price of the business: market cap plus debt, less spare cash. Operating companies are compared with the whole market; banks, insurers, holdings, REITs and utilities with their own kind.</dd></div>
+    <div><dt><span class="swatch swatch-q"></span>Quality</dt><dd>Mostly return on capital (ROIC; ROE for banks, insurers and holdings, banks' at a standard 8% equity/assets so thinner capital does not look better) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy leverage; also how much one share of the business grew and whether the share count shrank. Compared across the market; banks, insurers, holdings, REITs and utilities with their own kind.</dd></div>
     <div><dt>Combined</dt><dd>Companies ordered by the worse of their Value and Quality positions{% if has_bench %} among the benchmark's companies{% endif %}, ties by the sum: a company must be both cheap and good, one does not make up for the other.</dd></div>
   </dl>
   <p>Systematic fundamental screening across all business models. Financials and holdings are evaluated on net income and book value against peer groups. {{ bench_note }}</p>

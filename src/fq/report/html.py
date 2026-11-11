@@ -75,24 +75,23 @@ TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking, a
                  "each list, not deleted.")  # fmt: skip
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
-                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, shares that trade under {liquid} a day, companies with fewer than {record_years} annual reports on file or a share or dividend history under {listed_years} years (a new issue's seller picks the date and the figures), and business "
-                 "models still to confirm. The rankings hold profitable operating companies only: banks, insurers, "
-                 "REITs and utilities are judged against their own kind in the By kind lists, holdings in Below "
-                 "book. Every list also leaves out "
-                 "the industries AI substitutes or disrupts (software, IT services, consulting, staffing, advertising, "
-                 "publishing, education, business services, internet content, gaming, health information, entertainment "
-                 "and broadcasting). Cheap and good, Cheapest and Best businesses are pure score rankings (the two "
-                 "named cheap also ask an owner yield on the share price above {cheap_yield}% plus the home "
-                 "country's sovereign spread); the other "
-                 "lists keep only the best {top} of the combined ranking (of its own kind, for the By kind lists). "
-                 "Each company a "
-                 "list shows is then graded 1 to 5 on its moat and its management by an AI model (Gemini), from its "
-                 "own knowledge and this site's figures: those with both grades at least {both} (Boring businesses, "
-                 "Deep discount, Cheapest and Best businesses set bars of their own), are the list; the others "
-                 "stay on it, folded away under the table, and the list takes the next company that qualifies in "
-                 "their place, so its rows that pass stay full while enough qualify. Cheap and good, Cheapest and "
-                 "Best businesses walk further down their ranking until at least {min_pass} pass every test. A grade changes no score "
-                 "and no rank.")  # fmt: skip
+                 "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, "
+                 "shares trading under {liquid} a day, companies with fewer than {record_years} annual reports or "
+                 "under {listed_years} years of share or dividend history (a new issue's seller picks the date and "
+                 "the figures), business models still to confirm, and the industries AI substitutes or disrupts "
+                 "(software, IT services, consulting, staffing, advertising, publishing, education, business services, "
+                 "internet content, gaming, health information, entertainment and broadcasting). The rankings hold "
+                 "profitable operating companies only; banks, insurers, REITs and utilities are judged against their "
+                 "own kind in the By kind lists, holdings in Balance sheet plays. Cheap and good, Cheapest and Best "
+                 "businesses are score rankings; the two named cheap also ask an owner yield on the share price above "
+                 "{cheap_yield}% plus the home country's sovereign spread. Deep discount asks a checked book instead. "
+                 "The other lists keep the best {top} of the combined ranking (of their own kind, for By kind). An AI "
+                 "model (Gemini) then grades each listed company's moat and management from 1 to 5, from its own "
+                 "knowledge and this site's figures. Companies with both grades at least {both} make the list (Boring "
+                 "businesses, Best businesses and Deep discount set their own bars); the others are folded under the "
+                 "table and the next qualifying company takes their place. Cheap and good, Cheapest and Best "
+                 "businesses walk down their ranking until at least {min_pass} pass every test. A grade changes no "
+                 "score and no rank.")  # fmt: skip
 
 
 # Countries the Boring businesses rule quotes for the sovereign spread (`lists/sovereign_spread.txt`), read at each report.

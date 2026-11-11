@@ -23,7 +23,8 @@
   <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
   <li>Ties go to the better sum of the two positions.</li>
   <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}% plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
-  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...).</li>
+  <li>If fewer than {{ r.min_pass }} of the rows shown pass every test (the moat and management bar and the AI check of the numbers), the list walks further down its ranking until {{ r.min_pass }} do; a company not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cheapest(r) %}{% call rules("The cheapest companies for what the business earns in a normal year, among those whose moat and management hold up: many cheap companies are cheap for a reason.") %}<ul>
@@ -33,7 +34,8 @@
   <li>Cyclicals at mid-cycle earnings, with no trend.</li>
   <li>Profitable operating companies only: banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays.</li>
   <li>The Quality score is not considered.</li>
-  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...).</li>
+  <li>If fewer than {{ r.min_pass }} of the rows shown pass every test (the moat and management bar and the AI check of the numbers), the list walks further down its ranking until {{ r.min_pass }} do; a company not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro best_businesses(r) %}{% call rules("The best businesses by returns on capital and per-share growth, among those whose moat and management are graded among the best, whatever their price.") %}<ul>
@@ -41,7 +43,8 @@
   <li>The Quality score: return on capital (ROIC; return on equity for financials) at its normal level, adjusted for its trend, shrunk when unsteady and cut for heavy debt; plus how much one share of the business grew and whether the share count shrank.</li>
   <li>Profitable operating companies only (banks, insurers, REITs and utilities are in the By kind lists, holdings in Balance sheet plays).</li>
   <li>Price is not considered: a great business can still be too dear. Cheap and good is where price and quality meet.</li>
-  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...). If fewer than {{ r.min_pass }} of the companies shown pass every test, their moat and management bar and the AI check of their numbers, the list goes further down its ranking until {{ r.min_pass }} do; one not yet graded or checked counts until it is.</li>
+  <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...).</li>
+  <li>If fewer than {{ r.min_pass }} of the rows shown pass every test (the moat and management bar and the AI check of the numbers), the list walks further down its ranking until {{ r.min_pass }} do; a company not yet graded or checked counts until it is.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro compounders(r) %}{% call rules("Businesses with high returns that grow smoothly without issuing shares, at a price that already pays: companies to hold for twenty years. Two routes in, one list.") %}<ul>
@@ -129,7 +132,7 @@
   <li><strong>Holding up</strong>: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months.</li>
   <li><strong>Stress tests</strong>: no industry naturally fragile or exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting); where a global recession hits hard, and for any cyclical, only the industry's leaders (top {{ r.leader_share }}% by revenue among the benchmark's companies, the top {{ r.leader_min }} always) holding net cash.</li>
   <li><strong>A boring industry</strong>: one that does not attract new capital, so the incumbents face few new competitors: {{ r.boring_industries }}.</li>
-  <li><strong>Price</strong>: earnings power at zero growth (and the owner yield, if lower) of at least {{ r.hurdle }}% of the price, the higher of 6% and the 10-year Treasury (a business should pay more than a bond before any growth; growth is the margin of safety), plus how much more than the US the company's home government pays to borrow dollars (its rating-based default spread, from Damodaran's January table, less the US's, in points: {{ r.spreads }}; the country of its headquarters, not of its sales); Value &ge; {{ r.value }}.</li>
+  <li><strong>Price</strong>: owner yield (owner earnings at zero growth, over market cap plus debt, less spare cash) of at least {{ r.hurdle }}%, the higher of 6% and the 10-year Treasury (a business should pay more than a bond before any growth; growth is the margin of safety), plus how much more than the US the company's home government pays to borrow dollars (its rating-based default spread, from Damodaran's January table, less the US's, in points: {{ r.spreads }}; the country of its headquarters, not of its sales); Value &ge; {{ r.value }}.</li>
   <li><strong>Quality</strong>: normalised return on capital of {{ r.roic }}% or more, Quality &ge; {{ r.quality }}.</li>
   <li><strong>Grade</strong>: a stricter moat and management bar than the other lists': both grades at least {{ r.grade_both }} <em>and</em> one of them {{ r.grade_top }} or more (the other lists: both at least {{ r.grade_both }}).</li>
 </ul>{% endcall %}{% endmacro %}
