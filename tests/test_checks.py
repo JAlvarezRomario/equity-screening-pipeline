@@ -481,3 +481,50 @@ def test_trouble_reads_in_trouble_now_and_walks_count_their_eligible():
 
     assert hl.label("Temporary trouble") == "In trouble now"
     assert all(t.eligible is not None for t in hl.TABS if t.ranked)
+
+
+def _deep(ticker, bv=250.0, nav=225.0, model="operating", book=True, mgmt=3.5, **more):
+    return {"Ticker": ticker, "BV_to_Price": bv, "NAV_to_Price": nav, "Effective_NAV_to_Price": nav,
+            "Business_Model": model, "Rank_Group": "ranked", "Check_Book_Pass": book, "Grade_Moat": 2.0,
+            "Grade_Mgmt": mgmt, "industry": "Conglomerates", **more}  # fmt: skip
+
+
+def test_deep_discount_is_under_two_thirds_of_both_books_and_never_a_lender():
+    # User's rule, Nov 11, 2026 (Swire Pacific B at 0.40x book and 0.44x tangible book had no book check).
+    from fq.report import screens as sc
+
+    df = pd.DataFrame([_deep("BOTH"), _deep("TANGIBLE", nav=110.0), _deep("BANK", model="bank"),
+                       _deep("EDGE", bv=152.0, nav=152.0)])  # fmt: skip
+    assert sc.deep_discount(df).tolist() == [True, False, False, True]
+
+
+def test_deep_discount_list_walks_the_discount_on_management_with_the_book_holding():
+    # User's choices, Nov 11, 2026: a list of its own, largest discount first, management at least 3.5, moat not asked.
+    import fq.report.highlights as hl
+
+    df = pd.DataFrame([_deep("OK", nav=200.0), _deep("DEEPEST", nav=400.0), _deep("WEAK", nav=300.0, mgmt=3.25),
+                       _deep("WAIT", nav=250.0, mgmt=float("nan")), _deep("FAILED", nav=500.0, book=False),
+                       _deep("UNCHECKED", nav=450.0, book=None), _deep("REIT", nav=600.0, Rank_Group="real_estate")])  # fmt: skip
+    out = hl.deep_discount_walk(df, 20)
+    assert out["Ticker"].tolist() == ["DEEPEST", "WAIT", "OK"]
+    assert out["Grade_Pass"].tolist() == [True, None, True]
+    assert len(hl._eligible_deep(df)) == 4  # the book checked and holding: DEEPEST, WEAK, WAIT, OK
+    assert hl.TAB["Deep discount"].ranked and hl.label("Deep discount") == "Deep discount"
+
+
+def test_every_deep_discount_gets_a_book_check_its_card_and_a_pill_when_it_holds(monkeypatch):
+    import fq.report.highlights as hl
+    from fq.report.cards import check_cards
+    from fq.report.pills import tags
+
+    frame = pd.DataFrame([_deep("SWIRE", book=None), _deep("PLAIN", bv=120.0, nav=110.0, book=None)])
+    frame = frame.assign(Deep_Discount=[True, False], Dividend_WHT=0.0)
+    h = hl.Highlights(frame, frame.iloc[0:0], None, 6.0, {})
+    monkeypatch.setattr(h, "published", lambda: pd.DataFrame(columns=["Ticker", "List", "Grade_Pass", "Check_Pass"]))
+    assert ("SWIRE", "book") in h.check_pool() and ("PLAIN", "book") not in h.check_pool()
+    row = frame.iloc[0].copy()
+    row["Grade_Listed"], row["Check_Book_Pass"], row["Check_Book_Topics"] = False, True, "[]"
+    assert [c["kind"] for c in check_cards(row)] == ["book"]
+    assert "deep discount to book" in {t["word"] for t in tags(row)}
+    row["Check_Book_Pass"] = False
+    assert "deep discount to book" not in {t["word"] for t in tags(row)}

@@ -282,10 +282,11 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     # Nov 8, 2026: Start here (Cheap and good, Boring businesses, Temporary trouble), By style (Compounders, Income,
     # Low beta, Balance sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities; Energy retired Nov 9,
     # 2026), Raw scores (Cheapest, Best businesses).
-    assert len(panels) == 14  # The List first (Nov 9, 2026)
+    assert len(panels) == 15  # The List first (Nov 9, 2026); Deep discount (Nov 11, 2026)
     assert all('class="list-count muted"' in p for p in panels)
-    ranked = [p for p in panels if any(f'id="{i}"' in p for i in ("hl-top-1", "hl-top-2", "hl-top-3"))]
-    assert len(ranked) == 3 and all("eligible companies" in p and "qualif" not in p for p in ranked)
+    walks = ("hl-top-1", "hl-top-2", "hl-top-3", "hl-deep-discount")
+    ranked = [p for p in panels if any(f'id="{i}"' in p for i in walks)]
+    assert len(ranked) == 4 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
     # Four rows of tabs by idea (Nov 7, 2026); some shown by their plain label, stored under their frozen name.
     groups = ("Start here", "By style", "By kind", "Raw scores")
@@ -886,7 +887,7 @@ def test_ai_screen_applies_to_every_list_the_score_lists_too(cfg):
     df.loc[software, "industry"] = "Software - Application"
     h = Highlights.compute(df, cfg)
     # User's choice, Nov 9, 2026: the three score rankings leave out AI-fragile industries too (unscreened Nov 4-9).
-    assert set(RANKED_TABS) == {"Cheap and good", "Cheapest", "Best businesses"}
+    assert set(RANKED_TABS) == {"Cheap and good", "Cheapest", "Best businesses", "Deep discount"}  # + Nov 11, 2026
     assert all(t.ai_screen for t in TABS)
     for name in ("Cheap and good", "Cheapest", "Best businesses"):
         assert not {df.loc[fragile, "Ticker"], df.loc[software, "Ticker"]} & set(h.shown(name)["Ticker"]), name

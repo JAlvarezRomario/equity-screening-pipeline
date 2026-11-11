@@ -18,6 +18,7 @@ from fq.report.cards import check_pill, grade_pill
 from fq.report.company_page import STATIC_FILES, TEMPLATE_DIR, _env, write_company_pages
 from fq.report.format import benchmark_note, fmt, headers, period_range, report_periods, summary_columns, summary_rows
 from fq.report.highlights import (
+    DEEP_MIN_MGMT,
     GROUPS,
     MIN_ALL_PASS,
     SHORTLIST,
@@ -121,6 +122,7 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "beta_gm_sd": g(sc.LOW_BETA_MAX_GROSS_MARGIN_SD), "beta_roic": g(sc.LOW_BETA_MIN_ROIC), "beta_roic_var": g(sc.LOW_BETA_MAX_ROIC_VARIABILITY),
         "trouble_both": g(grading.TROUBLE_MIN_BOTH), "trouble_top": g(grading.TROUBLE_MIN_TOP),
         "asset_min_roic": g(cfg.asset_play_min_roic),
+        "deep_pb": g(sc.DEEP_DISCOUNT_MAX_PRICE_TO_BOOK), "deep_mgmt": g(DEEP_MIN_MGMT),
         "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),
         "min_years": cfg.improver_min_years,
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),

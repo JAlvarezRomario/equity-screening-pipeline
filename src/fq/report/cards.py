@@ -46,11 +46,16 @@ def check_cards(row: pd.Series) -> list[dict]:
     """The company page's check cards, earnings first then book, for each check made: title, verdict, headline, the
     topic rows (mark, its spoken name, topic, line) and the reasoning bullets (markdown marks stripped; autoescaped
     by the template). Only while the company is listed or held (`Grade_Listed`), like the grade card: a check kept
-    from an earlier listing stays stored, not shown."""
-    if row.get("Grade_Listed") != True:  # noqa: E712
+    from an earlier listing stays stored, not shown. A deep discount (`screens.deep_discount`) shows its book card
+    whether listed or not."""
+    listed = row.get("Grade_Listed") == True  # noqa: E712
+    deep = row.get("Deep_Discount") == True  # noqa: E712 - its book is always checked (Nov 11, 2026)
+    if not (listed or deep):
         return []
     cards = []
     for kind in CHECK_KINDS:
+        if not listed and kind != BOOK:
+            continue
         prefix = f"Check_{kind.capitalize()}_"
         verdict = _flag(row.get(f"{prefix}Pass"))
         if verdict is None:

@@ -316,6 +316,58 @@ def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return d.sort_values("Book_Order").head(n)
 
 
+# The "Deep discount" list (user's choice, Nov 11, 2026, prompted by Swire Pacific B at 0.40x book and 0.44x tangible
+# book with no book check, being on no list): price under this multiple of both book and tangible book always gets the
+# AI check of its book (`highlights.Highlights.check_pool`), and those whose book holds form a list of their own,
+# ordered by the discount, with management graded at least `highlights.DEEP_MIN_MGMT`. Display only. Banks and
+# insurers are left out: the book check reads assets carried high and hidden liabilities, not loans and reserves.
+DEEP_DISCOUNT_MAX_PRICE_TO_BOOK = 0.66
+DEEP_DISCOUNT_COLUMNS = [
+    ("Price / Book", "Price_to_Book", ".2f", 1, "x"),
+    ("Price / Tangible Book", "Price_to_Tangible_Book", ".2f", 1, "x"),
+    ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
+    ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
+    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
+    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Management", "Grade_Mgmt", ".2f", 1, ""),
+    SHARE_YIELD_COLUMN,
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
+
+
+def deep_discount(df: pd.DataFrame) -> pd.Series:
+    """Priced under `DEEP_DISCOUNT_MAX_PRICE_TO_BOOK` of both book and tangible book per share (`BV_to_Price` and
+    `NAV_to_Price`, book / price in %, both present), not a bank or an insurer. `highlights.prepare` stores it as
+    `Deep_Discount`, and a stored column is read as it is."""
+    if "Deep_Discount" in df.columns:
+        return df["Deep_Discount"].fillna(False).astype(bool)
+    floor = 100 / DEEP_DISCOUNT_MAX_PRICE_TO_BOOK
+    model = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    return (_num(df, "BV_to_Price") >= floor) & (_num(df, "NAV_to_Price") >= floor) & ~model.isin(("bank", "insurer"))
+
+
+def deep_discount_list(df: pd.DataFrame) -> pd.DataFrame:
+    """The candidates of the "Deep discount" list, in its order: `deep_discount`, the book checked and holding
+    (`Check_Book_Pass` True), not a REIT (`kind` real_estate: book is cost or fair value, it does not compare) nor an
+    asset manager (`Settings.asset_play_excluded_industries`), largest discount first (`Effective_NAV_to_Price`:
+    tangible book with net debt counted; `Discount_Order`, 1 = first). `Price_to_Book` and `Price_to_Tangible_Book`
+    are shown. Trusted as `ranking.top_n` when walked (`highlights.deep_discount_walk`), which asks the management
+    grade."""
+    passed = df["Check_Book_Pass"] if "Check_Book_Pass" in df.columns else pd.Series(None, index=df.index)
+    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    keep = (
+        deep_discount(df)
+        & passed.map(lambda v: v is True or v == True).astype(bool)  # noqa: E712 - numpy bool
+        & (kind(df) != "real_estate")
+        & ~industry.isin(Settings().asset_play_excluded_industries)
+    )
+    d = df[keep]
+    d = d.assign(Price_to_Book=100 / _num(d, "BV_to_Price"), Price_to_Tangible_Book=100 / _num(d, "NAV_to_Price"),
+                 Discount_Order=_num(d, "Effective_NAV_to_Price").fillna(_num(d, "NAV_to_Price"))
+                 .rank(method="first", ascending=False))  # fmt: skip
+    return d.sort_values("Discount_Order")
+
+
 def _every_year(df: pd.DataFrame, concept: str, periods: list[str], min_years: int, rising: bool = True) -> pd.Series:
     """Over the consecutive annual reports from Y0 back (at least `min_years`), `concept` rose every year (`rising`),
     or never rose. A missing Y0 or a gap after fewer than `min_years` fails."""

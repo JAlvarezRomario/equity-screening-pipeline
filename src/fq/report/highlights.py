@@ -88,18 +88,20 @@ def _check_verdict(row_value) -> bool | None:
     return None if row_value is None or (isinstance(row_value, float) and pd.isna(row_value)) else bool(row_value)
 
 
-def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str) -> pd.DataFrame:
+def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str,
+                 check_col: str = "Check_Earnings_Pass") -> pd.DataFrame:  # fmt: skip
     """Down a ranking (`ranking.top_n` on `rank_col`), the companies whose moat and management pass `verdict_of`
     (True, False, or None when ungraded) until `n` of them and, of those, at least `MIN_ALL_PASS` whose earnings
     check is not a fail (`Check_Earnings_Pass`; a check not made yet counts as a pass until it is): a company graded
     below is skipped and the next one taken; one that fails its check is kept, shaded. Ungraded companies met on the
     way (at most `WALK_WAITING`) stay in the list, marked not graded, so the grading (`Highlights.grade_pool`) reaches
-    them and the list fills within a few runs. At most `WALK_MAX_ROWS` rows. `Grade_Bar` is `bar`."""
+    them and the list fills within a few runs. At most `WALK_MAX_ROWS` rows. `Grade_Bar` is `bar`. `check_col` is
+    the check that counts (the book's on Deep discount)."""
     ordered = top_n(df, rank_col, len(df))
     blank = pd.Series(np.nan, index=ordered.index)
     moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
     mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else blank
-    check = ordered["Check_Earnings_Pass"] if "Check_Earnings_Pass" in ordered.columns else blank
+    check = ordered[check_col] if check_col in ordered.columns else blank
     keep, verdicts, passed, sound, waiting = [], [], 0, 0, 0
     for i, m, g, c in zip(ordered.index, moat, mgmt, check, strict=True):
         if (passed >= n and sound >= min(MIN_ALL_PASS, n)) or len(keep) >= WALK_MAX_ROWS:
@@ -154,6 +156,28 @@ def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.Data
     until at least `MIN_ALL_PASS` pass the check too (Nov 9, 2026). Price plays no part: a raw score; Cheap and good is
     where price and quality meet."""
     return _graded_walk(df, n, "Quality_Rank", grading.passes_best_walk, BEST_BAR)
+
+
+# Deep discount (user's choice, Nov 11, 2026): management graded at least this; the moat is not asked, since the
+# thesis is the assets (a book checked and holding at under 0.66x), and management decides whether owners see them.
+DEEP_MIN_MGMT = 3.5
+DEEP_BAR = f"management at least {DEEP_MIN_MGMT:g}, graded before it counts"
+
+
+def passes_deep(moat, mgmt) -> bool | None:
+    """Deep discount's bar: management at least `DEEP_MIN_MGMT`; None when ungraded."""
+    return None if pd.isna(mgmt) else bool(mgmt >= DEEP_MIN_MGMT)
+
+
+def deep_discount_walk(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
+    """Deep discount: down `screens.deep_discount_list` (largest discount first, the book checked and holding),
+    management at least `DEEP_MIN_MGMT` (`passes_deep`; `_graded_walk`, the book check counting), until `n`."""
+    return _graded_walk(sc.deep_discount_list(df), n, "Discount_Order", passes_deep, DEEP_BAR, "Check_Book_Pass")
+
+
+def _eligible_deep(df: pd.DataFrame) -> pd.DataFrame:
+    """The companies Deep discount may draw from: the book checked and holding, trusted."""
+    return top_n(sc.deep_discount_list(df), "Discount_Order", len(df))
 
 
 def _eligible_cheap(rank_col: str) -> Callable[[pd.DataFrame], pd.DataFrame]:
@@ -332,7 +356,7 @@ GROUPS = {
         "By style",
         "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, a "
         "steady business whose share moves little, or a price below what the balance sheet holds; each from the best "
-        "{top} of the combined ranking.",
+        "{top} of the combined ranking, but Deep discount: a book checked and holding at under two thirds of it.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
@@ -362,6 +386,8 @@ TABS: tuple[Tab, ...] = (
     Tab("Low beta", "low_beta", "hl-low-beta", sc.LOW_BETA_COLUMNS, _plain(sc.low_beta_list), sort="Low_Beta_Order"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
         sort="Book_Order", label="Balance sheet plays"),
+    Tab("Deep discount", "deep_discount", "hl-deep-discount", sc.DEEP_DISCOUNT_COLUMNS, deep_discount_walk,
+        sort="Discount_Order", ranked=True, eligible=_eligible_deep),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
         sort="Kind_Rank"),
     Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
@@ -481,7 +507,7 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     df = df.assign(In_Best_Fraction=sc.in_best_fraction(df))  # the run's cut, kept by every subset a list is drawn from
     # The record test (`screens.has_record`) once per report: every list, the pills and the company pages read it.
     df = df.assign(Record_Years=sc.roic_years(df), Listed_Years=sc.listed_years(df))
-    df = df.assign(Has_Record=sc.has_record(df))
+    df = df.assign(Has_Record=sc.has_record(df), Deep_Discount=sc.deep_discount(df))
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
     df = sc.with_income_record(sc.with_dividend_record(df))  # judged once per report, not once per list call
@@ -600,7 +626,7 @@ class Highlights:
         management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere; a
         Balance sheet plays member on its earnings too, which The List orders by (`the_list`)."""
         pub = self.published()
-        passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True)]  # noqa: E712
+        passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True).astype(bool)]  # noqa: E712
         kept_off = set(self.frame.loc[sc.kind(self.frame).isin(THE_LIST_LEFT_OUT), "Ticker"])  # never on The List
         pairs = []
         for t, name in zip(passed["Ticker"], passed["List"], strict=True):
@@ -609,6 +635,8 @@ class Highlights:
                 pairs.append((t, kind))
             if kind == grading.BOOK and name in THE_LIST_SOURCES and t not in kept_off:
                 pairs.append((t, grading.EARNINGS))
+        # Every deep discount, listed or not (user's rule, Nov 11, 2026): its book is checked, after the lists' needs.
+        pairs += [(t, grading.BOOK) for t in self.frame.loc[sc.deep_discount(self.frame), "Ticker"]]
         return list(dict.fromkeys(pairs))
 
 

@@ -586,7 +586,7 @@ CHECK_INPUT_VERSION = 3  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield
 CASH_QUESTION_MIN_PCT = 20.0  # net cash / market cap, %, from which the earnings check asks about the cash (user)
 EARNINGS, BOOK = "earnings", "book"
 CHECK_KINDS = (EARNINGS, BOOK)
-BOOK_LISTS = frozenset({"Below book"})  # the stored tab names judged on their book (shown as Balance sheet plays)
+BOOK_LISTS = frozenset({"Below book", "Deep discount"})  # the stored tab names judged on their book
 CHECK_TAGS = {EARNINGS: ("peak earnings", "one-offs", "AI risk", "cash catch"), BOOK: ("book overstated",)}
 CHECK_TOPICS = {
     EARNINGS: ("Cycle", "One-offs and accounting", "AI and robotics", "Net cash"),

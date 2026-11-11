@@ -68,6 +68,15 @@
   <li>Not here: banks and insurers (their own lists), REITs (the Real estate list: a REIT's book is cost under US accounting, fair value under international rules, so book does not compare) and asset managers (their value is the fees they earn, which no book records).</li>
 </ul><p>Net current assets (current assets less every liability; Graham's net-net test) per share are shown beside it (left blank for banks, insurers and property developers whose land sits in current assets). A net-net, priced below its net current assets, is also below its tangible book, so it enters by the same tests, return on capital included, and is marked with a <strong>net-net</strong> pill. Most net-nets lose money, and Graham bought them as a basket; this list keeps the rare one that earns.</p>{% endcall %}{% endmacro %}
 
+{% macro deep_discount(r) %}{% call rules("Companies priced under " ~ r.deep_pb ~ " times both their book and their tangible book, whose book an AI check found holds, with a management that may let owners see it; ordered by the size of the discount.") %}<ul>
+  <li>The share price under {{ r.deep_pb }}&times; book value per share and under {{ r.deep_pb }}&times; tangible book (book less goodwill and other intangibles).</li>
+  <li>The book checked by an AI model (Gemini) and holding: no assets carried well above what they are worth, no liabilities kept off the balance sheet, net assets worth at least the book. Every company this cheap against its book is checked, on a list or not, and its page shows the check.</li>
+  <li>Management graded at least {{ r.deep_mgmt }} (1 to 5): a discount closes only when the people in charge use or return the assets. The moat is not asked: the case is the assets, not the earnings.</li>
+  <li>No return floor and no cut to the best of the combined ranking: a business earning little can still be worth its book. Read why the market prices it so low before buying.</li>
+  <li>Not here: banks and insurers (their book is loans and reserves, which this check does not read), REITs (book is cost under US accounting, fair value under international rules) and asset managers. Every list's tests for suspect figures, a record, trading and AI apply.</li>
+  <li>Ordered by the discount: tangible book, net debt counted, as a share of the price, largest first. A company not graded yet keeps its place, marked, until it is.</li>
+</ul>{% endcall %}{% endmacro %}
+
 {% macro banks(r) %}{% call rules("Banks and lenders judged against other banks and lenders only: return on equity, book and capital.") %}<ul>
   <li>Banks, credit card and consumer lenders, brokers, mortgage lenders and mortgage REITs. Not in the rankings: a lender's earnings rest on borrowed money, so its yield and returns do not compare with an operating company's.</li>
   <li>The best {{ r.top }} of banks and lenders by the worse of their Value and Quality positions among them, in that order.</li>

@@ -88,6 +88,10 @@ def tags(row: pd.Series) -> list[dict]:
         )
     if flag("Insufficient_Data"):
         add("insufficient data", "Not enough data to score Value or Quality: not ranked.")
+    if flag("Deep_Discount") and flag("Check_Book_Pass"):
+        add("deep discount to book", f"Priced under {DEEP_PILL_MAX:g}x both book and tangible book per share, and an "
+            "AI check of the book (assets carried high, hidden liabilities) found it holds: the Deep discount list's "
+            "test, before the management grade.")  # fmt: skip
     record = short_record(row)
     if record:
         add("short record", f"{record}: on no list until the record is longer (a new issue's seller picks the date and "
@@ -134,6 +138,7 @@ def short_record(row: pd.Series) -> str:
     return " and ".join(parts)
 
 
+DEEP_PILL_MAX = 0.66  # as `screens.DEEP_DISCOUNT_MAX_PRICE_TO_BOOK` (screens imports format, which imports this module)
 # A share down more than this % over 6 months carries a pill (Nov 10, 2026: shown, never tested, since the lists'
 # price floor went).
 FALLEN_PILL_MIN = -20.0
