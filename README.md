@@ -55,8 +55,8 @@ with one page per company.
 | Companies scored | 10k+, from a benchmark of 11k+ tickers drawn from 50+ index and market lists; about 6,400 profitable operating companies ranked |
 | Markets | about 70 countries; statements read in their reporting currency, returns compared in US terms |
 | Data | about 480 raw columns per company and about 870 in the ranked table, in parquet |
-| Code | about 12,000 lines of Python, plus about 400 offline tests |
-| LLM cost | about $0.10 a graded company (two passes, one when the first fails); about 580 graded; recorded per company |
+| Code | about 12,000 lines of Python, plus about 490 offline tests |
+| LLM cost | about $0.10 a graded company (two passes, one when the first fails); about 950 graded; checks of the numbers about $0.02 each, about 1,000 made; recorded per company |
 
 ## Architecture at a glance
 
