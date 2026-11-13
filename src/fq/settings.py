@@ -220,6 +220,13 @@ CONCEPTS_BALANCE = [
     "Receivables",
     # Non-cash working capital = current assets - cash - (current liabilities - this) (`flows._growth_working_capital`).
     "Current Debt And Capital Lease Obligation",
+    # What the book is made of, for the book check only (Nov 12, 2026: its net asset estimate needs the stakes, land,
+    # stock and pensions the totals hide). Shown to the check, read by no metric, score or flag. Names from live Yahoo
+    # balance sheets of six deep discounts (4116.T, H18.SI, VIOT, 8881.T, PAH3.DE, 4404.T).
+    "Inventory", "Long Term Equity Investment", "Investmentin Financial Assets", "Investment Properties",
+    "Land And Improvements", "Buildings And Improvements", "Construction In Progress",
+    "Non Current Pension And Other Postretirement Benefit Plans", "Non Current Deferred Taxes Assets",
+    "Non Current Deferred Taxes Liabilities",
 ]  # fmt: skip
 
 CONCEPTS_CASHFLOW = [
@@ -251,6 +258,8 @@ ALIASES: dict[str, list[str]] = {
     "Receivables": ["Accounts Receivable"],
     "Current Debt And Capital Lease Obligation": ["Current Debt"],
     "Cost Of Revenue": ["Reconciled Cost Of Revenue"],
+    "Long Term Equity Investment": ["Investmentsin Associatesat Cost"],
+    "Investmentin Financial Assets": ["Available For Sale Securities"],
 }
 # Concepts that can be rebuilt as the sum of other rows when absent.
 COMPOSITES: dict[str, list[str]] = {

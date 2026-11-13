@@ -570,18 +570,38 @@ def run(tickers: list[str], ranked: pd.DataFrame, path: Path, workers: int = WOR
 CHECK_MODEL = GRADE_MODEL
 CHECK_OUTPUT_TOKENS = 32768
 # What `check_input` carries; bump it when that changes, so every check is redone (`check_hash`).
-CHECK_INPUT_VERSION = 3  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield as terms); 3: the earnings
-# check sees what sits behind the earnings (`EARNINGS_LINES`), the book check retained earnings (consultant review)
+CHECK_INPUT_VERSION = 4  # 2 (Nov 8, 2026): accounting notes kept (EV, FCF yield as terms); 3: the earnings
+# check sees what sits behind the earnings (`EARNINGS_LINES`), the book check retained earnings (consultant review);
+# 4 (Nov 12, 2026): what the book is made of (stakes, land, stock, pensions) and, with the cash question, the payout
 CASH_QUESTION_MIN_PCT = 20.0  # net cash / market cap, %, from which the earnings check asks about the cash (user)
 EARNINGS, BOOK = "earnings", "book"
 CHECK_KINDS = (EARNINGS, BOOK)
 BOOK_LISTS = frozenset({"Below book", "Deep discount"})  # the stored tab names judged on their book
-CHECK_TAGS = {EARNINGS: ("peak earnings", "one-offs", "AI risk", "cash catch"), BOOK: ("book overstated",)}
+CHECK_TAGS = {EARNINGS: ("peak earnings", "one-offs", "AI risk", "cash catch"),
+              BOOK: ("book overstated", "book eroding", "value locked")}  # fmt: skip
 CHECK_TOPICS = {
     EARNINGS: ("Cycle", "One-offs and accounting", "AI and robotics", "Net cash"),
-    BOOK: ("Assets carried high", "Hidden liabilities", "Assets carried low", "Net assets vs book"),
-}
-CHECK_STATUSES = ("ok", "caution", "fail")
+    BOOK: ("Assets carried high", "Hidden liabilities", "Assets carried low", "Eats the book", "Reaches shareholders",
+           "Net assets vs book"),
+}  # fmt: skip
+# "none" (Nov 12, 2026): nothing found, where finding something would be good news ("Assets carried low": no hidden
+# value is not a caution; 501 of 812 book checks had marked it "!").
+CHECK_STATUSES = ("ok", "caution", "fail", "none")
+# The book check's verdict (user's rule, Nov 12, 2026): the book holds when the model's base estimate of the net
+# assets is at least the book; besides, a fail on either of these fails it (value the book shows that never reaches a
+# minority shareholder). A fail on assets carried high or hidden liabilities alone no longer does: the bridge sizes it.
+BOOK_DECIDING = ("Eats the book", "Reaches shareholders")
+# How far the going-concern estimate may fall short of the book and the book still hold (user's choice, Nov 12, 2026:
+# the estimate is the model's, so a gap of a few % is noise; 4116.T fell 1.6% short on its written-off goodwill alone;
+# 10% from Nov 13, 2026, after the full re-check left 41 companies at 90-95% of book).
+BOOK_TOLERANCE = 0.10
+# Check hashes still current although the prompt changed since (as `PASS_HASH_ALIASES` for grades): dab7f141da8e is
+# the book check of Nov 12, 2026, made when the prompt quoted 95%; its stored answers were re-read under the 10% rule
+# (`recheck_book_rule`), not asked again. Drop an alias once no check carries it.
+CHECK_HASH_ALIASES: frozenset[str] = frozenset({"dab7f141da8e"})
+# The earnings check's normal year (Nov 12, 2026): more than this below the average of the years shown, on the
+# operating margin or the owner earnings, fails it ("peak earnings"), the rule the prompt always stated, now measured.
+NORMAL_YEAR_MAX_GAP = 0.20
 # The earnings check fails on a caution on both of these (user's rule, Nov 8, 2026): two flattering forces at once.
 TWO_CAUTIONS = ("Cycle", "One-offs and accounting")
 # In an industry AI substitutes or disrupts (`lists/ai_fragile.txt`, the screen the score lists skip), a caution on AI
@@ -591,23 +611,41 @@ AI_FRAGILE_FILE = "ai_fragile.txt"
 # The pill of a failing topic (`parse_check`): what the reader sees beside the ticker.
 TOPIC_TAGS = {"Cycle": "peak earnings", "One-offs and accounting": "one-offs", "AI and robotics": "AI risk",
               "Net cash": "cash catch", "Assets carried high": "book overstated", "Hidden liabilities": "book overstated",
-              "Net assets vs book": "book overstated"}  # fmt: skip
+              "Net assets vs book": "book overstated", "Eats the book": "book eroding",
+              "Reaches shareholders": "value locked"}  # fmt: skip
 CHECK_WORKERS = 12  # checks made at once: one call each, waiting on the model, not this machine (Nov 8, 2026)
 EST_CHECK_USD = (
     0.025  # one check, one Argon pass, at the introductory rates (measured on 5 checks, Nov 8, 2026: $0.022)
 )
-CHECK_COLUMNS = ["Ticker", "Kind", "Pass", "Headline", "Tag", "Topics", "Why", "Report", "Checked_At", "Y0_End",
-                 "Model", "Check_Hash", "Tokens_In", "Tokens_Out", "Cost_USD"]  # fmt: skip
+# The figures a check states or is measured against (Nov 12, 2026), millions of US dollars or %: the book check's
+# net asset estimate (low, base, high), its bridge from the book (JSON) and confidence, with the book and tangible
+# book it was compared with; the earnings check's normal year against the average of the years shown.
+CHECK_FIGURES = ["NAV_Low", "NAV_Base", "NAV_High", "Book", "Tangible_Book", "Bridge", "Confidence",
+                 "Normal_Margin", "Normal_Owner_Earnings", "Avg_Margin", "Avg_Owner_Earnings"]  # fmt: skip
+CHECK_COLUMNS = ["Ticker", "Kind", "Pass", "Headline", "Tag", "Topics", "Why", *CHECK_FIGURES, "Report", "Checked_At",
+                 "Y0_End", "Model", "Check_Hash", "Tokens_In", "Tokens_Out", "Cost_USD"]  # fmt: skip
 # The book check's balance sheet, per period (label, column concept), millions of US dollars.
 BOOK_LINES = (
     ("Current assets", "Current Assets"),
     ("Receivables", "Receivables"),
     ("Short-term investments", "Other Short Term Investments"),
     ("Property, plant and equipment, net", "Net PPE"),
+    ("Inventory", "Inventory"),
+    # Yahoo's breakdown of plant is at cost, before depreciation (4116.T: buildings 340 against net plant 309); land is
+    # never depreciated, so its cost is its book.
+    ("Land, at cost", "Land And Improvements"),
+    ("Buildings, at cost before depreciation (part of net plant above)", "Buildings And Improvements"),
+    ("Construction in progress (part of net plant above)", "Construction In Progress"),
+    ("Investment property", "Investment Properties"),
+    ("Stakes in associates and joint ventures", "Long Term Equity Investment"),
+    ("Other long-term financial investments", "Investmentin Financial Assets"),
+    ("Deferred tax assets", "Non Current Deferred Taxes Assets"),
     ("Goodwill and intangibles", "Goodwill And Other Intangible Assets"),
     ("Total assets", "Total Assets"),
     ("Current liabilities", "Current Liabilities"),
     ("Total liabilities", "Total Liabilities Net Minority Interest"),
+    ("Pension and retirement obligations", "Non Current Pension And Other Postretirement Benefit Plans"),
+    ("Deferred tax liabilities", "Non Current Deferred Taxes Liabilities"),
     ("Lease obligations", "Capital Lease Obligations"),
     ("Minority interest", "Minority Interest"),
     ("Preferred stock", "Preferred Stock Equity"),
@@ -678,10 +716,11 @@ def asks_about_cash(row: pd.Series) -> bool:
     return bool(pd.notna(net_cash) and net_cash >= CASH_QUESTION_MIN_PCT and row.get("Financial_Mode") != True)  # noqa: E712
 
 
-def check_input(row: pd.Series, notes, kind: str, cfg=None) -> str:
+def check_input(row: pd.Series, notes, kind: str, cfg=None, cash: bool = False) -> str:
     """What a check reads about one company: the grade's input (`grade_input`: the business, never the price), the
-    book check's balance sheet by period, and the system's data notes and warning flags with every priced clause taken
-    out (`price_free`). The moat and management reasoning is not passed."""
+    book check's balance sheet by period, with the cash question what the owners were paid (`payout_line`), and the
+    system's data notes and warning flags with every priced clause taken out (`price_free`). The moat and management
+    reasoning is not passed."""
     from fq.settings import Settings
 
     cfg = cfg or Settings()
@@ -694,10 +733,72 @@ def check_input(row: pd.Series, notes, kind: str, cfg=None) -> str:
     table = _period_table(row, cfg, *spec)
     if table:
         out += ["", table]
+    paid = payout_line(row, cfg) if cash and kind == EARNINGS else None
+    if paid:
+        out += ["", "### What the owners were paid", f"- {paid}"]
     clean = price_free(notes)
     if clean:
         out += ["", "### Data notes and warning flags", *[f"- {n}" for n in clean]]
     return "\n".join(out).strip()
+
+
+def _annual(cfg) -> list[str]:
+    """The annual periods, oldest first (the TTM left out, so no year is counted twice in a sum)."""
+    return [p for p in cfg.chronological if p != "TTM"]
+
+
+def payout_line(row: pd.Series, cfg) -> str | None:
+    """With the cash question (Nov 12, 2026; Ishihara, buying back a tenth of its shares, had a caution for an idle
+    pile): dividends plus buybacks as % of free cash flow summed over the annual reports, and the share count's change
+    from the oldest report to the newest period. None when neither can be measured."""
+    years = [p for p in _annual(cfg) if _present(row.get(f"FCF_Reported_{p}"))]
+    parts = []
+    if years:
+        fcf = sum(_num(row.get(f"FCF_Reported_{p}")) for p in years)
+        paid = -sum(
+            _num(row.get(f"{c}_{p}")) if _present(row.get(f"{c}_{p}")) else 0.0
+            for p in years
+            for c in ("Cash Dividends Paid", "Repurchase Of Capital Stock")
+        )
+        if fcf > 0:
+            parts.append(f"dividends plus buybacks took {paid / fcf * 100:.0f}% of free cash flow over the "
+                         f"{len(years)} annual reports shown ({paid / 1e6:,.0f} of {fcf / 1e6:,.0f} million)")  # fmt: skip
+    shares = [(p, _num(row.get(f"Ordinary Shares Number_{p}"))) for p in cfg.chronological]
+    shares = [(p, v) for p, v in shares if pd.notna(v) and v > 0]
+    if len(shares) >= 2:
+        (p0, first), (p1, last) = shares[0], shares[-1]
+        parts.append(f"shares outstanding went from {first / 1e6:,.1f} to {last / 1e6:,.1f} million "
+                     f"({(last / first - 1) * 100:+.1f}%, {_period_label(row, p0)} to {_period_label(row, p1)})")  # fmt: skip
+    return ("; ".join(parts)[:1].upper() + "; ".join(parts)[1:] + ".") if parts else None
+
+
+def check_baseline(row: pd.Series, kind: str, cfg=None) -> dict:
+    """What a check's own figures are measured against (Nov 12, 2026), in the units of its input (millions of US
+    dollars at today's rate; margins in %): the book check, the newest common equity and tangible book (`Book`,
+    `Tangible_Book`); the earnings check, the average operating margin and owner earnings over the periods the input
+    shows (`Avg_Margin`, `Avg_Owner_Earnings`, as `grade_input` lists them)."""
+    from fq.settings import Settings
+
+    cfg = cfg or Settings()
+    periods = list(cfg.chronological)
+    if row.get("TTM_Identical_To_Latest") == True:  # noqa: E712
+        periods.remove("TTM")
+    if kind == BOOK:
+
+        def newest(concept: str) -> float:
+            return next((_num(row.get(f"{concept}_{p}")) / 1e6 for p in reversed(periods)
+                         if _present(row.get(f"{concept}_{p}"))), float("nan"))  # fmt: skip
+
+        return {"Book": newest("Common Stock Equity"), "Tangible_Book": newest("Tangible Book Value")}
+    shown = [
+        p for p in periods if _present(row.get(f"Total Revenue_{p}")) or _present(row.get(f"Net_Income_Clean_{p}"))
+    ]
+
+    def mean(concept: str, scale: float) -> float:
+        values = [_num(row.get(f"{concept}_{p}")) * scale for p in shown if _present(row.get(f"{concept}_{p}"))]
+        return sum(values) / len(values) if values else float("nan")
+
+    return {"Avg_Margin": mean("operatingMargins", 1.0), "Avg_Owner_Earnings": mean("Owner_Earnings", 1e-6)}
 
 
 def _period_table(row: pd.Series, cfg, lines_spec, title: str) -> str | None:
@@ -716,18 +817,20 @@ def _period_table(row: pd.Series, cfg, lines_spec, title: str) -> str | None:
 
 def _check_prompt_text(kind: str, cash: bool) -> str:
     if kind == BOOK:
-        return _prompt("check_book.md")
-    text = _prompt("check_earnings.md")
+        return _prompt("check_book.md").replace("{{BOOK_HOLDS_PCT}}", f"{(1 - BOOK_TOLERANCE) * 100:g}")
+    text = _prompt("check_earnings.md").replace("{{NORMAL_GAP}}", f"{NORMAL_YEAR_MAX_GAP * 100:g}")
     question = _prompt("check_cash.md").replace("{{CASH_MIN}}", f"{CASH_QUESTION_MIN_PCT:g}") if cash else ""
     topic = ',\n    {"name": "Net cash", "status": "ok | caution | fail", "line": "at most 12 words"}' if cash else ""
     return text.replace("{{CASH_QUESTION}}", question).replace("{{CASH_TOPIC}}", topic)
 
 
 def check_hash(kind: str) -> str:
-    """What a check was made with: its prompts, model, thinking and input version (another hash makes it due)."""
+    """What a check was made with: its prompts, model, thinking, input version and the rules `parse_check` applies
+    (another hash makes it due)."""
     names = ("check_book.md",) if kind == BOOK else ("check_earnings.md", "check_cash.md")
     digest = hashlib.sha1("".join(_prompt(n) for n in names).encode())
-    digest.update(repr((kind, CHECK_MODEL, THINKING, CHECK_INPUT_VERSION, CASH_QUESTION_MIN_PCT)).encode())
+    digest.update(repr((kind, CHECK_MODEL, THINKING, CHECK_INPUT_VERSION, CASH_QUESTION_MIN_PCT, NORMAL_YEAR_MAX_GAP,
+                        BOOK_DECIDING, BOOK_TOLERANCE, CHECK_TOPICS[kind])).encode())  # fmt: skip
     return digest.hexdigest()[:12]
 
 
@@ -748,12 +851,45 @@ def ai_fragile(row) -> bool:
     return isinstance(industry, str) and industry_key(industry) in keys
 
 
-def parse_check(text: str, kind: str, fragile: bool = False) -> dict | None:
+def _money(value) -> float:
+    """A figure the model wrote (12.5, "12.5", "$1,234m"), as a float; NaN when unreadable."""
+    if isinstance(value, bool):
+        return float("nan")
+    if isinstance(value, int | float):
+        return float(value)
+    match = re.search(r"-?\d[\d,]*\.?\d*", str(value or ""))
+    return float(match.group().replace(",", "")) if match else float("nan")
+
+
+def _book_figures(data: dict) -> dict | None:
+    """The book check's net asset estimate (`nav`: low, base, high, millions), its bridge (items with a signed amount
+    and a note) and confidence; None without a readable base."""
+    nav = data.get("nav") if isinstance(data.get("nav"), dict) else {}
+    base = _money(nav.get("base"))
+    if pd.isna(base):
+        return None
+    low, high = _money(nav.get("low")), _money(nav.get("high"))
+    low = base if pd.isna(low) else min(low, base)
+    high = base if pd.isna(high) else max(high, base)
+    bridge = [{"item": _clean_text(b.get("item")), "amount": _money(b.get("amount")), "note": _clean_text(b.get("note"))}
+              for b in data.get("bridge") or [] if isinstance(b, dict) and _clean_text(b.get("item"))]  # fmt: skip
+    bridge = [{**b, "amount": None if pd.isna(b["amount"]) else b["amount"]} for b in bridge]
+    confidence = str(data.get("confidence") or "").strip().lower()
+    return {"NAV_Low": low, "NAV_Base": base, "NAV_High": high, "Bridge": json.dumps(bridge),
+            "Confidence": confidence if confidence in ("low", "medium", "high") else None}  # fmt: skip
+
+
+def parse_check(text: str, kind: str, fragile: bool = False, baseline: dict | None = None) -> dict | None:
     """The verdict block of a check's answer (the last JSON object in it), checked and tidied: `Pass` (bool),
     `Headline`, `Tag` (one of `CHECK_TAGS`, failing checks only), `Topics` (name, status, line; only the topics of
-    `CHECK_TOPICS`, in their order) and `Why` (markdown bullets). `fragile` (an AI-fragile industry, `ai_fragile`)
-    makes a caution on AI and robotics a fail. None when no readable verdict is found: the check is then not stored as
-    made, so it is asked again, and it never counts as a pass."""
+    `CHECK_TOPICS`, in their order), `Why` (markdown bullets) and the figures of `CHECK_FIGURES`. `fragile` (an
+    AI-fragile industry, `ai_fragile`) makes a caution on AI and robotics a fail. `baseline` (`check_baseline`) holds
+    what the figures are measured against: the book check holds when its base net asset estimate is at least `Book`,
+    and fails on a fail of `BOOK_DECIDING`, whatever verdict the model wrote (its other topics size the bridge, they
+    no longer fail it alone); the earnings check fails when its normal year is more than `NORMAL_YEAR_MAX_GAP` below
+    the average of the years shown. None when no readable verdict (nor, on the book check, a base estimate) is found:
+    the check is then not stored as made, so it is asked again, and it never counts as a pass."""
+    baseline = baseline or {}
     blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text or "", flags=re.DOTALL)
     candidates = blocks or re.findall(r"(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})", text or "", flags=re.DOTALL)
     for raw in reversed(candidates):
@@ -780,13 +916,42 @@ def parse_check(text: str, kind: str, fragile: bool = False) -> dict | None:
         tag = next((t for t in CHECK_TAGS[kind] if t.lower() == tag.lower()), None)
         failed = verdict == "fail"
         status = {t["name"]: t["status"] for t in topics}
-        # A failing topic fails the check, and on the earnings check so do cautions on both forces that flatter a
-        # record (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
-        if "fail" in status.values() or (kind == EARNINGS and all(status.get(n) == "caution" for n in TWO_CAUTIONS)):
-            failed = True
-        ai_rule = kind == EARNINGS and fragile and status.get("AI and robotics") == "caution"
-        if ai_rule:
-            failed = True
+        figures = dict.fromkeys(CHECK_FIGURES)
+        measured = None  # the tag a measured rule fails on, before any topic's
+        ai_rule = False
+        if kind == BOOK:
+            book = _book_figures(data)
+            if book is None:
+                continue
+            figures.update(book, Book=_num(baseline.get("Book")), Tangible_Book=_num(baseline.get("Tangible_Book")))
+            if pd.notna(figures["Book"]):
+                # The user's rule (Nov 12, 2026): the base estimate against the book decides (within `BOOK_TOLERANCE`),
+                # with the deciding topics.
+                short = figures["NAV_Base"] < (1 - BOOK_TOLERANCE) * figures["Book"]
+                failed = short or any(status.get(n) == "fail" for n in BOOK_DECIDING)
+                measured = "book overstated" if short else None
+            elif "fail" in status.values():
+                failed = True
+        else:
+            # A failing topic fails the check, and so do cautions on both forces that flatter a record
+            # (`TWO_CAUTIONS`; user's rule, Nov 8, 2026), whatever verdict the model wrote.
+            if "fail" in status.values() or all(status.get(n) == "caution" for n in TWO_CAUTIONS):
+                failed = True
+            ai_rule = fragile and status.get("AI and robotics") == "caution"
+            failed = failed or ai_rule
+            normal = data.get("normal") if isinstance(data.get("normal"), dict) else {}
+            figures.update(Normal_Margin=_money(normal.get("operating_margin_pct")),
+                           Normal_Owner_Earnings=_money(normal.get("owner_earnings")),
+                           Avg_Margin=_num(baseline.get("Avg_Margin")),
+                           Avg_Owner_Earnings=_num(baseline.get("Avg_Owner_Earnings")))  # fmt: skip
+            floor = 1 - NORMAL_YEAR_MAX_GAP
+            short = any(
+                pd.notna(figures[n]) and pd.notna(figures[a]) and figures[a] > 0 and figures[n] < floor * figures[a]
+                for n, a in (("Normal_Margin", "Avg_Margin"), ("Normal_Owner_Earnings", "Avg_Owner_Earnings"))
+            )
+            if short:
+                failed, measured = True, "peak earnings"
+        figures = {k: (None if isinstance(v, float) and pd.isna(v) else v) for k, v in figures.items()}
 
         # The pill names a topic that was asked (Nov 8, 2026: Haidilao failed on its cycle, Redeia on two cautions,
         # both tagged "cash catch" with no cash question): the first failing topic, else the model's tag when its
@@ -799,7 +964,9 @@ def parse_check(text: str, kind: str, fragile: bool = False) -> dict | None:
         asked = {TOPIC_TAGS[t["name"]] for t in topics if t["name"] in TOPIC_TAGS}
         if failed:
             tag = (
-                first("fail")
+                measured
+                or next((TOPIC_TAGS[n] for n in BOOK_DECIDING if status.get(n) == "fail"), None)
+                or first("fail")
                 or (tag if tag in asked else None)
                 or ("AI risk" if ai_rule else None)
                 or first("caution")
@@ -807,7 +974,7 @@ def parse_check(text: str, kind: str, fragile: bool = False) -> dict | None:
             )
         return {"Pass": not failed, "Headline": _clean_text(data.get("headline")),
                 "Tag": (tag or CHECK_TAGS[kind][0]) if failed else None, "Topics": json.dumps(topics),
-                "Why": str(why or "").strip()}  # fmt: skip
+                "Why": str(why or "").strip(), **figures}  # fmt: skip
     return None
 
 
@@ -816,15 +983,15 @@ def _clean_text(value) -> str:
 
 
 def check_company(client, ticker: str, company: str, figures: str, kind: str, today: pd.Timestamp,
-                  cash: bool = False, fragile: bool = False) -> dict:  # fmt: skip
+                  cash: bool = False, fragile: bool = False, baseline: dict | None = None) -> dict:  # fmt: skip
     """One check: one pass of `CHECK_MODEL`, asked once more when its answer has no readable verdict; without one the
-    check is not made (an error), so it stays due."""
+    check is not made (an error), so it stays due. `baseline` is `check_baseline` (what `parse_check` measures)."""
     prompt = check_prompt(kind, company, ticker, figures, today, cash)
     usage = []
     for _ in range(2):
         text, use = _call(client, CHECK_MODEL, prompt, CHECK_OUTPUT_TOKENS, f"{ticker} {kind} check")
         usage.append(use)
-        parsed = parse_check(text, kind, fragile)
+        parsed = parse_check(text, kind, fragile, baseline)
         if parsed is not None:
             break
     else:
@@ -832,6 +999,23 @@ def check_company(client, ticker: str, company: str, figures: str, kind: str, to
     return {"Ticker": ticker, "Kind": kind, **parsed, "Report": text, "Checked_At": today, "Model": CHECK_MODEL,
             "Check_Hash": check_hash(kind), "Tokens_In": sum(u["in"] for u in usage),
             "Tokens_Out": sum(u["out"] for u in usage), "Cost_USD": round(sum(u["usd"] for u in usage), 4)}  # fmt: skip
+
+
+def recheck_book_rule(checks: pd.DataFrame) -> pd.DataFrame:
+    """`checks` with every book check that gave a net asset estimate judged again from its stored answer (`Report`)
+    against its stored `Book` and `Tangible_Book`, under today's rule (`parse_check`): a change of `BOOK_TOLERANCE`
+    or `BOOK_DECIDING` costs no model call. Rows without a readable estimate are left as they are."""
+    out = checks.copy()
+    for i, row in out[out["Kind"] == BOOK].iterrows():
+        if pd.isna(row.get("NAV_Base")):
+            continue
+        parsed = parse_check(
+            row["Report"], BOOK, baseline={"Book": row.get("Book"), "Tangible_Book": row.get("Tangible_Book")}
+        )
+        if parsed is not None:
+            for col in ("Pass", "Tag"):
+                out.at[i, col] = parsed[col]
+    return out
 
 
 def load_checks(path: Path) -> pd.DataFrame:
@@ -865,7 +1049,7 @@ def checks_due(candidates, ranked: pd.DataFrame, checks: pd.DataFrame, now: pd.T
             pd.isna(checked)
             or pd.isna(row.get("Pass"))
             or (now - checked).days >= MAX_AGE_DAYS
-            or row.get("Check_Hash") != current[kind]
+            or row.get("Check_Hash") not in {current[kind], *CHECK_HASH_ALIASES}
             or (pd.notna(y0_now) and (pd.isna(y0_then) or y0_now > y0_then))
         ):
             out.append((ticker, kind))
@@ -880,7 +1064,8 @@ def estimate_checks_usd(n: int, when: pd.Timestamp) -> float:
 
 def attach_checks(df: pd.DataFrame, path: Path) -> pd.DataFrame:
     """`df` with each company's stored checks, per kind: `Check_Earnings_Pass` / `Check_Book_Pass` (True, False, or
-    None unchecked), `_Headline`, `_Tag`, `_Topics` (JSON), `_Why` and `_Date`, for the lists and the company pages."""
+    None unchecked), `_Headline`, `_Tag`, `_Topics` (JSON), `_Why`, `_Date` and the figures of `CHECK_FIGURES` (None
+    on checks made before they were asked), for the lists and the company pages."""
     checks = load_checks(path)
     out = df.drop(columns=[c for c in df.columns if c.startswith("Check_")])
     for kind in CHECK_KINDS:
@@ -894,7 +1079,8 @@ def attach_checks(df: pd.DataFrame, path: Path) -> pd.DataFrame:
         out = out.assign(**{f"{prefix}Pass": pd.Series(passed, index=out.index, dtype=object),
                             f"{prefix}Headline": pick("Headline"), f"{prefix}Tag": pick("Tag"),
                             f"{prefix}Topics": pick("Topics"), f"{prefix}Why": pick("Why"),
-                            f"{prefix}Date": pd.to_datetime(pick("Checked_At"), errors="coerce").dt.strftime("%Y-%m-%d")})  # fmt: skip
+                            f"{prefix}Date": pd.to_datetime(pick("Checked_At"), errors="coerce").dt.strftime("%Y-%m-%d"),
+                            **{f"{prefix}{c}": pick(c) for c in CHECK_FIGURES}})  # fmt: skip
     return out
 
 
@@ -915,8 +1101,9 @@ def run_checks(todo: list[tuple[str, str]], ranked: pd.DataFrame, notes: dict[st
         row = rows.loc[ticker]
         name = row.get("shortName") if isinstance(row.get("shortName"), str) else ticker
         cash = kind == EARNINGS and asks_about_cash(row)
-        figures = check_input(row, notes.get(ticker, []), kind)
-        result = check_company(client, ticker, name, figures, kind, today, cash, ai_fragile(row))
+        figures = check_input(row, notes.get(ticker, []), kind, cash=cash)
+        result = check_company(client, ticker, name, figures, kind, today, cash, ai_fragile(row),
+                               check_baseline(row, kind))  # fmt: skip
         result["Y0_End"] = pd.to_datetime(row.get("PeriodEnd_Y0"), errors="coerce")
         with lock:
             new.append(result)

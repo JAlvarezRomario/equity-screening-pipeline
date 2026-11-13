@@ -122,10 +122,22 @@
     <span class="check-verdict{% if not c.passed %} check-verdict-fail{% endif %}">{{ c.verdict }}</span>
   </div>
   {% if c.headline %}<p class="check-headline">{{ c.headline }}</p>{% endif %}
+  {% if c.nav %}
+  <p class="check-nav">Estimated net assets: {{ c.nav.book }}{% if c.nav.tangible %};<br>{{ c.nav.tangible }}{% endif %}.</p>
+  {% if c.nav.price %}<p class="check-nav muted">{{ c.nav.price }}</p>{% endif %}
+  {% endif %}
+  {% if c.normal %}<p class="check-nav">{{ c.normal }}</p>{% endif %}
   {% if c.topics %}
   <dl class="check-topics">
     {% for t in c.topics %}<div class="check-topic check-{{ t.status }}"><dt><span class="check-mark" role="img" aria-label="{{ t.spoken }}">{{ t.mark }}</span> {{ t.name }}</dt><dd>{{ t.line }}</dd></div>{% endfor %}
   </dl>
+  <p class="muted check-legend">{{ c.legend }}</p>
+  {% endif %}
+  {% if c.nav and c.nav.bridge %}
+  <details class="explain">
+    <summary>From book to net assets, millions of US dollars</summary>
+    <table class="check-bridge">{% for b in c.nav.bridge %}<tr><td>{{ b.item }}</td><td class="num">{{ b.amount }}</td><td class="muted">{{ b.note }}</td></tr>{% endfor %}</table>
+  </details>
   {% endif %}
   {% if c.why %}
   <details class="explain">
@@ -133,7 +145,7 @@
     <ul class="check-why">{% for w in c.why %}<li>{{ w }}</li>{% endfor %}</ul>
   </details>
   {% endif %}
-  <p class="muted grade-detail">Checked {{ c.date }} by an AI model (Gemini) from its own knowledge and this page's figures, without the price; it can be wrong or out of date. A failed check shades the company on its lists; shown, never scored.</p>
+  <p class="muted grade-detail">Checked {{ c.date }} by an AI model (Gemini) from its own knowledge and this page's figures, without the price; it can be wrong or out of date.{% if c.nav %} The net asset estimate is the model's{% if c.nav.confidence %} ({{ c.nav.confidence }} confidence){% endif %}; the price multiple is worked out here from today's price.{% endif %} A failed check shades the company on its lists; shown, never scored.</p>
 </section>
 {% endfor %}
 

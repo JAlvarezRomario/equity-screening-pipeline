@@ -28,6 +28,109 @@ def _answer(verdict="pass", tag=None, topics=None):
     return f"Some prose first.\n\n```json\n{json.dumps(block)}\n```\n"
 
 
+def _book_answer(verdict="pass", topics=None, base=120.0, low=90.0, high=150.0, bridge=None):
+    topics = topics or [{"name": "Assets carried high", "status": "ok", "line": "Receivables are blue-chip"},
+                        {"name": "Assets carried low", "status": "none", "line": "No old land"},
+                        {"name": "Net assets vs book", "status": "ok", "line": "Covers the book"}]  # fmt: skip
+    bridge = bridge if bridge is not None else [{"item": "Land at market", "amount": 30, "note": "Bought in 1960"},
+                                                {"item": "Old stock", "amount": -10, "note": "Slow movers"}]  # fmt: skip
+    block = {"topics": topics, "bridge": bridge, "nav": {"low": low, "base": base, "high": high},
+             "confidence": "medium", "why": "- A fact.", "headline": "The book holds.", "tag": None,
+             "verdict": verdict}  # fmt: skip
+    return f"Prose.\n\n```json\n{json.dumps(block)}\n```\n"
+
+
+def test_the_book_holds_when_the_base_net_asset_estimate_covers_the_book_whatever_the_model_wrote():
+    # User's rule, Nov 12, 2026: base NAV >= book decides; a high-asset fail alone no longer fails, the bridge sizes it.
+    base = {"Book": 100.0, "Tangible_Book": 80.0}
+    out = grading.parse_check(_book_answer("fail", base=110), grading.BOOK, baseline=base)
+    assert out["Pass"] is True and out["NAV_Base"] == 110 and out["Book"] == 100 and out["Confidence"] == "medium"
+    assert json.loads(out["Bridge"])[0] == {"item": "Land at market", "amount": 30, "note": "Bought in 1960"}
+    high_fail = [{"name": "Assets carried high", "status": "fail", "line": "Stock carried at cost"}]
+    assert grading.parse_check(_book_answer(topics=high_fail, base=105), grading.BOOK, baseline=base)["Pass"] is True
+    below = grading.parse_check(_book_answer("pass", base=89), grading.BOOK, baseline=base)
+    assert below["Pass"] is False and below["Tag"] == "book overstated"
+    # Within `BOOK_TOLERANCE` (user's choice: 5% on Nov 12, 2026, 10% on Nov 13 after the full re-check).
+    assert grading.parse_check(_book_answer("fail", base=91), grading.BOOK, baseline=base)["Pass"] is True
+    assert "at least about 90% of the book" in grading.check_prompt(
+        grading.BOOK, "A", "A", "F", pd.Timestamp("2026-11-12")
+    )
+    # A new tolerance re-reads the stored answers, no model call (`recheck_book_rule`).
+    stored = pd.DataFrame([{"Ticker": "A", "Kind": "book", "Pass": False, "Tag": "book overstated", "NAV_Base": 92.0,
+                            "Book": 100.0, "Tangible_Book": 80.0, "Report": _book_answer("pass", base=92)},
+                           {"Ticker": "B", "Kind": "earnings", "Pass": True, "Tag": None, "NAV_Base": None,
+                            "Book": None, "Tangible_Book": None, "Report": "untouched"}])  # fmt: skip
+    again = grading.recheck_book_rule(stored)
+    assert bool(again.loc[0, "Pass"]) and pd.isna(again.loc[0, "Tag"]) and again.loc[1, "Report"] == "untouched"
+    locked = [{"name": "Reaches shareholders", "status": "fail", "line": "Parent borrows the cash"}]
+    out = grading.parse_check(_book_answer("pass", topics=locked, base=200), grading.BOOK, baseline=base)
+    assert out["Pass"] is False and out["Tag"] == "value locked"
+    eats = [{"name": "Eats the book", "status": "fail", "line": "Losses run on"}]
+    assert grading.parse_check(_book_answer(topics=eats), grading.BOOK, baseline=base)["Tag"] == "book eroding"
+    # No base estimate: not made, asked again (never a pass); "none" is a status of its own.
+    assert grading.parse_check(_book_answer(base="n/a"), grading.BOOK, baseline=base) is None
+    topics = json.loads(grading.parse_check(_book_answer(), grading.BOOK, baseline=base)["Topics"])
+    assert topics[1] == {"name": "Assets carried low", "status": "none", "line": "No old land"}
+    # Figures written as text still read; a low above the base is held to it.
+    assert grading.parse_check(_book_answer(base="$1,250m", low=1300), grading.BOOK, baseline=base)["NAV_Low"] == 1250
+
+
+def test_the_earnings_check_fails_when_its_normal_year_is_well_below_the_years_shown():
+    def answer(margin, oe):
+        block = json.loads(_answer().split("```json\n")[1].split("\n```")[0])
+        block["normal"] = {"operating_margin_pct": margin, "owner_earnings": oe}
+        return f"```json\n{json.dumps(block)}\n```"
+
+    base = {"Avg_Margin": 14.0, "Avg_Owner_Earnings": 13.0}
+    fine = grading.parse_check(answer(13.0, 12.0), grading.EARNINGS, baseline=base)
+    assert fine["Pass"] is True and fine["Normal_Margin"] == 13.0 and fine["Avg_Owner_Earnings"] == 13.0
+    peak = grading.parse_check(answer(10.0, 12.0), grading.EARNINGS, baseline=base)  # 10 < 0.8 x 14
+    assert peak["Pass"] is False and peak["Tag"] == "peak earnings"
+    assert grading.parse_check(answer(14.0, 10.0), grading.EARNINGS, baseline=base)["Pass"] is False
+    assert grading.parse_check(_answer(), grading.EARNINGS, baseline=base)["Pass"] is True  # no normal year: unmeasured
+    row = _grading_row()
+    got = grading.check_baseline(row, grading.EARNINGS)
+    assert set(got) == {"Avg_Margin", "Avg_Owner_Earnings"}
+
+
+def test_the_cash_question_sees_what_the_owners_were_paid():
+    # Ishihara (Nov 12, 2026): a clean pile being returned had a caution; the payout is now in front of the model.
+    row = _grading_row(**{"FCF_Reported_Y0": 20e6, "FCF_Reported_Y1": 20e6, "Cash Dividends Paid_Y0": -5e6,
+                          "Cash Dividends Paid_Y1": -5e6, "Repurchase Of Capital Stock_Y0": -10e6})  # fmt: skip
+    line = grading.payout_line(row, __import__("fq.settings", fromlist=["Settings"]).Settings())
+    assert line.startswith("Dividends plus buybacks took 50% of free cash flow") and "(20 of 40 million)" in line
+    with_cash = grading.check_input(row, [], grading.EARNINGS, cash=True)
+    assert "### What the owners were paid" in with_cash
+    assert "What the owners were paid" not in grading.check_input(row, [], grading.EARNINGS)
+    prompt = grading.check_prompt(grading.EARNINGS, "A", "A", "F", pd.Timestamp("2026-11-12"), cash=True)
+    assert "A large pile that is being returned is ok" in prompt
+
+
+def test_the_book_card_shows_the_estimate_against_both_books_the_bridge_and_the_price_multiple():
+    from fq.report import cards
+
+    row = pd.Series({"Check_Book_NAV_Low": 90.0, "Check_Book_NAV_Base": 110.0, "Check_Book_NAV_High": 140.0,
+                     "Check_Book_Book": 100.0, "Check_Book_Tangible_Book": 80.0, "Check_Book_Confidence": "low",
+                     "Check_Book_Bridge": json.dumps([{"item": "Land", "amount": 30, "note": "Old cost"},
+                                                      {"item": "Stock", "amount": -20, "note": "Slow"}]),
+                     "BV_to_Price": 200.0})  # fmt: skip # price is half the book
+    nav = cards.nav_figures(row)
+    # User's choice, Nov 12, 2026: low = a fire sale, base = a going concern (the verdict), high = a buyer.
+    assert nav["book"] == "0.90x if closed, 1.10x as a going concern, 1.40x to a buyer (book)"
+    assert nav["tangible"] == "1.12x if closed, 1.38x as a going concern, 1.75x to a buyer (tangible book)"
+    assert [b["amount"] for b in nav["bridge"]] == ["100", "+30", "-20", "110"]
+    assert nav["price"].startswith("At today's price: about 0.45x the going-concern estimate and 0.56x the fire-sale")
+    closed = row.copy()
+    closed["Check_Book_NAV_Low"] = -5.0
+    assert "more than the fire-sale value, which is nothing" in cards.nav_figures(closed)["price"]
+    assert cards.nav_figures(pd.Series({"Check_Book_NAV_Base": None})) is None  # a check made before: no figures
+    earn = pd.Series({"Check_Earnings_Normal_Margin": 14.0, "Check_Earnings_Avg_Margin": 14.2,
+                      "Check_Earnings_Normal_Owner_Earnings": 13.0, "Check_Earnings_Avg_Owner_Earnings": 14.0})  # fmt: skip
+    assert cards.normal_year(earn) == ("A normal year: about 14.0% operating margin against 14.2% and $13M owner "
+                                       "earnings against $14M on average in the years shown.")  # fmt: skip
+    assert cards.STATUS_MARKS["none"] == ("–", "nothing found")
+
+
 def _checked(cfg, verdicts: dict[tuple[str, str], bool]):
     rows = [{"Ticker": t, "Kind": k, "Pass": v, "Headline": "Peak margins carry the record." if not v else "Fine.",
              "Tag": None if v else ("peak earnings" if k == grading.EARNINGS else "book overstated"),
@@ -75,7 +178,8 @@ def test_a_failing_topic_or_cautions_on_cycle_and_one_offs_fail_whatever_the_mod
     assert grading.parse_check(_answer("fail", "cash catch", topics=asked), grading.EARNINGS)["Tag"] == "cash catch"
     book = [{"name": "Assets carried high", "status": "caution", "line": "x"},
             {"name": "Net assets vs book", "status": "ok", "line": "y"}]  # fmt: skip
-    assert grading.parse_check(_answer("pass", topics=book), grading.BOOK)["Pass"] is True  # one caution: no fail
+    answer = _book_answer("pass", book, base=120)
+    assert grading.parse_check(answer, grading.BOOK, baseline={"Book": 100})["Pass"] is True  # one caution: no fail
     assert "more than about 20% below the average of the years shown" in grading.check_prompt(
         grading.EARNINGS, "A", "A", "F", pd.Timestamp("2026-11-08")
     )
@@ -164,6 +268,9 @@ def test_due_when_new_unread_another_prompt_a_new_report_or_a_year_old():
                                                              ("D", "earnings"), ("E", "earnings")]  # fmt: skip
     other = stored.assign(Check_Hash="old", Y0_End=pd.Timestamp("2026-06-30"))
     assert grading.checks_due([("A", "earnings")], ranked, other, now) == [("A", "earnings")]
+    # An alias hash stays current (the book checks re-read under the 10% rule, Nov 13, 2026).
+    alias = stored.assign(Check_Hash=next(iter(grading.CHECK_HASH_ALIASES)))
+    assert grading.checks_due([("A", "earnings")], ranked, alias, now) == []
 
 
 def test_a_failed_check_shades_the_row_but_keeps_the_grade_and_a_missing_one_holds_its_place(cfg):

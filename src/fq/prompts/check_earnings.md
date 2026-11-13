@@ -22,15 +22,23 @@ Answer each from what you know and from the figures. Be concrete: name years, it
 ### THE VERDICT
 Judge against **the figures shown, all of them**: the screen reads the whole record of years above, not only the latest, so a flattering year inside it flatters the company even when today's year is normal.
 
+**State the normal year.** Give the operating margin (%) and the owner earnings (millions of US dollars) you expect in a normal year through the cycle, at today's size of business. They are measured against the average of the years shown.
+
 **FAIL** when:
-- a normal year's owner earnings, free cash flow or operating margin would be **more than about 20% below the average of the years shown**, because the record holds a cyclical peak, a windfall, a capex holiday, a one-off gain or another item that will not recur; or
+- a normal year's owner earnings, free cash flow or operating margin would be **more than about {{NORMAL_GAP}}% below the average of the years shown**, because the record holds a cyclical peak, a windfall, a capex holiday, a one-off gain or another item that will not recur; or
 - AI or robotics disruption of the business model is likely within the horizon; or
 - a question above shows the figures cannot be taken at face value.
 
 **PASS** when the record shown is a fair picture of the business through a cycle, even if one year needs a footnote. A caution on one topic does not fail the company by itself; a failing topic does, and **a caution on both Cycle and One-offs and accounting counts as a fail**: two flattering forces in the same record are too many to read past.
 
+### HOW TO MARK A TOPIC
+- **ok**: fine for a long-term minority shareholder; the line says what is fine.
+- **caution**: worth knowing, not a fail; the line starts with the concern.
+- **fail**: it breaks the case; the line says why.
+Never put good news under a caution or a concern under an ok: the mark and its line must say the same thing.
+
 ### OUTPUT
-First write your analysis in plain prose, a few short paragraphs, topic by topic. Then end with **one** fenced JSON block, keys in exactly this order, evidence before the verdict:
+First write your analysis in plain prose, a few short paragraphs, topic by topic. Then end with **one** fenced JSON block, keys in exactly this order, evidence before the verdict. The normal year's figures are numbers, no units or text:
 
 ```json
 {
@@ -39,6 +47,7 @@ First write your analysis in plain prose, a few short paragraphs, topic by topic
     {"name": "One-offs and accounting", "status": "ok | caution | fail", "line": "at most 12 words"},
     {"name": "AI and robotics", "status": "ok | caution | fail", "line": "at most 12 words"}{{CASH_TOPIC}}
   ],
+  "normal": {"operating_margin_pct": 0.0, "owner_earnings": 0.0},
   "why": "3 to 8 markdown bullets, one per line starting with '- ': the key facts and reasoning a reader needs to read the figures in context",
   "headline": "one plain sentence of at most 20 words",
   "tag": "only when failing: one of {{TAGS}}",

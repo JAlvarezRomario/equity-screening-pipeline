@@ -265,6 +265,13 @@ tr.grade-fail { background: color-mix(in srgb, var(--muted) 6%, transparent); }
 .check-ok .check-mark { color: var(--pos); }
 .check-caution .check-mark { color: var(--muted); }
 .check-fail .check-mark { color: var(--neg); }
+.check-none .check-mark { color: var(--muted); font-weight: 400; }
+.check-nav { margin: 0 0 0.5em; line-height: 1.5; max-width: 80ch; }
+.check-legend { margin: -0.2em 0 0.6em; font-size: 0.85em; }
+.check-bridge { border-collapse: collapse; margin: 0.5em 0 0; max-width: 100%; }
+.check-bridge td { padding: 0.2em 0.8em 0.2em 0; vertical-align: baseline; }
+.check-bridge td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.check-bridge tr:first-child td, .check-bridge tr:last-child td { font-weight: 600; }
 .check-why { margin: 0.5em 0 0; padding-left: 1.2em; line-height: 1.55; max-width: 80ch; }
 .check-why li + li { margin-top: 0.3em; }
 .check-card.check-low .check-headline { color: var(--muted); }

@@ -15,7 +15,77 @@ CHECK_TITLES = {EARNINGS: "The numbers, checked", BOOK: "The book, checked"}
 CHECK_SUBTITLES = {EARNINGS: "a fair basis for the years ahead?", BOOK: "worth at least what it shows?"}
 CHECK_WHAT = {EARNINGS: "the earnings check (a cyclical peak or windfall, one-offs, AI and robotics, idle cash)",
               BOOK: "the book check (are the assets less the liabilities worth at least the book?)"}  # fmt: skip
-STATUS_MARKS = {"ok": ("✓", "fine"), "caution": ("!", "a caution"), "fail": ("✗", "fails")}
+STATUS_MARKS = {"ok": ("✓", "fine"), "caution": ("!", "a caution"), "fail": ("✗", "fails"),
+                "none": ("–", "nothing found")}  # fmt: skip
+CHECK_LEGEND = "✓ fine · ! worth knowing, not a fail · ✗ fails · – nothing found"
+
+
+def _number(v) -> float | None:
+    out = pd.to_numeric(v, errors="coerce")
+    return float(out) if pd.notna(out) else None
+
+
+def _x(v: float) -> str:
+    return f"{v:.2f}x"
+
+
+def _three(low: float, base: float, high: float, against: float) -> str:
+    """'0.55x if closed, 1.10x as a going concern, 1.30x to a buyer': the three estimates over `against`."""
+    return (f"{_x(low / against)} if closed, {_x(base / against)} as a going concern, "
+            f"{_x(high / against)} to a buyer")  # fmt: skip
+
+
+def nav_figures(row: pd.Series) -> dict | None:
+    """The book card's net asset estimate (Nov 12, 2026; user's choice: the low case is a fire sale, the base a going
+    concern asset by asset, on which the verdict rests, the high a buyer of the assets), each as a multiple of the book
+    and of the tangible book it was compared with; the bridge from book to base (book first, base last); its
+    confidence; and the price against the going-concern and fire-sale estimates, worked out here from the page's
+    price-to-book (shown only, never stored, sorted or scored; the model never saw the price). None for a check made
+    before it gave one."""
+    p = "Check_Book_"
+    low, base, high = (_number(row.get(f"{p}NAV_{k}")) for k in ("Low", "Base", "High"))
+    book, tangible = _number(row.get(f"{p}Book")), _number(row.get(f"{p}Tangible_Book"))
+    if base is None or book is None or book <= 0:
+        return None
+    low, high = low if low is not None else base, high if high is not None else base
+    out = {"book": f"{_three(low, base, high, book)} (book)", "tangible": None, "bridge": [],
+           "confidence": row.get(f"{p}Confidence") if isinstance(row.get(f"{p}Confidence"), str) else None,
+           "price": None}  # fmt: skip
+    if tangible is not None and tangible > 0:
+        out["tangible"] = f"{_three(low, base, high, tangible)} (tangible book)"
+    try:
+        bridge = json.loads(row.get(f"{p}Bridge") or "[]")
+    except (TypeError, json.JSONDecodeError):
+        bridge = []
+    if bridge:
+        out["bridge"] = [{"item": "Book (common equity)", "amount": f"{book:,.0f}", "note": ""}]
+        for b in bridge:
+            amount = _number(b.get("amount"))
+            out["bridge"].append({"item": _plain(str(b.get("item", ""))), "note": _plain(str(b.get("note", ""))),
+                                  "amount": f"{amount:+,.0f}" if amount is not None else DASH})  # fmt: skip
+        out["bridge"].append({"item": "Net assets as a going concern", "amount": f"{base:,.0f}", "note": ""})
+    bv_to_price = _number(row.get("BV_to_Price"))  # book per share as % of today's price
+    if bv_to_price and bv_to_price > 0 and base > 0:
+        to_book = 100.0 / bv_to_price  # price / book
+        fire = (f"{_x(to_book * book / low)} the fire-sale value" if low > 0
+                else "more than the fire-sale value, which is nothing")  # fmt: skip
+        out["price"] = (f"At today's price: about {_x(to_book * book / base)} the going-concern estimate and {fire} "
+                        "(shown only, never scored).")  # fmt: skip
+    return out
+
+
+def normal_year(row: pd.Series) -> str | None:
+    """The earnings card's normal year (Nov 12, 2026): the model's through-cycle operating margin and owner earnings
+    against the average of the years shown; None for a check made before it gave them."""
+    p = "Check_Earnings_"
+    parts = []
+    for label, normal, avg, fmt in (("operating margin", "Normal_Margin", "Avg_Margin", "{:.1f}%"),
+                                    ("owner earnings", "Normal_Owner_Earnings", "Avg_Owner_Earnings",
+                                     "${:,.0f}M")):  # fmt: skip
+        n, a = _number(row.get(f"{p}{normal}")), _number(row.get(f"{p}{avg}"))
+        if n is not None and a is not None:
+            parts.append(f"{fmt.format(n)} {label} against {fmt.format(a)}")
+    return ("A normal year: about " + " and ".join(parts) + " on average in the years shown.") if parts else None
 
 
 def _flag(v) -> bool | None:
@@ -75,7 +145,9 @@ def check_cards(row: pd.Series) -> list[dict]:
                       "verdict": "✓ Fair basis" if verdict and kind == EARNINGS else
                                  ("✓ Book holds" if verdict else f"✗ {tag[0].upper()}{tag[1:]}"),
                       "headline": _plain(str(row.get(f"{prefix}Headline") or "")), "topics": rows,
-                      "why": [w for w in why if w], "date": row.get(f"{prefix}Date") or "N/A"})  # fmt: skip
+                      "why": [w for w in why if w], "date": row.get(f"{prefix}Date") or "N/A",
+                      "nav": nav_figures(row) if kind == BOOK else None,
+                      "normal": normal_year(row) if kind == EARNINGS else None, "legend": CHECK_LEGEND})  # fmt: skip
     return cards
 
 
