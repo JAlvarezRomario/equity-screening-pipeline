@@ -7,6 +7,7 @@ from functools import cache
 import numpy as np
 import pandas as pd
 
+from fq import grading
 from fq.fx import FALLBACK_BORROW_RATE
 from fq.metrics.common import us_terms
 from fq.metrics.long_history import parse_history
@@ -293,49 +294,138 @@ def utility_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     return _kind_list(df, "utility", n, keep)
 
 
-# The Below book list (`ranking.asset_play`; user's choice, Nov 7, 2026): priced below tangible book, net debt counted
-# (a holding on its book with goodwill), ordered by the discount.
-ASSET_PLAY_COLUMNS = [
-    ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
-    ("Book / Price", "BV_to_Price", ".0f", 1, "%"),
-    ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+# The two NAV lists (user's design, Nov 14, 2026; they were Balance sheet plays, on tangible book, and Deep discount,
+# under 0.66x a checked book: the same idea at two depths, both on book). What a buyer of assets looks for is a
+# discount to net asset value: when the net assets compound, to what they are worth as a going concern; when they do
+# not, to a fire sale, and then a deep one. The net assets are the book check's estimate (`grading`, the model never
+# sees a price), and the price against them orders both lists, the smaller the better. Display only.
+NAV_COMPOUNDING_MIN = 8.0  # % a year: book per share trend plus dividends on the book (`NAV_Compounding`)
+NAV_MAX_PRICE = 1.0  # Compounding below NAV: price under this multiple of the going-concern estimate
+FIRE_SALE_MAX_PRICE = 0.66  # Below fire-sale value: price at most this multiple of the fire-sale estimate
+# Who gets an estimate (`nav_candidates`): under this multiple of book and tangible book, any business; under the
+# second, the kinds whose assets are worth more than their book (`NAV_INDUSTRIES`, REITs); a holding at any price.
+NAV_CHECK_MAX_PRICE_TO_BOOK = 1.0
+NAV_CHECK_ASSET_MAX_PRICE_TO_BOOK = 1.5
+NAV_INDUSTRIES = "nav_industries.txt"
+NAV_COLUMNS = [
+    ("NAV Compounding / yr", "NAV_Compounding", "+.1f", 1, "%"),
+    ("Price / Book", "Price_to_Book", ".2f", 1, "x"),
     ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
-    ("Book Compounding / yr", "Book_Per_Share_Compounding", "+.1f", 1, "%"),
+    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+]  # fmt: skip
+ASSET_PLAY_COLUMNS = [
+    ("Price / NAV", "Price_to_NAV", ".2f", 1, "x"),
+    ("Price / Fire-Sale NAV", "Price_to_Fire_NAV", ".2f", 1, "x"),
+    *NAV_COLUMNS,
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
 
 
+def nav_multiple(book_to_price, book, nav):
+    """Price / NAV, for numbers or Series: today's price over book (`BV_to_Price`, book / price in %) times the book
+    the estimate was compared with (`Check_Book_Book`) over the estimate, both in the same money. The one formula of
+    the lists and the company card (`cards.nav_figures`)."""
+    return (100.0 / book_to_price) * book / nav
+
+
+def price_to_nav(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    """(`Price_to_NAV`, `Price_to_Fire_NAV`): the share price over the book check's going-concern estimate and over
+    its fire-sale estimate (`nav_multiple`); blank without an estimate above zero or a positive book.
+    `highlights.prepare` stores both, and stored columns are read as they are."""
+    if "Price_to_NAV" in df.columns and "Price_to_Fire_NAV" in df.columns:
+        return _num(df, "Price_to_NAV"), _num(df, "Price_to_Fire_NAV")
+    to_price, book = _num(df, "BV_to_Price"), _num(df, "Check_Book_Book")
+    to_price, book = to_price.where(to_price > 0), book.where(book > 0)
+    base, low = _num(df, "Check_Book_NAV_Base"), _num(df, "Check_Book_NAV_Low")
+    return nav_multiple(to_price, book, base.where(base > 0)), nav_multiple(to_price, book, low.where(low > 0))
+
+
+def nav_holds(df: pd.DataFrame) -> pd.Series:
+    """`grading.nav_verdict` per company (True, False, or None with no estimate): an estimate above zero that
+    reaches a minority shareholder and is not being eaten. Stored as `NAV_Holds` by `highlights.prepare`."""
+    if "NAV_Holds" in df.columns:
+        return df["NAV_Holds"]
+    blank = pd.Series(None, index=df.index, dtype=object)
+    topics, base = df.get("Check_Book_Topics", blank), df.get("Check_Book_NAV_Base", blank)
+    return pd.Series(
+        [grading.nav_verdict(t, b) for t, b in zip(topics, base, strict=True)], index=df.index, dtype=object
+    )
+
+
+def not_loss_making(df: pd.DataFrame) -> pd.Series:
+    """No loss in a normal year (`Rank_Group` not "unprofitable") nor in the latest annual report or the last twelve
+    months (clean net income; a blank passes, as in every list)."""
+    group = df["Rank_Group"] if "Rank_Group" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    annual = _num(df, f"Net_Income_Clean_{Settings().latest}")
+    return (group != "unprofitable") & ~(annual <= 0) & ~(_num(df, "Net_Income_Clean_TTM") <= 0)
+
+
+def _lender(df: pd.DataFrame) -> pd.Series:
+    """A bank or an insurer: its book is loans and reserves, which the book check does not read."""
+    model = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    return model.isin(("bank", "insurer"))
+
+
+def nav_candidates(df: pd.DataFrame) -> pd.Series:
+    """The companies whose net assets the book check estimates, on a list or not (`Highlights.check_pool`; user's
+    choice, Nov 14, 2026: the wide pool). Every deep discount, as since Nov 11, 2026 (`deep_discount`, loss-making or
+    not); and, not loss-making (`not_loss_making`) and no bank or insurer: a price under
+    `NAV_CHECK_MAX_PRICE_TO_BOOK` of both book and tangible book; a holding at any price (its stakes may be worth far
+    more than their book: BN.TO at 2.2x); a REIT or an industry of `NAV_INDUSTRIES` (property owners and developers,
+    conglomerates: land and stakes at old cost, ISUR.MC at 1.1x) under `NAV_CHECK_ASSET_MAX_PRICE_TO_BOOK`. Stored as
+    `NAV_Candidate` by `highlights.prepare`."""
+    if "NAV_Candidate" in df.columns:
+        return df["NAV_Candidate"].fillna(False).astype(bool)
+    book, tangible = _num(df, "BV_to_Price"), _num(df, "NAV_to_Price")
+    below = (book > 100 / NAV_CHECK_MAX_PRICE_TO_BOOK) & (tangible > 100 / NAV_CHECK_MAX_PRICE_TO_BOOK)
+    kinds = kind(df)
+    asset = ((kinds == "real_estate") | _in_industries(df, NAV_INDUSTRIES)) & (
+        book > 100 / NAV_CHECK_ASSET_MAX_PRICE_TO_BOOK
+    )
+    return deep_discount(df) | (not_loss_making(df) & ~_lender(df) & (below | (kinds == "holding") | asset))
+
+
+def nav_compounds(df: pd.DataFrame) -> pd.Series:
+    """The net assets compound: `NAV_Compounding` at least `NAV_COMPOUNDING_MIN` % a year (a blank does not)."""
+    return _num(df, "NAV_Compounding") >= NAV_COMPOUNDING_MIN
+
+
+def _nav_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """The rows either NAV list may hold, with `Price_to_NAV`, `Price_to_Fire_NAV`, `Price_to_Book` and `NAV_Holds`
+    (True on every row, the check these lists count): an estimate that holds (`nav_holds`), not loss-making, no bank
+    or insurer, no asset manager unless a holding (`Settings.asset_play_excluded_industries`: its value is fees no
+    book records; a holding of stakes is its book), trusted (`ranking.trusted`)."""
+    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    manager = industry.isin(Settings().asset_play_excluded_industries) & (kind(df) != "holding")
+    holds = nav_holds(df).map(lambda v: v is True or v == True).astype(bool)  # noqa: E712 - numpy bool
+    base, fire = price_to_nav(df)
+    d = df.assign(Price_to_NAV=base, Price_to_Fire_NAV=fire, Price_to_Book=100 / _num(df, "BV_to_Price"))
+    return d[holds & not_loss_making(df) & ~_lender(df) & ~manager & trusted(df)].assign(NAV_Holds=True)
+
+
 def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Flagged `Asset_Play` companies in the best fraction of the combined ranking, or holdings (no rank and too few
-    for a best fifth of their own: the asset-play tests alone decide, user's choice, Nov 5, 2026), ordered by the
-    discount to tangible book, net debt counted (`Effective_NAV_to_Price`, largest first; `Book_Order`, 1 = best;
-    user's choice, Nov 7, 2026: the list is named for the discount, so the discount orders it). Not cyclical, and a
-    ranked company past `cheap_bar` (Nov 10, 2026; the country's spread since Nov 11)."""
-    if "Asset_Play" not in df.columns:
-        return df.head(0)
-    holding = kind(df) == "holding"
-    # Not cyclical, and a ranked company past `cheap_bar` (user's choice, Nov 10, 2026: ships, oil fields and car-parts
-    # plants are no liquid margin of safety, and their returns were read on a boom; a holding stays on its book).
-    sound = ~_flag(df, "Cyclical") & (holding | cheap_bar(df))
-    d = df[(df["Asset_Play"] == True) & (in_best_fraction(df) | holding) & sound]  # noqa: E712
-    d = d.assign(Book_Order=_num(d, "Effective_NAV_to_Price").rank(method="first", ascending=False))
+    """The "Compounding below NAV" list (stored as Below book; user's design, Nov 14, 2026): net assets that compound
+    (`nav_compounds`) priced under `NAV_MAX_PRICE` of what they are worth as a going concern (`Price_to_NAV`), among
+    `_nav_rows`, not cyclical (user's choice, Nov 10, 2026: ships, oil fields and car-parts plants are no liquid
+    margin of safety), the smallest price / NAV first (`Book_Order`, 1 = best). Operating companies, holdings and
+    REITs alike; no return floor, no best-fraction cut and no share-price yield bar (as it had on book until Nov 14,
+    2026): The List asks those of its members."""
+    d = _nav_rows(df)
+    d = d[nav_compounds(d) & (d["Price_to_NAV"] < NAV_MAX_PRICE) & ~_flag(d, "Cyclical")]
+    d = d.assign(Book_Order=d["Price_to_NAV"].rank(method="first"))
     return d.sort_values("Book_Order").head(n)
 
 
-# The "Deep discount" list (user's choice, Nov 11, 2026, prompted by Swire Pacific B at 0.40x book and 0.44x tangible
-# book with no book check, being on no list): price under this multiple of both book and tangible book always gets the
-# AI check of its book (`highlights.Highlights.check_pool`), and those whose book holds form a list of their own,
-# ordered by the discount, with management graded at least `highlights.DEEP_MIN_MGMT`. Display only. Banks and
-# insurers are left out: the book check reads assets carried high and hidden liabilities, not loans and reserves.
+# The "Deep discount" tab, shown as "Below fire-sale value" since Nov 14, 2026. Its first rule (user's choice, Nov 11,
+# 2026, prompted by Swire Pacific B at 0.40x book and 0.44x tangible book with no book check, being on no list) still
+# decides who is always checked: price under this multiple of both book and tangible book (`nav_candidates` adds to
+# it). Banks and insurers are left out: the book check reads assets carried high and hidden liabilities, not loans
+# and reserves.
 DEEP_DISCOUNT_MAX_PRICE_TO_BOOK = 0.66
 DEEP_DISCOUNT_COLUMNS = [
-    ("Price / Book", "Price_to_Book", ".2f", 1, "x"),
-    ("Price / Tangible Book", "Price_to_Tangible_Book", ".2f", 1, "x"),
-    ("NAV / Price", "Effective_NAV_to_Price", ".0f", 1, "%"),
-    ("NCAV / Price", "NCAV_to_Price", ".0f", 1, "%"),
-    ("Net Cash / Cap", "Net_Cash_to_Cap", "+.0f", 1, "%"),
-    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("Price / Fire-Sale NAV", "Price_to_Fire_NAV", ".2f", 1, "x"),
+    ("Price / NAV", "Price_to_NAV", ".2f", 1, "x"),
+    *NAV_COLUMNS,
     ("Management", "Grade_Mgmt", ".2f", 1, ""),
     SHARE_YIELD_COLUMN,
     *TOP_LIST_COLUMNS,
@@ -349,29 +439,18 @@ def deep_discount(df: pd.DataFrame) -> pd.Series:
     if "Deep_Discount" in df.columns:
         return df["Deep_Discount"].fillna(False).astype(bool)
     floor = 100 / DEEP_DISCOUNT_MAX_PRICE_TO_BOOK
-    model = df["Business_Model"] if "Business_Model" in df.columns else pd.Series(None, index=df.index, dtype=object)
-    return (_num(df, "BV_to_Price") >= floor) & (_num(df, "NAV_to_Price") >= floor) & ~model.isin(("bank", "insurer"))
+    return (_num(df, "BV_to_Price") >= floor) & (_num(df, "NAV_to_Price") >= floor) & ~_lender(df)
 
 
 def deep_discount_list(df: pd.DataFrame) -> pd.DataFrame:
-    """The candidates of the "Deep discount" list, in its order: `deep_discount`, the book checked and holding
-    (`Check_Book_Pass` True), not a REIT (`kind` real_estate: book is cost or fair value, it does not compare) nor an
-    asset manager (`Settings.asset_play_excluded_industries`), largest discount first (`Effective_NAV_to_Price`:
-    tangible book with net debt counted; `Discount_Order`, 1 = first). `Price_to_Book` and `Price_to_Tangible_Book`
-    are shown. Trusted as `ranking.top_n` when walked (`highlights.deep_discount_walk`), which asks the management
-    grade."""
-    passed = df["Check_Book_Pass"] if "Check_Book_Pass" in df.columns else pd.Series(None, index=df.index)
-    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
-    keep = (
-        deep_discount(df)
-        & passed.map(lambda v: v is True or v == True).astype(bool)  # noqa: E712 - numpy bool
-        & (kind(df) != "real_estate")
-        & ~industry.isin(Settings().asset_play_excluded_industries)
-    )
-    d = df[keep]
-    d = d.assign(Price_to_Book=100 / _num(d, "BV_to_Price"), Price_to_Tangible_Book=100 / _num(d, "NAV_to_Price"),
-                 Discount_Order=_num(d, "Effective_NAV_to_Price").fillna(_num(d, "NAV_to_Price"))
-                 .rank(method="first", ascending=False))  # fmt: skip
+    """The candidates of "Below fire-sale value" (stored as Deep discount; user's design, Nov 14, 2026), in its
+    order: net assets that do not compound (`nav_compounds` false: those that do are measured as a going concern, on
+    Compounding below NAV) priced at most `FIRE_SALE_MAX_PRICE` of what they would fetch if the company closed
+    (`Price_to_Fire_NAV`), among `_nav_rows`, the smallest price / fire-sale NAV first (`Discount_Order`, 1 =
+    first). `highlights.deep_discount_walk` walks it and asks the management grade."""
+    d = _nav_rows(df)
+    d = d[~nav_compounds(d) & (d["Price_to_Fire_NAV"] <= FIRE_SALE_MAX_PRICE)]
+    d = d.assign(Discount_Order=d["Price_to_Fire_NAV"].rank(method="first"))
     return d.sort_values("Discount_Order")
 
 

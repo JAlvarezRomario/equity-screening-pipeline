@@ -44,7 +44,7 @@ import pandas as pd
 
 from fq.fetch import PRICE_BREAK
 from fq.fx import MINOR_UNITS
-from fq.grading import check_kind, passes_shortlist
+from fq.grading import BOOK, check_kind, nav_verdict, passes_shortlist
 
 log = logging.getLogger(__name__)
 
@@ -166,7 +166,15 @@ def freeze_check_gate(checks: pd.DataFrame, path: Path) -> Path:
     if path.exists():
         raise FileExistsError(f"{path} exists: the forward test's check gate is frozen and is never rewritten")
     path.parent.mkdir(parents=True, exist_ok=True)
-    checks[["Ticker", "Kind", "Pass", "Checked_At"]].to_parquet(path, index=False)
+    gate = checks[["Ticker", "Kind", "Pass", "Checked_At"]].copy()
+    if {"Topics", "NAV_Base"} <= set(checks.columns):
+        # The book lists are judged on `grading.nav_verdict` since Nov 14, 2026 (the price against the estimate
+        # decides there, not the estimate against the book): the gate freezes the verdict the lists showed.
+        book = (checks["Kind"] == BOOK).to_numpy()
+        verdict = [nav_verdict(t, b) for t, b in zip(checks["Topics"], checks["NAV_Base"], strict=True)]
+        gate["Pass"] = [v if is_book and v is not None else p
+                        for v, is_book, p in zip(verdict, book, gate["Pass"], strict=True)]  # fmt: skip
+    gate.to_parquet(path, index=False)
     return path
 
 

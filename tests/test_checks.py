@@ -298,10 +298,17 @@ def test_balance_sheet_plays_are_judged_on_their_book_check(cfg):
     df = _ranked(cfg)
     h = Highlights.compute(df, cfg)
     on_book = h.shown("Below book")
-    out = __import__("fq.report.highlights", fromlist=["with_check"]).with_check(
-        on_book.assign(Check_Book_Pass=False, Check_Earnings_Pass=True), "Below book"
-    )
-    assert out["Check_Kind"].eq("book").all() and out["Check_Pass"].eq(False).all()
+    with_check = __import__("fq.report.highlights", fromlist=["with_check"]).with_check
+    # Nov 14, 2026: the NAV lists read the book check as `grading.nav_verdict` (an estimate short of the book fails
+    # nobody there; value that never reaches a shareholder does), not as the book holding.
+    locked = json.dumps([{"name": "Reaches shareholders", "status": "fail", "line": "kept by the parent"}])
+    rows = on_book.drop(columns=[c for c in ("NAV_Holds",) if c in on_book.columns])
+    rows = rows.assign(Check_Book_Pass=False, Check_Earnings_Pass=True, Check_Book_NAV_Base=80.0)
+    out = with_check(rows.assign(Check_Book_Topics="[]"), "Below book")
+    assert out["Check_Kind"].eq("book").all() and (out["Check_Pass"].eq(True).all() or out.empty)
+    one = pd.DataFrame({"Ticker": ["A"], "Check_Book_NAV_Base": [80.0], "Check_Book_Topics": [locked]})
+    assert with_check(one, "Below book")["Check_Pass"].tolist() == [False]
+    assert with_check(one.assign(Check_Book_NAV_Base=None), "Deep discount")["Check_Pass"].tolist() == [None]
     assert grading.check_kind("Below book") == "book" and grading.check_kind("Cheap and good") == "earnings"
 
 
@@ -427,7 +434,7 @@ def test_the_list_asks_a_balance_sheet_play_alone_for_its_earnings_check_and_lea
     hl = _sources(monkeypatch, {"Below book": book, "Cheap and good": cheap})
     out = hl.the_list(pd.DataFrame(), 20)
     assert out["Ticker"].tolist() == ["EARN", "BOTH"]
-    assert out.set_index("Ticker").loc["BOTH", "The_List_From"] == "Cheap and good · Balance sheet plays"
+    assert out.set_index("Ticker").loc["BOTH", "The_List_From"] == "Cheap and good · Compounding below NAV"
 
 
 def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_ties(monkeypatch):
@@ -539,7 +546,7 @@ def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch
     book = pd.DataFrame([_row("B", 8.0, Check_Earnings_Pass=True)])
     hl = _sources(monkeypatch, {"Cheap and good": cheap, "Below book": book})
     why = hl.the_list(pd.DataFrame(), 20).set_index("Ticker")["The_List_Why"]
-    assert why["A"] == "Cheap and good #1" and why["B"] == "Cheap and good #2 · Balance sheet plays #1"
+    assert why["A"] == "Cheap and good #1" and why["B"] == "Cheap and good #2 · Compounding below NAV #1"
 
 
 def test_the_list_asks_every_member_the_bond_plus_country_risk_grades_above_3_no_ai_risk_nothing_breaking(monkeypatch):
@@ -596,10 +603,16 @@ def test_walks_count_their_eligible_and_the_retired_lists_are_gone():
     assert len(hl.TABS) == 13
 
 
-def _deep(ticker, bv=250.0, nav=225.0, model="operating", book=True, mgmt=3.5, **more):
-    return {"Ticker": ticker, "BV_to_Price": bv, "NAV_to_Price": nav, "Effective_NAV_to_Price": nav,
-            "Business_Model": model, "Rank_Group": "ranked", "Check_Book_Pass": book, "Grade_Moat": 2.0,
-            "Grade_Mgmt": mgmt, "industry": "Conglomerates", **more}  # fmt: skip
+def _deep(ticker, bv=250.0, nav=225.0, model="operating", mgmt=3.5, base=100.0, low=50.0, topics="[]", **more):
+    """A company at 100 / `bv` x book whose book check compared a book of 100 with `base` (going concern) and `low`
+    (fire sale): price / NAV = (100 / bv) x 100 / base."""
+    return {"Ticker": ticker, "BV_to_Price": bv, "NAV_to_Price": nav, "Business_Model": model, "Rank_Group": "ranked",
+            "Check_Book_Book": 100.0, "Check_Book_NAV_Base": base, "Check_Book_NAV_Low": low,
+            "Check_Book_Topics": topics, "Grade_Moat": 2.0, "Grade_Mgmt": mgmt, "industry": "Conglomerates",
+            "NAV_Compounding": 2.0, **more}  # fmt: skip
+
+
+LOCKED = json.dumps([{"name": "Reaches shareholders", "status": "fail", "line": "kept by the parent"}])
 
 
 def test_deep_discount_is_under_two_thirds_of_both_books_and_never_a_lender():
@@ -611,33 +624,120 @@ def test_deep_discount_is_under_two_thirds_of_both_books_and_never_a_lender():
     assert sc.deep_discount(df).tolist() == [True, False, False, True]
 
 
-def test_deep_discount_list_walks_the_discount_on_management_with_the_book_holding():
-    # User's choices, Nov 11, 2026: a list of its own, largest discount first, management at least 3.5, moat not asked.
+def test_price_to_nav_is_the_price_to_book_over_the_estimate_to_book_as_on_the_card():
+    from fq.report import cards
+    from fq.report import screens as sc
+
+    df = pd.DataFrame([_deep("A", bv=200.0, base=110.0, low=90.0), _deep("NONE", base=None, low=None),
+                       _deep("WORTHLESS", low=-5.0)])  # fmt: skip
+    to_nav, to_fire = sc.price_to_nav(df)
+    assert round(to_nav[0], 4) == round(0.5 * 100 / 110, 4) and round(to_fire[0], 4) == round(0.5 * 100 / 90, 4)
+    assert pd.isna(to_nav[1]) and pd.isna(to_fire[1]) and pd.isna(to_fire[2])  # no estimate, or nothing in a fire sale
+    card = cards.nav_figures(df.iloc[0])["price"]  # the page and the list give the same figures
+    assert f"{to_nav[0]:.2f}x the going-concern" in card and f"{to_fire[0]:.2f}x the fire-sale" in card
+
+
+def test_compounding_below_nav_asks_compounding_net_assets_under_their_going_concern_value():
+    # User's design, Nov 14, 2026: discount to NAV, the smaller the better; no loss-maker; no best-fifth cut.
+    from fq.report import screens as sc
+
+    grow = {"NAV_Compounding": 9.0}
+    df = pd.DataFrame([
+        _deep("CHEAP", bv=200.0, base=100.0, **grow),  # 0.50x NAV
+        _deep("CHEAPEST", bv=100.0, base=250.0, **grow),  # at book, the estimate 2.5x it: 0.40x NAV
+        _deep("SHORT", bv=250.0, base=80.0, **grow),  # an estimate under the book fails nobody: 0.50x NAV
+        _deep("DEAR", bv=100.0, base=90.0, **grow),  # 1.11x NAV
+        _deep("FLAT", bv=200.0, base=100.0),  # not compounding: the fire-sale list's
+        _deep("LOSS", bv=200.0, base=100.0, Rank_Group="unprofitable", **grow),
+        _deep("LOSS_NOW", bv=200.0, base=100.0, Net_Income_Clean_TTM=-1.0, **grow),
+        _deep("LOCKED", bv=200.0, base=100.0, topics=LOCKED, **grow),
+        _deep("UNCHECKED", bv=200.0, base=None, **grow),
+        _deep("BANK", bv=200.0, base=100.0, model="bank", **grow),
+        _deep("MANAGER", bv=200.0, base=100.0, industry="Asset Management", **grow),
+        _deep("HOLDING", bv=50.0, base=300.0, industry="Asset Management", Rank_Group="holding",
+              Business_Model="holding", **grow),  # 2x book, the estimate 3x it: 0.67x NAV
+        _deep("CYCLE", bv=200.0, base=100.0, Cyclical=True, **grow),
+        _deep("SUSPECT", bv=200.0, base=100.0, Data_Suspect=True, **grow),
+    ])  # fmt: skip
+    out = sc.asset_play_list(df)
+    assert out["Ticker"].tolist() == ["CHEAPEST", "CHEAP", "SHORT", "HOLDING"]
+    assert out["Price_to_NAV"].round(2).tolist() == [0.40, 0.50, 0.50, 0.67]
+    assert out["Book_Order"].tolist() == [1, 2, 3, 4] and out["NAV_Holds"].all()
+    assert sc.not_loss_making(df).sum() == len(df) - 2
+
+
+def test_below_fire_sale_value_walks_the_price_to_fire_sale_nav_on_management():
+    # User's design, Nov 14, 2026: net assets that do not compound are worth a fire sale, and then at most 0.66x;
+    # Nov 11, 2026: a list of its own, management at least 3.5, the moat not asked.
     import fq.report.highlights as hl
 
-    df = pd.DataFrame([_deep("OK", nav=200.0), _deep("DEEPEST", nav=400.0), _deep("WEAK", nav=300.0, mgmt=3.25),
-                       _deep("WAIT", nav=250.0, mgmt=float("nan")), _deep("FAILED", nav=500.0, book=False),
-                       _deep("UNCHECKED", nav=450.0, book=None), _deep("REIT", nav=600.0, Rank_Group="real_estate")])  # fmt: skip
+    df = pd.DataFrame([
+        _deep("OK", low=100.0),  # 0.40x the fire sale
+        _deep("DEEPEST", bv=500.0, low=100.0),  # 0.20x
+        _deep("WEAK", bv=400.0, low=100.0, mgmt=3.25),
+        _deep("WAIT", bv=300.0, low=100.0, mgmt=float("nan")),
+        _deep("EDGE", bv=100.0, low=150.0),  # 0.67x: out
+        _deep("NOTHING", low=-5.0),  # nothing left in a fire sale
+        _deep("GROWS", bv=500.0, low=100.0, NAV_Compounding=9.0),  # compounding: the other list's
+        _deep("LOSS", bv=500.0, low=100.0, Rank_Group="unprofitable"),
+        _deep("LOCKED", bv=500.0, low=100.0, topics=LOCKED),
+        _deep("UNCHECKED", bv=500.0, base=None, low=None),
+    ])  # fmt: skip
     out = hl.deep_discount_walk(df, 20)
     assert out["Ticker"].tolist() == ["DEEPEST", "WAIT", "OK"]
     assert out["Grade_Pass"].tolist() == [True, None, True]
-    assert len(hl._eligible_deep(df)) == 4  # the book checked and holding: DEEPEST, WEAK, WAIT, OK
-    assert hl.TAB["Deep discount"].ranked and hl.label("Deep discount") == "Deep discount"
+    assert len(hl._eligible_deep(df)) == 4  # DEEPEST, WEAK, WAIT, OK
+    assert hl.TAB["Deep discount"].ranked and hl.label("Deep discount") == "Below fire-sale value"
+    assert hl.label("Below book") == "Compounding below NAV"
 
 
-def test_every_deep_discount_gets_a_book_check_its_card_and_a_pill_when_it_holds(monkeypatch):
+def test_the_net_assets_are_estimated_for_every_company_that_may_sit_below_them(monkeypatch):
+    # Nov 11, 2026: every deep discount; Nov 14, 2026 (user's choice, the wide pool): also, not loss-making, under 1.0x
+    # both books, a holding at any price (BN.TO at 2.2x), property and conglomerates under 1.5x book (ISUR.MC at 1.1x).
     import fq.report.highlights as hl
+    from fq.report import screens as sc
     from fq.report.cards import check_cards
     from fq.report.pills import tags
 
-    frame = pd.DataFrame([_deep("SWIRE", book=None), _deep("PLAIN", bv=120.0, nav=110.0, book=None)])
-    frame = frame.assign(Deep_Discount=[True, False], Dividend_WHT=0.0)
+    frame = pd.DataFrame([
+        _deep("SWIRE", base=None),
+        _deep("DEEP_LOSS", base=None, Rank_Group="unprofitable"),  # a deep discount is checked, loss or not
+        _deep("BELOW", bv=120.0, nav=110.0, base=None, industry="Auto Parts"),
+        _deep("TANGIBLE", bv=120.0, nav=90.0, base=None, industry="Auto Parts"),
+        _deep("LOSS", bv=120.0, nav=110.0, base=None, industry="Auto Parts", Net_Income_Clean_Y0=-1.0),
+        _deep("BN", bv=45.0, nav=22.0, base=None, industry="Asset Management", Rank_Group="holding",
+              Business_Model="holding"),
+        _deep("ISUR", bv=91.0, nav=91.0, base=None, industry="Real Estate Services"),
+        _deep("DEAR_LAND", bv=60.0, nav=60.0, base=None, industry="Real Estate Services"),
+        _deep("PLAIN", bv=91.0, nav=91.0, base=None, industry="Auto Parts"),
+        _deep("BANK", bv=120.0, nav=110.0, base=None, model="bank"),
+    ])  # fmt: skip
+    assert frame.loc[sc.nav_candidates(frame), "Ticker"].tolist() == ["SWIRE", "DEEP_LOSS", "BELOW", "BN", "ISUR"]
+    frame = frame.assign(NAV_Candidate=sc.nav_candidates(frame), Dividend_WHT=0.0)
     h = hl.Highlights(frame, frame.iloc[0:0], None, 6.0, {})
     monkeypatch.setattr(h, "published", lambda: pd.DataFrame(columns=["Ticker", "List", "Grade_Pass", "Check_Pass"]))
-    assert ("SWIRE", "book") in h.check_pool() and ("PLAIN", "book") not in h.check_pool()
-    row = frame.iloc[0].copy()
-    row["Grade_Listed"], row["Check_Book_Pass"], row["Check_Book_Topics"] = False, True, "[]"
+    assert [t for t, k in h.check_pool() if k == "book"] == ["SWIRE", "DEEP_LOSS", "BELOW", "BN", "ISUR"]
+    row = frame[frame["Ticker"] == "BN"].iloc[0].copy()  # its page shows the card, on a list or not
+    row["Grade_Listed"], row["Check_Book_Pass"], row["Check_Book_Topics"] = False, False, "[]"
     assert [c["kind"] for c in check_cards(row)] == ["book"]
-    assert "deep discount to book" in {t["word"] for t in tags(row)}
-    row["Check_Book_Pass"] = False
-    assert "deep discount to book" not in {t["word"] for t in tags(row)}
+    row["NAV_Holds"], row["Price_to_NAV"], row["Price_to_Fire_NAV"] = True, 0.8, 1.4
+    words = {t["word"] for t in tags(row)}
+    assert "below NAV" in words and "below fire-sale value" not in words
+    row["Price_to_Fire_NAV"] = 0.5
+    assert "below fire-sale value" in {t["word"] for t in tags(row)}
+    row["NAV_Holds"] = False
+    assert not {"below NAV", "below fire-sale value"} & {t["word"] for t in tags(row)}
+
+
+def test_the_forward_gate_freezes_the_nav_verdict_for_the_book_lists(tmp_path):
+    from fq import forward
+
+    checks = pd.DataFrame({
+        "Ticker": ["SHORT", "LOCKED", "OLD", "EARN"], "Kind": ["book", "book", "book", "earnings"],
+        "Pass": [False, True, False, False], "Checked_At": pd.Timestamp("2026-11-14"),
+        "Topics": ["[]", LOCKED, "[]", "[]"], "NAV_Base": [80.0, 120.0, None, None],
+    })  # fmt: skip
+    gate = pd.read_parquet(forward.freeze_check_gate(checks, tmp_path / "gate.parquet"))
+    # An estimate short of the book passes, locked value fails, a check with no estimate and an earnings check stay.
+    assert gate["Pass"].tolist() == [True, False, False, False]
+    assert grading.nav_verdict("[]", 0.0) is False and grading.nav_verdict("[]", None) is None

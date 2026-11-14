@@ -591,6 +591,25 @@ CHECK_STATUSES = ("ok", "caution", "fail", "none")
 # assets is at least the book; besides, a fail on either of these fails it (value the book shows that never reaches a
 # minority shareholder). A fail on assets carried high or hidden liabilities alone no longer does: the bridge sizes it.
 BOOK_DECIDING = ("Eats the book", "Reaches shareholders")
+
+
+def nav_verdict(topics, base) -> bool | None:
+    """The book check as the two NAV lists read it (user's choice, Nov 14, 2026: price against the estimate decides
+    there, so the estimate falling short of the book no longer fails a company; `report.screens.nav_holds`, the
+    forward test's check gate): True when a going-concern estimate above zero was given (`base`, `NAV_Base`) and no
+    topic of `BOOK_DECIDING` fails (`topics`: the stored JSON), False when one does or the estimate is not above
+    zero, None when no estimate was made."""
+    value = pd.to_numeric(base, errors="coerce")
+    if pd.isna(value):
+        return None
+    try:
+        given = json.loads(topics) if isinstance(topics, str) else []
+    except json.JSONDecodeError:
+        given = []
+    status = {t.get("name"): t.get("status") for t in given if isinstance(t, dict)}
+    return bool(value > 0 and not any(status.get(n) == "fail" for n in BOOK_DECIDING))
+
+
 # How far the going-concern estimate may fall short of the book and the book still hold (user's choice, Nov 12, 2026:
 # the estimate is the model's, so a gap of a few % is noise; 4116.T fell 1.6% short on its written-off goodwill alone;
 # 10% from Nov 13, 2026, after the full re-check left 41 companies at 90-95% of book).

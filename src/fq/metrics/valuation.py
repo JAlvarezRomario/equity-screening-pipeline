@@ -294,8 +294,19 @@ def _per_share_compounding(df: pd.DataFrame, cfg: Settings) -> pd.Series:
     periods = cfg.fiscal_years
     book = us_terms(pd.DataFrame({p: _book_per_share(df, p) for p in periods}, index=df.index), df, cfg)
     df["Book_Per_Share_Compounding"] = _compounding(df, cfg, book)
+    # What the net assets earn their owner a year (user's choice, Nov 14, 2026; shown, and the test that splits the
+    # two NAV lists, `report.screens.nav_compounds`; never scored): the book's trend plus the dividends paid on it.
+    df["NAV_Compounding"] = df["Book_Per_Share_Compounding"] + _book_payout(df, cfg)
     per_share = _us_per_share(df, cfg, _frame(df, "Total Revenue", periods))
     return _compounding(df, cfg, per_share.where(~df["Financial_Mode"], book, axis=0))
+
+
+def _book_payout(df: pd.DataFrame, cfg: Settings) -> pd.Series:
+    """Dividends paid as % of common equity, the median of TTM and the last years (as `quality._balance_sheet` adds
+    to a financial's `Book_Compounding`); 0 when none is on file."""
+    common = _frame(df, "Common Stock Equity", cfg.avg_years).fillna(_frame(df, "Stockholders Equity", cfg.avg_years))
+    paid = -_distinct(df, "Cash Dividends Paid", cfg.avg_years, cfg)
+    return (paid.clip(lower=0) * 100 / common.where(common > 0)).median(axis=1).fillna(0)
 
 
 def _owner_earnings_compounding(df: pd.DataFrame, cfg: Settings) -> pd.Series:

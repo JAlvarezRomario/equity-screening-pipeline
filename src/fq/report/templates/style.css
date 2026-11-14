@@ -559,7 +559,7 @@ tr.fw-portfolio td:first-child { font-weight: 650; }
 .fw-left { color: var(--muted); }
 .fw-groups details { border-top: 1px solid var(--border); padding: 0.6em 0; }
 
-/* --- Highlight tab groups (Start here / By style / Raw scores) and the fold of rows below the grade bar --- */
+/* --- Highlight tab groups (The List / Its five sources / By kind / Outside The List) and the fold of rows below the grade bar --- */
 .tab-set { display: flex; flex-direction: column; gap: 0.3em; min-width: 0; }
 .tab-set + .tab-set { border-top: 1px solid var(--border); padding-top: 0.65em; }
 .tabs .tab-group {

@@ -50,13 +50,15 @@ def test_real_estate_list_bounds_debt_and_never_tests_book():
     assert sc.real_estate_list(df).empty
 
 
-def test_below_book_takes_holdings_by_their_kind_and_orders_by_the_discount():
+def test_compounding_below_nav_takes_holdings_by_their_kind_and_orders_by_price_to_nav():
+    # Nov 14, 2026: the price against the estimated net assets orders it; no rank is asked, so a holding sits with the
+    # ranked companies; no cyclical (Nov 10, 2026).
     df = _frame(6, Rank_Group=["ranked"] * 5 + ["holding"], Business_Model=["operating"] * 5 + ["holding"],
-                Rank=[1.0, 2, 3, 4, 5, np.nan], Asset_Play=[True, False, False, False, False, True],
-                Effective_NAV_to_Price=[110.0, np.nan, np.nan, np.nan, np.nan, 140.0], EPV_Per_Share_Yield=7.0)  # fmt: skip
-    assert sc.asset_play_list(df)["Ticker"].tolist() == ["T5", "T0"]  # the deeper discount first, rank or not
-    # Nov 10, 2026: no cyclical, and a ranked company above 6% on the share price (a holding stays on its book).
-    assert sc.asset_play_list(df.assign(EPV_Per_Share_Yield=5.0))["Ticker"].tolist() == ["T5"]
+                Rank=[1.0, 2, 3, 4, 5, np.nan], BV_to_Price=[110.0, 110, 110, 110, 110, 140.0], NAV_Compounding=9.0,
+                Check_Book_Book=100.0, Check_Book_NAV_Base=[100.0, np.nan, np.nan, np.nan, np.nan, 100.0],
+                Check_Book_Topics="[]")  # fmt: skip
+    assert sc.asset_play_list(df)["Ticker"].tolist() == ["T5", "T0"]  # 0.71x before 0.91x, rank or not
+    assert sc.asset_play_list(df.assign(NAV_Compounding=5.0)).empty
     assert sc.asset_play_list(df.assign(Cyclical=True)).empty
 
 

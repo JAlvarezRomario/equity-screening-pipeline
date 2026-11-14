@@ -44,7 +44,7 @@ class Tab:
     panel: str
     columns: list
     screen: Callable[..., pd.DataFrame]
-    group: str = "style"
+    group: str = "sources"
     label: str | None = None
     n: int = TOP_N
     sort: str = "Rank"  # the order the page shows (below the grade bar last)
@@ -91,7 +91,7 @@ def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str,
     below is skipped and the next one taken; one that fails its check is kept, shaded. Ungraded companies met on the
     way (at most `WALK_WAITING`) stay in the list, marked not graded, so the grading (`Highlights.grade_pool`) reaches
     them and the list fills within a few runs. At most `WALK_MAX_ROWS` rows. `Grade_Bar` is `bar`. `check_col` is
-    the check that counts (the book's on Deep discount)."""
+    the check that counts (`NAV_Holds` on Below fire-sale value)."""
     ordered = top_n(df, rank_col, len(df))
     blank = pd.Series(np.nan, index=ordered.index)
     moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
@@ -153,25 +153,26 @@ def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.Data
     return _graded_walk(df, n, "Quality_Rank", grading.passes_best_walk, BEST_BAR)
 
 
-# Deep discount (user's choice, Nov 11, 2026): management graded at least this; the moat is not asked, since the
-# thesis is the assets (a book checked and holding at under 0.66x), and management decides whether owners see them.
+# Below fire-sale value (stored as Deep discount; user's choice, Nov 11, 2026): management graded at least this; the
+# moat is not asked, since the thesis is the assets, and management decides whether owners see them.
 DEEP_MIN_MGMT = 3.5
 DEEP_BAR = f"management at least {DEEP_MIN_MGMT:g}, graded before it counts"
 
 
 def passes_deep(moat, mgmt) -> bool | None:
-    """Deep discount's bar: management at least `DEEP_MIN_MGMT`; None when ungraded."""
+    """Below fire-sale value's bar: management at least `DEEP_MIN_MGMT`; None when ungraded."""
     return None if pd.isna(mgmt) else bool(mgmt >= DEEP_MIN_MGMT)
 
 
 def deep_discount_walk(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
-    """Deep discount: down `screens.deep_discount_list` (largest discount first, the book checked and holding),
-    management at least `DEEP_MIN_MGMT` (`passes_deep`; `_graded_walk`, the book check counting), until `n`."""
-    return _graded_walk(sc.deep_discount_list(df), n, "Discount_Order", passes_deep, DEEP_BAR, "Check_Book_Pass")
+    """Below fire-sale value: down `screens.deep_discount_list` (the smallest price / fire-sale NAV first, the
+    estimate holding: `NAV_Holds`, True on each of its rows), management at least `DEEP_MIN_MGMT` (`passes_deep`;
+    `_graded_walk`), until `n`."""
+    return _graded_walk(sc.deep_discount_list(df), n, "Discount_Order", passes_deep, DEEP_BAR, "NAV_Holds")
 
 
 def _eligible_deep(df: pd.DataFrame) -> pd.DataFrame:
-    """The companies Deep discount may draw from: the book checked and holding, trusted."""
+    """The companies Below fire-sale value may draw from (`screens.deep_discount_list`), trusted."""
     return top_n(sc.deep_discount_list(df), "Discount_Order", len(df))
 
 
@@ -327,35 +328,37 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
 
 # The front page's rows of tabs (user's choice, Nov 3, 2026: 14 tabs side by side did not say where to start): key ->
 # (heading, the one line that says what such a list is for).
-# The rows by idea (user's choice, Nov 6, 2026; were Start here, By style, By kind, Raw scores).
-# Nov 7, 2026 (user's choice): Growth, Income and Balance sheet became one row, By style.
+# The rows by idea (user's choice, Nov 6, 2026); Nov 7, 2026: Growth, Income and Balance sheet became one row, By
+# style; Nov 12, 2026: Start here and By style became "Its five sources", Raw scores "Outside The List" (below).
 GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The companies on Cheap and good, Boring businesses, Compounders, Income or Balance sheet plays that earn "
+        "The companies on Cheap and good, Boring businesses, Compounders, Income or Compounding below NAV that earn "
         "more on the share price than the 10-year Treasury plus their country's risk, with nothing breaking now, "
         "and that pass both AI checks: moat and management, and the numbers. No target: it shows however many pass.",
     ),
-    "start": (
-        "Start here",
-        "Cheap and good at once, and boring businesses worth research in depth.",
-    ),
-    "style": (
-        "By style",
-        "Pick the kind of investment: a business compounding per share, a dividend a foreign investor keeps, or a "
-        "price below what the balance sheet holds. Each draws on the best {top} of the combined ranking; Deep "
-        "discount instead asks a price under two thirds of a checked book.",
+    # Nov 12, 2026 (user's choice, after a review of the lists): the rows by one rule, whether a list feeds The List.
+    # "Start here" (2 tabs) and "By style" (4) split its five sources arbitrarily and held Deep discount, which
+    # does not feed it; "Raw scores" became "Outside The List", with Deep discount.
+    "sources": (
+        "Its five sources",
+        "The lists that feed The List. Each asks a fair price and a good business together, from its own angle: "
+        "cheap and good at once, a boring business, a business compounding per share, a dividend a foreign "
+        "investor keeps, or net assets that compound at a price below what they are worth. Boring businesses, "
+        "Compounders and Income draw on the best {top} of the combined ranking. The companies on them that pass "
+        "every test make The List.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
         "By kind",
         "Banks, insurers, REITs and utilities judged against their own kind, outside the rankings.",
     ),
-    "raw": (
-        "Raw scores",
-        "One score alone, whatever the other: the top of Value with a moat and management that hold up, and the top "
-        "of Quality with the best graded moats and managers, whatever its price.",
+    "outside": (
+        "Outside The List",
+        "Lists that ask one thing alone, so they do not feed The List: a price under two thirds of what the "
+        "assets would fetch in a fire sale, the top of Value with a moat and management that hold up, and the top of Quality with the best graded "
+        "moats and managers, whatever its price.",
     ),
 }
 
@@ -364,16 +367,14 @@ GROUPS = {
 TABS: tuple[Tab, ...] = (
     Tab(THE_LIST, "the_list", "hl-the-list", sc.THE_LIST_COLUMNS, the_list, group="list", n=THE_LIST_N,
         sort="The_List_Order", checked=False, zero_rerun=False),
-    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list, group="start",
+    Tab("Cheap and good", "cheap_and_good", "hl-top-1", sc.CHEAP_AND_GOOD_COLUMNS, cheap_and_good_list,
         ranked=True, eligible=_eligible_cheap("Rank")),
-    Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, group="start", n=sc.SHORTLIST_N,
+    Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
     Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
-        sort="Book_Order", label="Balance sheet plays"),
-    Tab("Deep discount", "deep_discount", "hl-deep-discount", sc.DEEP_DISCOUNT_COLUMNS, deep_discount_walk,
-        sort="Discount_Order", ranked=True, eligible=_eligible_deep),
+        sort="Book_Order", label="Compounding below NAV"),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
         sort="Kind_Rank"),
     Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
@@ -382,9 +383,11 @@ TABS: tuple[Tab, ...] = (
         group="kind", sort="Kind_Rank"),
     Tab("Utilities", "utilities", "hl-utilities", sc.UTILITY_COLUMNS, _plain(sc.utility_list), group="kind",
         sort="Kind_Rank"),
-    Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="raw",
+    Tab("Deep discount", "deep_discount", "hl-deep-discount", sc.DEEP_DISCOUNT_COLUMNS, deep_discount_walk,
+        group="outside", sort="Discount_Order", ranked=True, eligible=_eligible_deep, label="Below fire-sale value"),
+    Tab("Cheapest", "cheapest", "hl-top-2", sc.VALUE_LIST_COLUMNS, cheapest_list, group="outside",
         sort="Value_Rank", ranked=True, eligible=_eligible_cheap("Value_Rank")),
-    Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, best_business_list, group="raw",
+    Tab("Best businesses", "best_businesses", "hl-top-3", sc.QUALITY_LIST_COLUMNS, best_business_list, group="outside",
         sort="Quality_Rank", ranked=True, eligible=_eligible_quality),
 )
 # fmt: on
@@ -426,10 +429,15 @@ def _memo(pick: Pick) -> Pick:
 def with_check(out: pd.DataFrame, list_name: str) -> pd.DataFrame:
     """A tab's rows with `Check_Kind` (the check that judges a member of `list_name`, `grading.check_kind`) and
     `Check_Pass` (that check's verdict: True, False, or None when not made). `Grade_Pass` is left as it is: the moat
-    and management bar and the check are two bars, and only an explicit False of either shades the row (`fails`)."""
+    and management bar and the check are two bars, and only an explicit False of either shades the row (`fails`).
+    On the two NAV lists (`grading.BOOK_LISTS`) the verdict is `screens.nav_holds` (Nov 14, 2026): the price against
+    the estimate decides there, so an estimate short of the book fails nobody; value that is being eaten or never
+    reaches a shareholder does."""
     kind = grading.check_kind(list_name)
     col = f"Check_{kind.capitalize()}_Pass"
     values = out[col] if col in out.columns else pd.Series(None, index=out.index, dtype=object)
+    if kind == grading.BOOK:
+        values = sc.nav_holds(out)
     verdict = [None if v is None or (isinstance(v, float) and pd.isna(v)) else bool(v) for v in values]
     return out.assign(Check_Kind=kind, Check_Pass=pd.Series(verdict, index=out.index, dtype=object))
 
@@ -496,6 +504,10 @@ def prepare(df: pd.DataFrame, bench: pd.DataFrame | None, cfg: Settings | None =
     # The record test (`screens.has_record`) once per report: every list, the pills and the company pages read it.
     df = df.assign(Record_Years=sc.roic_years(df), Listed_Years=sc.listed_years(df))
     df = df.assign(Has_Record=sc.has_record(df), Deep_Discount=sc.deep_discount(df))
+    # The two NAV lists' figures (Nov 14, 2026), once per report: the lists, the pills and the check pool read them.
+    to_nav, to_fire = sc.price_to_nav(df)
+    df = df.assign(Price_to_NAV=to_nav, Price_to_Fire_NAV=to_fire, NAV_Holds=sc.nav_holds(df))
+    df = df.assign(NAV_Candidate=sc.nav_candidates(df))
     kind_rank, kind_best = sc.kind_order(df)  # the same for the kinds ranked apart
     df = df.assign(Kind_Rank=kind_rank, In_Kind_Best=kind_best)
     df = sc.with_income_record(sc.with_dividend_record(df))  # judged once per report, not once per list call
@@ -623,8 +635,9 @@ class Highlights:
                 pairs.append((t, kind))
             if kind == grading.BOOK and name in THE_LIST_SOURCES and t not in kept_off:
                 pairs.append((t, grading.EARNINGS))
-        # Every deep discount, listed or not (user's rule, Nov 11, 2026): its book is checked, after the lists' needs.
-        pairs += [(t, grading.BOOK) for t in self.frame.loc[sc.deep_discount(self.frame), "Ticker"]]
+        # Every company that may sit below its net assets, listed or not (`screens.nav_candidates`; user's rules, Nov
+        # 11 and 14, 2026): the book check estimates them, after the lists' needs.
+        pairs += [(t, grading.BOOK) for t in self.frame.loc[sc.nav_candidates(self.frame), "Ticker"]]
         return list(dict.fromkeys(pairs))
 
 

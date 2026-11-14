@@ -202,10 +202,10 @@ def test_below_book_orders_by_the_discount_and_renders_in_html(cfg):
     flags = asset_play(df, cfg)
     assert bool(flags.loc[0]) and bool(flags.loc[1]) and not bool(flags.loc[2]) and not bool(flags.loc[3])
     assert bool(flags.loc[4])
-    df["Asset_Play"] = flags
-    df["Effective_NAV_to_Price"] = df["NAV_to_Price"].where(df["Business_Model"] != "holding", df["BV_to_Price"])
+    df["Asset_Play"] = flags  # the "below book" pill; the list is on the estimated net assets since Nov 14, 2026
+    df = df.assign(Check_Book_Book=100.0, Check_Book_NAV_Base=100.0, Check_Book_Topics="[]", NAV_Compounding=9.0)
     ordered = asset_play_list(df)
-    assert list(ordered["Ticker"]).index("T1") < list(ordered["Ticker"]).index("T0")
+    assert ordered["Ticker"].tolist() == ["T1", "T0", "T5", "T4"]  # 0.65x, 0.83x twice, 0.91x the estimate; no bank
 
     raw = make_raw(cfg, n=4)
     for y in cfg.fiscal_years:
@@ -215,5 +215,5 @@ def test_below_book_orders_by_the_discount_and_renders_in_html(cfg):
     ranked = apply_dual_ranking(calculate_metrics(raw, cfg), cfg)
     assert "Asset_Play" in ranked.columns and "Effective_NAV_to_Price" in ranked.columns
     html = build_site(ranked, cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-asset-plays">Balance sheet plays</button>' in html
+    assert 'data-panel="hl-asset-plays">Compounding below NAV</button>' in html
     assert 'id="hl-asset-plays"' in html

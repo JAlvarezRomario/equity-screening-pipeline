@@ -279,18 +279,23 @@ def test_combined_ranking_shows_no_rank_columns_and_no_implied_return(cfg):
 def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
     panels = html[html.index('id="highlights"') :].split('id="map"')[0].split("<section")[1:]
-    # Nov 11, 2026: The List; Start here (Cheap and good, Boring businesses), By style (Compounders, Income, Balance
-    # sheet plays, Deep discount), By kind (Banks and lenders, Insurers, Real estate, Utilities), Raw scores
-    # (Cheapest, Best businesses). Temporary trouble and Low beta retired Nov 11, 2026; Energy Nov 9, 2026.
+    # Nov 12, 2026: The List; Its five sources (Cheap and good, Boring businesses, Compounders, Income, Balance
+    # sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities), Outside The List (Deep discount,
+    # Cheapest, Best businesses). Temporary trouble and Low beta retired Nov 11, 2026; Energy Nov 9, 2026.
     assert len(panels) == 13
     assert all('class="list-count muted"' in p for p in panels)
     walks = ("hl-top-1", "hl-top-2", "hl-top-3", "hl-deep-discount")
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in walks)]
     assert len(ranked) == 4 and all("eligible companies" in p and "qualif" not in p for p in ranked)
     assert all("qualif" in p for p in panels if p not in ranked)
-    # Four rows of tabs by idea (Nov 7, 2026); some shown by their plain label, stored under their frozen name.
-    groups = ("Start here", "By style", "By kind", "Raw scores")
+    # The rows by one rule, whether a list feeds The List (Nov 12, 2026); some tabs shown by their plain label,
+    # stored under their frozen name.
+    groups = ("The List", "Its five sources", "By kind", "Outside The List")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
+    assert html.count('class="tab-group"') == len(groups)  # each row once: its tabs are adjacent in `TABS`
+    from fq.report import highlights as hl
+
+    assert {t.name for t in hl.TABS if t.group == "sources"} == set(hl.THE_LIST_SOURCES)
     assert "Boring businesses" in html and 'id="hl-income"' in html
     for gone in (
         "hl-repeaters",
@@ -612,7 +617,7 @@ def test_net_net_pill_marks_net_current_assets_above_the_price_excluding_banks_a
     assert "net-net" not in [t["word"] for t in tags(row(industry="Residential Construction"))]
     assert "net-net" not in [t["word"] for t in tags(row(industry="Real Estate - Development"))]
     html = build_site(_ranked(cfg), cfg).read_text(encoding="utf-8")
-    assert 'data-panel="hl-asset-plays">Balance sheet plays</button>' in html and "net-net" in html
+    assert 'data-panel="hl-asset-plays">Compounding below NAV</button>' in html
 
 
 def test_list_filters_for_reinvestment_and_pricing_power(cfg):
@@ -711,15 +716,14 @@ def test_industry_leader_is_the_top_tenth_and_always_the_top_three():
 def test_screened_lists_keep_to_the_best_fifth_top_lists_do_not(cfg):
     from fq.ranking import top_n, trusted
     from fq.report.highlights import highlight_picks
-    from fq.report.screens import asset_play_list, in_best_fraction
+    from fq.report.screens import compounder_list, in_best_fraction
     from fq.settings import Settings
 
     df = _ranked(cfg).copy()
     df["EPV_Per_Share_Yield"] = 10.0  # every company over the cheap lists' share-price bar: this test is the fifth's
     best = in_best_fraction(df)
     assert best.sum() == np.ceil(Settings().highlight_top_fraction * df["Rank"].notna().sum())
-    df["Asset_Play"] = True
-    assert set(asset_play_list(df, len(df))["Ticker"]) == set(df.loc[best, "Ticker"])
+    assert set(compounder_list(df, len(df))["Ticker"]) <= set(df.loc[best, "Ticker"])
     picks = highlight_picks(6.0)
     total = {name: len(pick(df, len(df))) for name, (pick, _) in picks.items()}
     assert best.sum() < total["Cheap and good"] <= trusted(df).sum()

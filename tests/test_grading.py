@@ -346,7 +346,7 @@ def test_best_businesses_walk_down_quality_keeping_both_grades_four_and_one_abov
     out = hl.best_business_list(df, 2)
     assert out["Ticker"].tolist() == ["BEST", "NEW", "GOOD"]  # LATE, the cheapest, is never reached
     assert out["Grade_Pass"].tolist() == [True, None, True]
-    assert hl.TAB["Best businesses"].group == "raw"
+    assert hl.TAB["Best businesses"].group == "outside"
 
 
 def test_the_untested_pill_counts_data_holes_not_blanks_by_design():

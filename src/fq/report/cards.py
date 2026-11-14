@@ -8,6 +8,7 @@ import pandas as pd
 
 from fq.grading import BOOK, CHECK_KINDS, EARNINGS, MIN_BOTH, SHORTLIST_MIN_TOP, passes_shortlist
 from fq.report.format import DASH
+from fq.report.screens import nav_multiple
 
 GRADE_PILL = ("Moat and management, 1 to 5, graded by an AI model (Gemini) from its own knowledge and this site's "
               "figures. Shown, never scored.")  # fmt: skip
@@ -40,8 +41,8 @@ def nav_figures(row: pd.Series) -> dict | None:
     concern asset by asset, on which the verdict rests, the high a buyer of the assets), each as a multiple of the book
     and of the tangible book it was compared with; the bridge from book to base (book first, base last); its
     confidence; and the price against the going-concern and fire-sale estimates, worked out here from the page's
-    price-to-book (shown only, never stored, sorted or scored; the model never saw the price). None for a check made
-    before it gave one."""
+    price-to-book (`screens.nav_multiple`, the figures that order the two NAV lists since Nov 14, 2026; never in a
+    score; the model never saw the price). None for a check made before it gave one."""
     p = "Check_Book_"
     low, base, high = (_number(row.get(f"{p}NAV_{k}")) for k in ("Low", "Base", "High"))
     book, tangible = _number(row.get(f"{p}Book")), _number(row.get(f"{p}Tangible_Book"))
@@ -66,11 +67,10 @@ def nav_figures(row: pd.Series) -> dict | None:
         out["bridge"].append({"item": "Net assets as a going concern", "amount": f"{base:,.0f}", "note": ""})
     bv_to_price = _number(row.get("BV_to_Price"))  # book per share as % of today's price
     if bv_to_price and bv_to_price > 0 and base > 0:
-        to_book = 100.0 / bv_to_price  # price / book
-        fire = (f"{_x(to_book * book / low)} the fire-sale value" if low > 0
+        fire = (f"{_x(nav_multiple(bv_to_price, book, low))} the fire-sale value" if low > 0
                 else "more than the fire-sale value, which is nothing")  # fmt: skip
-        out["price"] = (f"At today's price: about {_x(to_book * book / base)} the going-concern estimate and {fire} "
-                        "(shown only, never scored).")  # fmt: skip
+        out["price"] = (f"At today's price: about {_x(nav_multiple(bv_to_price, book, base))} the going-concern "
+                        f"estimate and {fire} (never in a score; it orders the two net asset lists).")  # fmt: skip
     return out
 
 
@@ -116,10 +116,11 @@ def check_cards(row: pd.Series) -> list[dict]:
     """The company page's check cards, earnings first then book, for each check made: title, verdict, headline, the
     topic rows (mark, its spoken name, topic, line) and the reasoning bullets (markdown marks stripped; autoescaped
     by the template). Only while the company is listed or held (`Grade_Listed`), like the grade card: a check kept
-    from an earlier listing stays stored, not shown. A deep discount (`screens.deep_discount`) shows its book card
-    whether listed or not."""
+    from an earlier listing stays stored, not shown. A company whose net assets are always estimated
+    (`screens.nav_candidates`, every deep discount among them) shows its book card whether listed or not."""
     listed = row.get("Grade_Listed") == True  # noqa: E712
-    deep = row.get("Deep_Discount") == True  # noqa: E712 - its book is always checked (Nov 11, 2026)
+    # Its book is always checked (Nov 11, 2026; the wider pool since Nov 14, 2026).
+    deep = row.get("Deep_Discount") == True or row.get("NAV_Candidate") == True  # noqa: E712
     if not (listed or deep):
         return []
     cards = []

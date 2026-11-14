@@ -35,7 +35,7 @@ def tags(row: pd.Series) -> list[dict]:
     if flag("Asset_Play"):
         add("below book", "Tangible book per share (net debt counted against it; a holding's book with its "
             f"goodwill) at or above the share price, the book earning at least {s.asset_play_min_roic:g}% (normalised "
-            "ROIC), with positive owner earnings, bounded debt and no dilution: the Balance sheet plays list's test.")  # fmt: skip
+            "ROIC), with positive owner earnings, bounded debt and no dilution. Shown, no list's test since Nov 14, 2026.")  # fmt: skip
     net_cash = pd.to_numeric(row.get("Net_Cash_to_Cap"), errors="coerce")
     if net_cash >= s.net_cash_min_pct and not flag("Financial_Mode"):
         out.append(
@@ -88,10 +88,15 @@ def tags(row: pd.Series) -> list[dict]:
         )
     if flag("Insufficient_Data"):
         add("insufficient data", "Not enough data to score Value or Quality: not ranked.")
-    if flag("Deep_Discount") and flag("Check_Book_Pass"):
-        add("deep discount to book", f"Priced under {DEEP_PILL_MAX:g}x both book and tangible book per share, and an "
-            "AI check of the book (assets carried high, hidden liabilities) found it holds: the Deep discount list's "
-            "test, before the management grade.")  # fmt: skip
+    to_nav = pd.to_numeric(row.get("Price_to_NAV"), errors="coerce")
+    to_fire = pd.to_numeric(row.get("Price_to_Fire_NAV"), errors="coerce")
+    if flag("NAV_Holds") and to_nav < 1:
+        add("below NAV", f"Priced at {to_nav:.2f}x an AI model's estimate of its net assets as a going concern "
+            "(assets less liabilities, asset by asset; made without the share price), with value that reaches a "
+            "shareholder and is not being eaten. An estimate, shown on its page.")  # fmt: skip
+    if flag("NAV_Holds") and to_fire <= FIRE_PILL_MAX:
+        add("below fire-sale value", f"Priced at {to_fire:.2f}x what an AI model estimates its assets would fetch if "
+            f"the company closed (at most {FIRE_PILL_MAX:g}x). An estimate, shown on its page.")  # fmt: skip
     record = short_record(row)
     if record:
         add("short record", f"{record}: on no list until the record is longer (a new issue's seller picks the date and "
@@ -138,7 +143,7 @@ def short_record(row: pd.Series) -> str:
     return " and ".join(parts)
 
 
-DEEP_PILL_MAX = 0.66  # as `screens.DEEP_DISCOUNT_MAX_PRICE_TO_BOOK` (screens imports format, which imports this module)
+FIRE_PILL_MAX = 0.66  # as `screens.FIRE_SALE_MAX_PRICE` (screens imports format, which imports this module)
 # A share down more than this % over 6 months carries a pill (Nov 10, 2026: shown, never tested, since the lists'
 # price floor went).
 FALLEN_PILL_MIN = -20.0

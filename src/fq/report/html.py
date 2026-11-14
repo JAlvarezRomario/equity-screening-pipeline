@@ -82,13 +82,14 @@ TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspe
                  "(software, IT services, consulting, staffing, advertising, publishing, education, business services, "
                  "internet content, gaming, health information, entertainment and broadcasting). The rankings hold "
                  "profitable operating companies only; banks, insurers, REITs and utilities are judged against their "
-                 "own kind in the By kind lists, holdings in Balance sheet plays. Cheap and good, Cheapest and Best "
+                 "own kind in the By kind lists, holdings in Compounding below NAV. Cheap and good, Cheapest and Best "
                  "businesses are score rankings; the two named cheap also ask an owner yield on the share price above "
-                 "{cheap_yield}% plus the home country's sovereign spread. Deep discount asks a checked book instead. "
-                 "The other lists keep the best {top} of the combined ranking (of their own kind, for By kind). An AI "
+                 "{cheap_yield}% plus the home country's sovereign spread. Compounding below NAV and Below fire-sale value "
+                 "ask a price below an estimate of the net assets instead. The other lists keep the best {top} of the "
+                 "combined ranking (of their own kind, for By kind). An AI "
                  "model (Gemini) then grades each listed company's moat and management from 1 to 5, from its own "
                  "knowledge and this site's figures. Companies with both grades at least {both} make the list (Boring "
-                 "businesses, Best businesses and Deep discount set their own bars); the others are folded under the "
+                 "businesses, Best businesses and Below fire-sale value set their own bars); the others are folded under the "
                  "table and the next qualifying company takes their place. Cheap and good, Cheapest and Best "
                  "businesses walk down their ranking until at least {min_pass} pass every test. A grade changes no "
                  "score and no rank.")  # fmt: skip
@@ -120,6 +121,9 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
         "cheap_yield": g(sc.CHEAP_MIN_SHARE_YIELD),
         "asset_min_roic": g(cfg.asset_play_min_roic),
         "deep_pb": g(sc.DEEP_DISCOUNT_MAX_PRICE_TO_BOOK), "deep_mgmt": g(DEEP_MIN_MGMT),
+        "nav_compounding": g(sc.NAV_COMPOUNDING_MIN), "nav_max": g(sc.NAV_MAX_PRICE),
+        "fire_max": g(sc.FIRE_SALE_MAX_PRICE), "nav_check_pb": g(sc.NAV_CHECK_MAX_PRICE_TO_BOOK),
+        "nav_check_asset_pb": g(sc.NAV_CHECK_ASSET_MAX_PRICE_TO_BOOK),
         "net_cash_min": g(cfg.net_cash_min_pct), "income_dip": g(round((1 - sc.INCOME_HELD) * 100)),
         "min_years": cfg.improver_min_years,
         "operating_min_roic": g(sc.OPERATING_MIN_ROIC), "operating_min_yield": g(sc.OPERATING_MIN_YIELD),

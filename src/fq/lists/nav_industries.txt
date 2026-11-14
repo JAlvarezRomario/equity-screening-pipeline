@@ -1,0 +1,9 @@
+# Industries whose assets are often worth more than their book (land, property and stakes carried at old cost),
+# so the book check estimates their net assets up to 1.5x book, not only below it
+# (`report.screens.nav_candidates`; user's choice, Nov 14, 2026, prompted by ISUR.MC at 1.1x book). REITs
+# (`real_estate_owners.txt`) and holdings (the `holding` model, at any price) are added by their kind.
+# Yahoo industry names, one a line.
+Real Estate - Development
+Real Estate - Diversified
+Real Estate Services
+Conglomerates
