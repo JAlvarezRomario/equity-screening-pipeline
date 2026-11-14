@@ -1,0 +1,37 @@
+{% extends "base.html.j2" %}
+{% block title %}Market yields &middot; Turning over the Rocks{% endblock %}
+{% block header %}
+<h1>Market yields</h1>
+<p class="subtitle">S&amp;P 500 trailing earnings yield vs. the 10-year US Treasury yield, month by month from {{ start_date }} to {{ latest_date }}.</p>
+<nav class="page-sections">
+  <a href="index.html">&larr; Back to the lists</a><a href="#chart">Chart</a><a href="#notes">Method &amp; sources</a>
+</nav>
+{% endblock %}
+{% block content %}
+
+<div class="card intro">
+  <h2>Latest reading ({{ latest_date }})</h2>
+  <ul class="fw-points">
+    <li><strong>S&amp;P 500 Earnings Yield (TTM):</strong> {{ latest_ey }} (the inverse of the trailing 12-month P/E ratio).</li>
+    <li><strong>10-Year US Treasury Yield:</strong> {{ latest_ty }} (month-end close of <code>^TNX</code>).</li>
+    <li><strong>Yield Spread (Earnings Yield &minus; 10Y Treasury):</strong> <span class="{{ 'pos' if latest_spread_pos else 'neg' }}">{{ latest_spread }}</span> &middot; 1970&ndash;present median: {{ median_spread }} (range: {{ min_spread }} to {{ max_spread }} across {{ n_months }} months).</li>
+  </ul>
+</div>
+
+<section class="card chart-card" id="chart">
+  <h2>S&amp;P 500 Earnings Yield vs. 10-Year Treasury Yield ({{ start_date }} &ndash; {{ latest_date }})</h2>
+  <p class="meta">{{ n_months }} monthly observations &middot; top: yields (%) &middot; bottom: spread (percentage points)</p>
+  <div class="company-chart">{{ chart | safe }}</div>
+  <p class="chart-instruction">Use the range buttons (5Y, 10Y, 20Y, All) or drag to zoom. When the spread in the lower panel is positive, S&amp;P 500 trailing earnings yield exceeds the 10-year Treasury yield; when negative, bonds yield more than trailing index earnings.</p>
+</section>
+
+<div class="card" id="notes">
+  <h2>Method &amp; sources</h2>
+  <ul class="plain-points">
+    <li><strong>10-Year US Treasury Yield:</strong> Monthly month-end close of CBOE 10-Year Treasury Note Yield (<code>^TNX</code>) via Yahoo Finance, clipped at January 1970.</li>
+    <li><strong>S&amp;P 500 Earnings Yield:</strong> Monthly trailing 12-month (TTM) earnings yield from <a href="https://www.multpl.com/s-p-500-earnings-yield/table/by-month" target="_blank" rel="noopener">Multpl</a> (as-reported S&amp;P 500 earnings divided by index price), clipped at January 1970.</li>
+    <li><strong>Why TTM instead of consensus Forward P/E:</strong> Institutional consensus 12-month forward S&amp;P 500 estimates (I/B/E/S, FactSet) are proprietary and do not extend back to 1970; Multpl's TTM earnings yield provides a consistent, auditable series back to 1970.</li>
+  </ul>
+</div>
+
+{% endblock %}

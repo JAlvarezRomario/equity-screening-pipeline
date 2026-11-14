@@ -17,7 +17,7 @@ import pandas as pd
 
 from fq import evaluate as evaluate_mod
 from fq import fetch as fetch_mod
-from fq import forward, fx, grading, health, history, refresh
+from fq import forward, fx, grading, health, history, macro, refresh
 from fq.filters import clean_and_filter
 from fq.metrics import calculate_metrics
 from fq.ranking import apply_dual_ranking
@@ -25,6 +25,7 @@ from fq.report.format import report_periods
 from fq.report.forward_page import build_forward, build_placeholder
 from fq.report.highlights import Highlights
 from fq.report.html import build_site
+from fq.report.macro_page import build_macro
 from fq.report.notes import data_notes
 from fq.report.pills import tags
 from fq.settings import BENCHMARK_MIN_CACHED, DEFAULT_BENCHMARK, SELF_BENCHMARKED, Settings
@@ -375,6 +376,16 @@ def write_report(
     fw = forward_step(cfg, ranked, h, offline) if not companies_only and tickers is None else None
     soon = fw is None and cfg.label == DEFAULT_BENCHMARK and not companies_only and tickers is None
     forward_link = "Forward test" if fw is not None or soon else None
+    macro_yields = (
+        macro.load_macro_yields(
+            cfg.data_dir / macro.CACHE_FILE,
+            max_age_days=cfg.price_refresh_days,
+            offline=offline,
+        )
+        if not companies_only and tickers is None
+        else pd.DataFrame()
+    )
+    macro_link = "Market yields" if not macro_yields.empty else None
     index = build_site(
         ranked,
         cfg,
@@ -385,6 +396,7 @@ def write_report(
         companies_only=companies_only,
         tickers=tickers,
         forward=forward_link,
+        macro=macro_link,
         highlights=h,
     )
     # The benchmark's listed companies are graded from the pages just written; a new grade re-renders its page and
@@ -398,12 +410,14 @@ def write_report(
     if graded or checked:
         h = Highlights.compute(ranked, cfg, bench)  # new grades and checks move rows below the bar, fill the walks
         index = build_site(ranked, cfg, bench=bench, held=portfolio(), watched=watchlist(),
-                           forward=forward_link, highlights=h)  # fmt: skip
+                           forward=forward_link, macro=macro_link, highlights=h)  # fmt: skip
     if fw is not None:
         cohort, ledger, live = fw
         log.info("Forward test written to %s", build_forward(cfg.site_dir, cohort, ledger, live=live))
     elif soon:
         log.info("Forward test not started: placeholder written to %s", build_placeholder(cfg.site_dir))
+    if not macro_yields.empty:
+        log.info("Macro yields written to %s", build_macro(cfg.site_dir, macro_yields))
     if not companies_only and tickers is None:  # the tabs as shown, for `fq evaluate`
         tabs = evaluate_mod.save_published(h.published(), cfg.snapshot_dir, cfg.label,
                                            pd.Timestamp.now())  # fmt: skip

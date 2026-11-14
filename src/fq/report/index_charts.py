@@ -8,6 +8,7 @@ from functools import cache
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from fq import forward
 from fq.ranking import rankable
@@ -528,3 +529,87 @@ def forward_figure(values: pd.DataFrame) -> go.Figure:
 def forward_html(values: pd.DataFrame, div_id: str = FORWARD_ID) -> str:
     """The backward or forward test's chart as an embeddable div (`div_id` apart when both are on the page)."""
     return _company_div(forward_figure(values), div_id)
+
+
+MACRO_ID = "macro_yields_chart"
+
+
+def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
+    """Two-panel Plotly figure: 10Y Treasury yield vs. S&P 500 TTM earnings yield (top) and spread (bottom)."""
+    x = [d.strftime("%Y-%m-%d") for d in yields.index]
+    ey = np.round(yields["sp500_earnings_yield"].astype(float), 2).tolist()
+    ty = np.round(yields["treasury_10y"].astype(float), 2).tolist()
+    spread = np.round(yields["spread_pp"].astype(float), 2).tolist()
+
+    fig = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        row_heights=[0.64, 0.36],
+        vertical_spacing=0.06,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=ey,
+            name="S&P 500 Earnings Yield (TTM)",
+            mode="lines",
+            line=dict(color="#2563eb", width=2.2),
+            hovertemplate="%{y:.2f}%",
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=ty,
+            name="10Y US Treasury Yield (^TNX)",
+            mode="lines",
+            line=dict(color="#ea580c", width=2.0),
+            hovertemplate="%{y:.2f}%",
+        ),
+        row=1,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x,
+            y=spread,
+            name="Spread (Earnings Yield − 10Y)",
+            mode="lines",
+            line=dict(color="#0f766e", width=1.8),
+            fill="tozeroy",
+            fillcolor="rgba(15, 118, 110, 0.14)",
+            hovertemplate="%{y:+.2f} pp",
+        ),
+        row=2,
+        col=1,
+    )
+    fig.add_hline(y=0, line=dict(color="#98a2b3", width=1), row=2, col=1)
+    fig.update_layout(
+        height=620,
+        margin=dict(l=55, r=20, t=36, b=40),
+        hovermode="x unified",
+        legend=dict(orientation="h", x=0, xanchor="left", y=1.06, yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(
+            rangeselector=dict(
+                buttons=[
+                    dict(count=5, label="5Y", step="year", stepmode="backward"),
+                    dict(count=10, label="10Y", step="year", stepmode="backward"),
+                    dict(count=20, label="20Y", step="year", stepmode="backward"),
+                    dict(step="all", label="All (1970–)"),
+                ]
+            ),
+            showgrid=True,
+        ),
+        xaxis2=dict(type="date", showgrid=True),
+        yaxis=dict(title="Yield (%)", ticksuffix="%", zeroline=False),
+        yaxis2=dict(title="Spread (pp)", ticksuffix=" pp", zeroline=False),
+    )
+    return fig
+
+
+def macro_yields_html(yields: pd.DataFrame, div_id: str = MACRO_ID) -> str:
+    """The macro yields comparison chart as an embeddable Plotly div."""
+    return _company_div(macro_yields_figure(yields), div_id)

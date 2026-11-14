@@ -35,7 +35,7 @@
 <h1>Turning over the Rocks</h1>
 <p class="subtitle">{{ "{:,}".format(n_companies) }} listed companies{% if n_countries %} in {{ n_countries }} countries{% endif %}, measured with one yardstick: what a share earns for its owner against its price, and how good and lasting the business is.</p>
 <nav class="page-sections">
-  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 1 December 2026 (bought at the 30 November close), followed month by month against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}
+  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 1 December 2026 (bought at the 30 November close), followed month by month against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}{% if macro %}<a href="macro.html" title="Historical 10-year US Treasury yield vs. S&amp;P 500 earnings yield since 1970">{{ macro }} &rarr;</a>{% endif %}
 </nav>
 {% endblock %}
 {% block actions %}

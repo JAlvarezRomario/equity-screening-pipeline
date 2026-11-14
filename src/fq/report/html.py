@@ -279,6 +279,7 @@ def build_site(
     companies_only: bool = False,
     tickers: set[str] | None = None,
     forward: str | None = None,
+    macro: str | None = None,
     highlights: Highlights | None = None,
 ) -> Path:
     """Write the full site into `out_dir` (default `cfg.site_dir`); returns the index path.
@@ -358,6 +359,7 @@ def build_site(
         held=held,
         watched=watched,
         forward=forward,
+        macro=macro,
         held_slugs=sorted(slug(t) for t in held if t in set(df["Ticker"])),
         watched_slugs=sorted(slug(t) for t in watched if t in set(df["Ticker"])),
     )
