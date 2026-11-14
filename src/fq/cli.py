@@ -316,6 +316,45 @@ def evaluate(
     pipeline.evaluate_run(_cfg(sel, data_dir, output_dir), rescore)
 
 
+@app.command("indices")
+@_usage
+def indices_cmd(
+    indices: Annotated[
+        str | None,
+        typer.Option(
+            "--indices",
+            "-i",
+            help="Comma-separated index specs to crawl (e.g. 'sp500,dax,ibex35'); omit for all configured specs.",
+        ),
+    ] = None,
+    json_out: Annotated[
+        Path | None,
+        typer.Option("--json", help="Optional path to write the JSON constituent-drift report."),
+    ] = None,
+) -> None:
+    """Audit public index constituent tables with Scrapy against `fq.lists` (opt-in, never modifies list files)."""
+    from fq import crawlers
+
+    _setup_logging()
+    selected = [s.strip().lower() for s in indices.split(",") if s.strip()] if indices else None
+    try:
+        reports = crawlers.run_index_audit(indices=selected, json_out=json_out)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    for rep in reports:
+        if not rep.layout_ok:
+            typer.echo(f"[LAYOUT FAIL] {rep.index}: {rep.error}")
+        else:
+            typer.echo(
+                f"[OK] {rep.index:12s} crawled={rep.crawled_count:4d} list={rep.list_count:4d} "
+                f"+added={len(rep.added):2d} -removed={len(rep.removed):2d}"
+            )
+            if rep.added:
+                typer.echo(f"     added:   {', '.join(rep.added)}")
+            if rep.removed:
+                typer.echo(f"     removed: {', '.join(rep.removed)}")
+
+
 @app.command()
 @_usage
 def clean(

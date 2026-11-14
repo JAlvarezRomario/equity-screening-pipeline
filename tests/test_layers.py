@@ -41,8 +41,13 @@ def touching(paths: list[Path], *forbidden: str) -> list[str]:
 def test_the_scoring_core_never_reaches_the_site_the_network_or_the_llm():
     core = files("metrics", "ranking.py", "filters.py", "settings.py")
     above = ("fq.report", "fq.grading", "fq.pipeline", "fq.cli", "fq.fetch", "fq.forward", "fq.evaluate", "fq.columns",
-             "fq.refresh", "fq.health", "fq.history")  # fmt: skip
+             "fq.refresh", "fq.health", "fq.history", "fq.crawlers")  # fmt: skip
     assert touching(core, *above) == []
+
+
+def test_auxiliary_crawlers_stay_decoupled_from_pipeline_and_site():
+    non_cli = [p for p in files(".") if p.name not in ("cli.py", "crawlers.py")]
+    assert touching(non_cli, "fq.crawlers") == []
 
 
 def test_the_foundations_stay_at_the_bottom():

@@ -16,6 +16,7 @@ dependencies = [
     "pandas>=3.0.6",
     "plotly>=7.1.0",
     "pyarrow>=26.0.0",
+    "scrapy>=2.20.0",
     "typer>=0.27.3",
     "yfinance>=1.7.0",
 ]

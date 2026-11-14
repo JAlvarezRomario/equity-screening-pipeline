@@ -143,6 +143,7 @@ The grade needs `GEMINI_API_KEY` in the environment and is skipped without it. E
 | `src/fq/grading.py`, `prompts/` | The LLM grade and its prompts |
 | `src/fq/forward.py`, `evaluate.py` | Forward test; snapshot evaluation |
 | `src/fq/pipeline.py`, `cli.py` | The run as plain functions; the command line |
+| `src/fq/crawlers.py` | Auxiliary, opt-in Scrapy spider auditing public index constituent tables against `lists/` |
 | `src/fq/lists/` | Index lists, business-model overrides, exclusions (text, not code) |
 | `tests/` | Tests on synthetic data |
 | `docs/img/` | The screenshots above |
