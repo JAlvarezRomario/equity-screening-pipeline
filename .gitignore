@@ -25,6 +25,7 @@ REFERENCES/
 
 # Private or third-party: kept on this machine, never in the repo
 portfolio.txt
+watchlist.txt
 support/
 
 # Private: versioned locally in .git-private, never pushed

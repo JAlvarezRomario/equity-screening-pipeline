@@ -55,6 +55,19 @@ def test_holdings_are_marked(cfg):
     assert "In portfolio" in pages[held] and all("In portfolio" not in p for t, p in pages.items() if t != held)
 
 
+def test_watchlist_is_marked_and_highlighted(cfg):
+    df = _ranked(cfg)
+    watched = df.loc[0, "Ticker"]
+    index = build_site(df, cfg, watched=frozenset({watched}))
+    html = index.read_text(encoding="utf-8")
+    table = html[html.index('id="ranking-table"') :]
+    assert table.count('data-watched="1"') == 1 and 'id="watchlist-toggle"' in html
+    assert f'window.FQ_WATCHED = ["{slug(watched)}"]' in html
+    assert "fq-watchlist" in html and "Watchlist" in html
+    pages = {t: (index.parent / "companies" / f"{slug(t)}.html").read_text(encoding="utf-8") for t in df["Ticker"]}
+    assert "In watchlist" in pages[watched] and all("In watchlist" not in p for t, p in pages.items() if t != watched)
+
+
 def test_front_page_code_does_not_re_render_company_pages(cfg, monkeypatch, tmp_path):
     """Company pages are re-rendered only when their own inputs change (`company_page.PAGE_INPUTS`): editing the front
     page's code (`html.py`, its lists in `screens.py`, its map), its template or the static files leaves their

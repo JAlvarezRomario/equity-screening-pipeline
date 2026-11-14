@@ -198,22 +198,26 @@ def _graded(cfg, df, moat, mgmt):
 def test_a_company_below_the_bar_stays_on_its_list_folded_under_it(cfg):
     df = _ranked(cfg)
     df["EPV_Per_Share_Yield"] = 10.0  # over the cheap lists' share-price bar: this test is the grade's
-    first = published_lists(df, cfg).query("List == 'Cheap and good'")["Ticker"].tolist()
-    assert len(first) >= 2 and published_lists(df, cfg)["Grade_Pass"].isna().all()  # nothing graded yet
+    df["Owner_Yield"] = 10.0
+    df["ROIC_Norm"] = 20.0
+    df["industry"] = "Packaged Foods"
+    first = published_lists(df, cfg).query("List == 'Shortlist'")["Ticker"].tolist()
+    assert len(first) >= 1 and published_lists(df, cfg)["Grade_Pass"].isna().all()  # nothing graded yet
     low = first[0]
-    _graded(cfg, df, {low: 2.0}, {low: 4.0})
+    _graded(cfg, df, {t: 2.0 if t == low else 4.0 for t in df["Ticker"]}, {t: 4.0 for t in df["Ticker"]})
     lists = published_lists(df, cfg)
-    cheap = lists.query("List == 'Cheap and good'")
-    assert set(cheap["Ticker"]) == set(first)  # kept, not replaced
+    assert low not in set(lists.query("List == 'Cheap and good'")["Ticker"])  # Cheap and good walks past a failed grade
+    short = lists.query("List == 'Shortlist'")
+    assert set(short["Ticker"]) == set(first)  # kept on its screened list, not replaced
     assert lists.loc[lists["Ticker"] == low, "Grade_Pass"].eq(False).all()
     html = build_site(df, cfg).read_text(encoding="utf-8")
-    panel = html.split('id="hl-top-1"')[1].split("</section>")[0]
+    panel = html.split('id="hl-shortlist"')[1].split("</section>")[0]
     main, fold = panel.split('class="explain below-bar"')
     assert f">{low}</a>" not in main and 'class="grade-fail"' not in main  # out of the list's own table
     rows = fold.split("<tbody>")[1].split("<tr")[1:]
     assert len(rows) == 1 and 'class="grade-fail"' in rows[0] and f">{low}</a>" in rows[0]  # in the fold, shaded
     assert "1 below the moat and management bar" in fold and "moat 2.0 · mgmt 4.0" in fold
-    assert "moat 3.0 · mgmt 3.0" in panel and "pill-grade-low" in panel
+    assert "pill-grade-low" in panel
 
 
 def test_ungraded_companies_keep_their_place_with_a_pill(cfg):
@@ -223,9 +227,11 @@ def test_ungraded_companies_keep_their_place_with_a_pill(cfg):
 
 
 def test_the_grade_card_is_on_listed_companies_pages_only(cfg):
+    from fq.report.screens import industry_best
+
     df = _ranked(cfg)
     _graded(cfg, df, {}, {})
-    listed = set(published_lists(df, cfg)["Ticker"])  # after the grades: the graded walks change with them
+    listed = set(published_lists(df, cfg)["Ticker"]) | set(industry_best(df))  # after the grades: walks + industry best
     index = build_site(df, cfg)
     for ticker in df["Ticker"]:
         page = (index.parent / "companies" / f"{slug(ticker)}.html").read_text(encoding="utf-8")
@@ -253,9 +259,18 @@ def test_holdings_are_graded_listed_or_not(cfg, monkeypatch):
     df = pd.concat([df, df.iloc[[0]].assign(Ticker=held)], ignore_index=True)
     seen = {}
     monkeypatch.setattr(pipeline, "portfolio", lambda: frozenset({held, "NOT.RANKED"}))
+    monkeypatch.setattr(pipeline, "watchlist", lambda: frozenset())
     monkeypatch.setattr(grading, "due", lambda candidates, *a: seen.setdefault("c", candidates) and [])
     pipeline.grade_companies(cfg, df, Highlights.compute(df, cfg), dry_run=True)
     assert held in seen["c"] and "NOT.RANKED" not in seen["c"]
+
+    watched = "WATCHED"
+    df_w = pd.concat([df, df.iloc[[0]].assign(Ticker=watched)], ignore_index=True)
+    seen.clear()
+    monkeypatch.setattr(pipeline, "portfolio", lambda: frozenset())
+    monkeypatch.setattr(pipeline, "watchlist", lambda: frozenset({watched, "NOT.RANKED"}))
+    pipeline.grade_companies(cfg, df_w, Highlights.compute(df_w, cfg), dry_run=True)
+    assert watched in seen["c"] and "NOT.RANKED" not in seen["c"]
 
 
 def test_the_shortlist_asks_both_at_three_and_one_at_four():

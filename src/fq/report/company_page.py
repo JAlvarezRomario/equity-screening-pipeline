@@ -89,11 +89,11 @@ def _page_inputs_version(cfg: Settings, periods, treasury_yield, counts) -> byte
 
 
 def _page_fingerprint(shared: bytes, item: tuple) -> str:
-    """Hash of one page's inputs: the shared part, the row's values, previous / next and the held mark."""
-    prev, next_item, row, is_held = item
+    """Hash of one page's inputs: the shared part, the row's values, previous / next, held and watched marks."""
+    prev, next_item, row, is_held, is_watched = item
     digest = hashlib.sha1(shared)
     digest.update(row.to_json(default_handler=str, double_precision=15).encode())
-    digest.update(repr((prev, next_item, is_held)).encode())
+    digest.update(repr((prev, next_item, is_held, is_watched)).encode())
     return digest.hexdigest()
 
 
@@ -108,7 +108,7 @@ def _render_company_batch(args: tuple) -> None:
     comp_dir, cfg, periods, treasury_yield, stamp, counts, items = args
     env = _env()
     company_tpl = env.get_template("company.html.j2")
-    for prev, next_item, row, is_held in items:
+    for prev, next_item, row, is_held, is_watched in items:
         ticker = row["Ticker"]
         tiles, drivers = key_tiles(row), score_tiles(row)
         shown_above = frozenset(c[1] for c in HEADLINE_FACTS) | {t["col"] for t in [*tiles, *drivers]}
@@ -157,6 +157,7 @@ def _render_company_batch(args: tuple) -> None:
             holders=holders,
             is_financial=is_financial(row),
             held=is_held,
+            watched=is_watched,
             date=stamp,
             data_date=_data_date(row),
         )
@@ -171,6 +172,7 @@ def write_company_pages(
     treasury_yield,
     stamp: str,
     held: frozenset[str] = frozenset(),
+    watched: frozenset[str] = frozenset(),
     tickers: set[str] | None = None,
 ) -> None:
     """Write `out_dir/companies/<slug>.html` for every row of `df` (only `tickers`, when given) whose inputs changed
@@ -182,7 +184,13 @@ def write_company_pages(
         {"ticker": t, "slug": slug(t), "rank": fmt(r, ",.0f")} for t, r in zip(df["Ticker"], df["Rank"], strict=True)
     ]
     items = [
-        (order[i - 1] if i > 0 else None, order[i + 1] if i + 1 < len(order) else None, row, row["Ticker"] in held)
+        (
+            order[i - 1] if i > 0 else None,
+            order[i + 1] if i + 1 < len(order) else None,
+            row,
+            row["Ticker"] in held,
+            row["Ticker"] in watched,
+        )
         for i, (_, row) in enumerate(df.iterrows())
     ]
     if tickers is not None:

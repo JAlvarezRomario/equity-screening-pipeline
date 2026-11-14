@@ -82,6 +82,14 @@ def portfolio() -> frozenset[str]:
         return frozenset()
 
 
+def watchlist() -> frozenset[str]:
+    """Watchlist tickers are never dropped for their industry; empty when watchlist.txt does not exist."""
+    try:
+        return frozenset(resolve_selection("watchlist").tickers)
+    except ValueError:
+        return frozenset()
+
+
 def benchmark_selection(sel: Selection, token: str | None) -> Selection | None:
     """The set the run is scored against, or None to rank the run on its own."""
     if token is None:
@@ -168,7 +176,7 @@ def rank_benchmark(
     if age is not None and age > cfg.max_cache_age_days:
         log.warning("Benchmark '%s' fundamentals are up to %d days old; `fq run -u %s` refreshes them",
                     bench.label, age, bench.label)  # fmt: skip
-    kept, _ = clean_and_filter(metrics, present, protected=portfolio(), verbose=False)
+    kept, _ = clean_and_filter(metrics, present, protected=portfolio() | watchlist(), verbose=False)
     ranked = apply_dual_ranking(kept, cfg)
     log.info("Scoring against benchmark '%s' (%d companies)", bench.label, int(ranked["Value_Score"].notna().sum()))
     return ranked
@@ -184,7 +192,7 @@ def rank_run(sel: Selection, cfg: Settings, bench: Selection | None = None) -> N
         raise PipelineError(str(exc)) from exc
     health.report(raw, cfg)
     metrics = calculate_metrics(raw, cfg)
-    kept, removed = clean_and_filter(metrics, sel.tickers, protected=portfolio())
+    kept, removed = clean_and_filter(metrics, sel.tickers, protected=portfolio() | watchlist())
     missing = sorted(set(sel.tickers) - set(metrics["Ticker"]))
     if missing:
         log.warning("Not fetched / no data: %s", ", ".join(missing))
@@ -268,7 +276,10 @@ def grade_companies(
     (no re-grade is spent). Returns how many grades or syntheses changed; never fails the report (an error is logged)."""
     path = cfg.data_dir / "grades.parquet"
     now = pd.Timestamp.now()
-    held = [t for t in sorted(portfolio()) if t in set(ranked["Ticker"])]  # every holding is graded too
+    tickers = set(ranked["Ticker"])
+    held = [
+        t for t in sorted(portfolio() | watchlist()) if t in tickers
+    ]  # every holding and watchlist ticker is graded too
     candidates = list(dict.fromkeys([*h.grade_pool(), *held]))
     stored = grading.load(path)
     todo = [] if resynthesize_only else grading.due(candidates, ranked, stored, now)
@@ -323,7 +334,11 @@ def check_companies(cfg: Settings, ranked: pd.DataFrame, h: Highlights, max_chec
     now = pd.Timestamp.now()
     tickers = set(ranked["Ticker"])
     on_book = set(h.shown("Below book")["Ticker"]) if "Below book" in h.picks else set()
-    held = [(t, grading.BOOK if t in on_book else grading.EARNINGS) for t in sorted(portfolio()) if t in tickers]
+    held = [
+        (t, grading.BOOK if t in on_book else grading.EARNINGS)
+        for t in sorted(portfolio() | watchlist())
+        if t in tickers
+    ]
     candidates = list(dict.fromkeys([*h.check_pool(), *held]))
     todo = grading.checks_due(candidates, ranked, grading.load_checks(path), now)
     if max_checks:
@@ -365,6 +380,7 @@ def write_report(
         cfg,
         bench=bench,
         held=portfolio(),
+        watched=watchlist(),
         index_only=index_only,
         companies_only=companies_only,
         tickers=tickers,
@@ -381,7 +397,7 @@ def write_report(
     checked = grade and check_companies(cfg, ranked, h, max_checks=grading.MAX_PER_RUN)
     if graded or checked:
         h = Highlights.compute(ranked, cfg, bench)  # new grades and checks move rows below the bar, fill the walks
-        index = build_site(ranked, cfg, bench=bench, held=portfolio(),
+        index = build_site(ranked, cfg, bench=bench, held=portfolio(), watched=watchlist(),
                            forward=forward_link, highlights=h)  # fmt: skip
     if fw is not None:
         cohort, ledger, live = fw
@@ -411,7 +427,7 @@ def holder_targets(sel: Selection, cfg: Settings, raw: pd.DataFrame, every: bool
     from fq.report.screens import in_best_fraction
 
     ranked = pd.read_parquet(cfg.ranked_path, columns=["Ticker", "Rank"])
-    wanted = set(ranked.loc[in_best_fraction(ranked), "Ticker"]) | set(portfolio())
+    wanted = set(ranked.loc[in_best_fraction(ranked), "Ticker"]) | set(portfolio()) | set(watchlist())
     tabs = evaluate_mod.load_published(cfg.snapshot_dir, cfg.label)
     if tabs:
         wanted |= set(tabs[max(tabs)]["Ticker"])
@@ -447,7 +463,7 @@ def rescore(cfg: Settings, snapshots: dict[pd.Timestamp, pd.DataFrame], until: p
             bench_tickers = members if token == DEFAULT_BENCHMARK else resolve_selection(token).tickers
             bench = Selection(token, bench_tickers) if bench_tickers else None
         metrics = calculate_metrics(raw, cfg)
-        kept, _ = clean_and_filter(metrics, tickers, protected=portfolio(), verbose=False)
+        kept, _ = clean_and_filter(metrics, tickers, protected=portfolio() | watchlist(), verbose=False)
         reference = rank_benchmark(bench, raw, metrics, cfg)
         ranked = apply_dual_ranking(kept, cfg, reference, token if reference is not None else None)
         out[day] = evaluate_mod.snapshot(ranked, method)
@@ -472,7 +488,7 @@ def quality_history(cfg: Settings) -> pd.DataFrame | None:
     tables = []
     for lag in history.LAGS:
         lagged = calculate_metrics(history.lag_raw(raw, lag, cfg), cfg)
-        kept, _ = clean_and_filter(lagged, tickers, protected=portfolio(), verbose=False)
+        kept, _ = clean_and_filter(lagged, tickers, protected=portfolio() | watchlist(), verbose=False)
         ranked = apply_dual_ranking(kept, cfg)
         tables.append(history.quality_ic(ranked, history.outcomes(now, lagged, lag, cfg), lag, cfg))
     out = pd.concat(tables, ignore_index=True)

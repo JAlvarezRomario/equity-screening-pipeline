@@ -579,6 +579,10 @@ def test_global_benchmark_selection(tmp_path, monkeypatch):
     assert {"AAPL", "V", "BRK-B", "DECK"} <= set(sp500) and len(sp500) > 490  # index lists taken whole
     assert len(benchmark_part("ibex35")) == 34 and len(benchmark_part("dax")) == 40
     assert "0027.HK" in benchmark_part("others") and "5425.T" not in benchmark_part("others")  # excluded
+    (tmp_path / "watchlist.txt").write_text("5425.T\n", encoding="utf-8")
+    assert "5425.T" in benchmark_part("others")
+    assert resolve_selection("watchlist").tickers == ["5425.T"]
+    (tmp_path / "watchlist.txt").unlink()
     combined = resolve_selection("benchmark")
     assert combined.label == "benchmark" and {"AAPL", "ITX.MC", "SAP.DE", "0001.HK"} <= set(combined.tickers)
     assert len(benchmark_part("eurostoxx50")) == 50 and {"MC.PA", "NOKIA.HE"} <= set(combined.tickers)

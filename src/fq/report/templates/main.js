@@ -182,43 +182,49 @@ document.addEventListener('DOMContentLoaded', () => {
         select(buttons.some(b => b.dataset.panel === saved) ? saved : buttons[0].dataset.panel);
     }
 
-    // --- Holdings: one switch for the whole page ---
-    // On: the combined ranking shows only the portfolio's companies, the other lists are hidden (style.css),
-    // the charts dim everything else, and the distribution histograms superimpose the holdings in orange.
+    // --- Holdings & Watchlist: mutually exclusive switches for the whole page ---
+    // On: the combined ranking shows only that set's companies, the other lists are hidden (style.css),
+    // the charts dim everything else, and the distribution histograms superimpose the set.
     const holdingsButton = document.getElementById('holdings-toggle');
-    const heldSlugs = new Set(window.FQ_HELD || []);
+    const watchlistButton = document.getElementById('watchlist-toggle');
     const holdingsOn = () => body.classList.contains('holdings-mode');
+    const watchlistOn = () => body.classList.contains('watchlist-mode');
     // "No dividend tax": only rows from zero-withholding countries (data-wht0), in the highlight lists (CSS) and the
     // full ranking (filterTable).
     const whtButton = document.getElementById('wht-toggle');
     const whtOn = () => body.classList.contains('wht0-mode');
 
-    function updateHistograms(on) {
+    function updateHistograms() {
         if (!window.Plotly) return;
+        const hOn = holdingsOn();
+        const wOn = watchlistOn();
+        const anyOn = hOn || wOn;
         const histPlots = Array.from(document.querySelectorAll('.dist-card .js-plotly-plot'));
         histPlots.forEach(el => {
             if (!el.data) return;
             const heldIdx = el.data.findIndex(t => t.name === 'Holdings');
-            if (heldIdx < 0) return;
+            const watchIdx = el.data.findIndex(t => t.name === 'Watchlist');
+            if (heldIdx < 0 && watchIdx < 0) return;
             const runIdx = el.data.findIndex(t => t.name === 'This run');
-            const hasBench = el.data.some(t => t.name && t.name !== 'This run' && t.name !== 'Holdings');
+            const hasBench = el.data.some(t => t.name && t.name !== 'This run' && t.name !== 'Holdings' && t.name !== 'Watchlist');
 
-            Plotly.restyle(el, {visible: on ? true : false}, [heldIdx]);
+            if (heldIdx >= 0) Plotly.restyle(el, {visible: hOn ? true : false}, [heldIdx]);
+            if (watchIdx >= 0) Plotly.restyle(el, {visible: wOn ? true : false}, [watchIdx]);
 
             if (!hasBench && runIdx >= 0) {
                 const runTrace = el.data[runIdx];
                 if (runTrace.type === 'histogram') {
-                    Plotly.restyle(el, {histnorm: on ? 'percent' : ''}, [runIdx]);
+                    Plotly.restyle(el, {histnorm: anyOn ? 'percent' : ''}, [runIdx]);
                     Plotly.relayout(el, {
-                        'yaxis.title.text': on ? '% of companies' : 'Count',
-                        showlegend: on,
+                        'yaxis.title.text': anyOn ? '% of companies' : 'Count',
+                        showlegend: anyOn,
                     });
                 } else if (runTrace.type === 'bar' && runTrace.customdata) {
                     const newY = runTrace.customdata.map(row => row[1]);
                     Plotly.restyle(el, {y: [newY]}, [runIdx]);
                     Plotly.relayout(el, {
                         'yaxis.title.text': '% of companies',
-                        showlegend: on,
+                        showlegend: anyOn,
                     });
                 }
             }
@@ -227,17 +233,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const layoutUpdate = {};
                 if (el.layout.shapes) {
                     layoutUpdate.shapes = el.layout.shapes.map(s => {
-                        if (s.line && (s.line.color === '#f97316' || s.line.dash === 'dashdot')) {
-                            return Object.assign({}, s, {visible: on});
-                        }
+                        if (s.line && s.line.color === '#f97316') return Object.assign({}, s, {visible: hOn});
+                        if (s.line && s.line.color === '#10b981') return Object.assign({}, s, {visible: wOn});
                         return s;
                     });
                 }
                 if (el.layout.annotations) {
                     layoutUpdate.annotations = el.layout.annotations.map(a => {
-                        if (a.text && a.text.includes('Holdings')) {
-                            return Object.assign({}, a, {visible: on});
-                        }
+                        if (a.text && a.text.includes('Holdings')) return Object.assign({}, a, {visible: hOn});
+                        if (a.text && a.text.includes('Watchlist')) return Object.assign({}, a, {visible: wOn});
                         return a;
                     });
                 }
@@ -246,20 +250,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function applyHoldings() {
-        const on = holdingsOn();
-        if (holdingsButton) holdingsButton.setAttribute('aria-pressed', on ? 'true' : 'false');
+    function applyFocusModes() {
+        if (holdingsButton) holdingsButton.setAttribute('aria-pressed', holdingsOn() ? 'true' : 'false');
+        if (watchlistButton) watchlistButton.setAttribute('aria-pressed', watchlistOn() ? 'true' : 'false');
         filterTable();
-        updateHistograms(on);
+        updateHistograms();
         document.dispatchEvent(new Event('fq-holdings'));  // the quadrant listens
+        document.dispatchEvent(new Event('fq-watchlist'));
     }
 
     if (holdingsButton) {
         holdingsButton.addEventListener('click', () => {
-            body.classList.toggle('holdings-mode');
-            applyHoldings();
+            const next = !holdingsOn();
+            body.classList.toggle('holdings-mode', next);
+            if (next) body.classList.remove('watchlist-mode');
+            applyFocusModes();
             const ranking = document.getElementById('ranking');
-            if (holdingsOn() && ranking) ranking.scrollIntoView({behavior: 'smooth'});
+            if (next && ranking) ranking.scrollIntoView({behavior: 'smooth'});
+        });
+    }
+
+    if (watchlistButton) {
+        watchlistButton.addEventListener('click', () => {
+            const next = !watchlistOn();
+            body.classList.toggle('watchlist-mode', next);
+            if (next) body.classList.remove('holdings-mode');
+            applyFocusModes();
+            const ranking = document.getElementById('ranking');
+            if (next && ranking) ranking.scrollIntoView({behavior: 'smooth'});
         });
     }
 
@@ -315,8 +333,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!rankingTableBody) return;
         const query = search ? search.value.trim().toLowerCase() : '';
         const heldOnly = holdingsOn();
+        const watchedOnly = watchlistOn();
         const activeQf = qfButtons.filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.qf);
-        if ((query || heldOnly || activeQf.length || whtOn()) && restPending()) {
+        if ((query || heldOnly || watchedOnly || activeQf.length || whtOn()) && restPending()) {
             ensureAllRows().then(ok => { if (ok) filterTable(); });
             return;
         }
@@ -325,7 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => {
             const text = Array.from(row.cells).slice(1, 5).map(c => c.textContent).join(' ').toLowerCase();
             const qfOk = activeQf.every(k => row.dataset[k] === '1');
-            const visible = text.includes(query) && (!heldOnly || row.dataset.held === '1') && qfOk
+            const visible = text.includes(query) && (!heldOnly || row.dataset.held === '1')
+                && (!watchedOnly || row.dataset.watched === '1') && qfOk
                 && (!whtOn() || row.dataset.wht0 === '1');
             row.style.display = visible ? '' : 'none';
             if (visible) shown++;

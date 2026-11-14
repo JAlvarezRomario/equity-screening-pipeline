@@ -14,7 +14,7 @@ def _read_lines(name: str) -> list[str]:
     return [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.startswith("#")]
 
 
-SELECTORS = ("test", "benchmark", "portfolio")  # named sets; own output folders
+SELECTORS = ("test", "benchmark", "portfolio", "watchlist")  # named sets; own output folders
 LIST_SELECTORS = ("test", "bist", "india")  # one packaged list file each
 # The parts of `benchmark`, the one global set every run is scored against (one list file each).
 BENCHMARK_SETS = (
@@ -23,6 +23,7 @@ BENCHMARK_SETS = (
     "msci_eafe_small", "msci_europe_small", "omx_smallcap", "ibovespa", "russell_2000_rest", "nasdaq_nextgen", "offshore_leaders", "tsx_composite", "ftse_smallcap", "singapore_smallcap", "spain_100m", "germany_100m", "singapore_100m", "uk_100m", "hk_100m", "saudi_100m", "japan_100m", "hk_smallcap", "spain_smallcap", "germany_smallcap", "bist", "india", "nl_midsmall", "pl_midsmall", "fr_midsmall", "ca_midsmall", "my_midsmall", "vietnam", "cayman_adrs", "offshore_us", "thailand_100m", "brazil_100m", "mexico_100m", "gulf_100m", "greece_100m", "baltics_100m", "csi800", "others",
 )  # fmt: skip
 PORTFOLIO_FILE = Path("portfolio.txt")  # resolved against the working directory (the project root)
+WATCHLIST_FILE = Path("watchlist.txt")  # resolved against the working directory (the project root)
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,10 @@ def _expand(token: str) -> list[str] | None:
         if not PORTFOLIO_FILE.is_file():
             raise ValueError(f"{PORTFOLIO_FILE.resolve()} not found; create it with one ticker per line")
         return portfolio_tickers()
+    if token == "watchlist":
+        if not WATCHLIST_FILE.is_file():
+            raise ValueError(f"{WATCHLIST_FILE.resolve()} not found; create it with one ticker per line")
+        return watchlist_tickers()
     path = Path(token)
     if path.suffix and path.is_file():
         return _read_ticker_file(path)
@@ -59,16 +64,21 @@ def portfolio_tickers() -> list[str]:
     return _read_ticker_file(PORTFOLIO_FILE) if PORTFOLIO_FILE.is_file() else []
 
 
+def watchlist_tickers() -> list[str]:
+    """The watchlist tickers in watchlist.txt; empty when the file does not exist."""
+    return _read_ticker_file(WATCHLIST_FILE) if WATCHLIST_FILE.is_file() else []
+
+
 def benchmark_part(name: str) -> list[str]:
     """Tickers of one part of the benchmark (`BENCHMARK_SETS`); `others` less `excluded_tickers.txt`
-    (pruned from the old full universe; the index lists are taken whole), plus every holding in no
-    index list: holdings are always in the benchmark, excluded or not (user's choice, Oct 2026)."""
+    (pruned from the old full universe; the index lists are taken whole), plus every holding and watchlist ticker
+    in no index list: holdings and watchlist are always in the benchmark, excluded or not (user's choice)."""
     tickers = set(_read_lines(f"{name}.txt"))
     if name != "others":
         return sorted(tickers)
     indexed = {t for part in BENCHMARK_SETS if part != "others" for t in _read_lines(f"{part}.txt")}
-    held = set(portfolio_tickers()) - indexed
-    return sorted((tickers - set(_read_lines("excluded_tickers.txt"))) | held)
+    kept = (set(portfolio_tickers()) | set(watchlist_tickers())) - indexed
+    return sorted((tickers - set(_read_lines("excluded_tickers.txt"))) | kept)
 
 
 def resolve_selection(spec: str) -> Selection:

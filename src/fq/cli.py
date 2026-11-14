@@ -50,7 +50,8 @@ MENU = """
 What do you want to run?
   1) A list of tickers (you type them now)
   2) My portfolio ({n_portfolio})
-  3) The global benchmark ({n_bench} tickers)
+  3) My watchlist ({n_watchlist})
+  4) The global benchmark ({n_bench} tickers)
 """
 
 
@@ -88,14 +89,25 @@ def _choose(universe: str | None) -> Selection:
             n_portfolio = f"{len(resolve_selection('portfolio').tickers)} tickers in portfolio.txt"
         except ValueError:
             n_portfolio = "portfolio.txt not found"
-        typer.echo(MENU.format(n_portfolio=n_portfolio, n_bench=len(resolve_selection("benchmark").tickers)))
+        try:
+            n_watchlist = f"{len(resolve_selection('watchlist').tickers)} tickers in watchlist.txt"
+        except ValueError:
+            n_watchlist = "watchlist.txt not found"
+        typer.echo(
+            MENU.format(
+                n_portfolio=n_portfolio,
+                n_watchlist=n_watchlist,
+                n_bench=len(resolve_selection("benchmark").tickers),
+            )
+        )
         choice = ""
-        while choice not in {"1", "2", "3"}:
-            choice = typer.prompt("Choice (1-3)").strip()
+        while choice not in {"1", "2", "3", "4"}:
+            choice = typer.prompt("Choice (1-4)").strip()
         universe = {
             "1": lambda: typer.prompt("Tickers (comma or space separated, e.g. AAPL MSFT SAP.DE)").replace(" ", ","),
             "2": lambda: "portfolio",
-            "3": lambda: "benchmark",
+            "3": lambda: "watchlist",
+            "4": lambda: "benchmark",
         }[choice]()
     try:
         return resolve_selection(universe)

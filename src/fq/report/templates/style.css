@@ -206,16 +206,22 @@ td.tint-v, td.tint-q, dd.tint-v, dd.tint-q { font-weight: 600; }
 td.tint-v { background-color: color-mix(in srgb, var(--value) calc(var(--s, 0) * 0.16%), transparent); }
 td.tint-q { background-color: color-mix(in srgb, var(--quality) calc(var(--s, 0) * 0.16%), transparent); }
 
-/* Holdings */
+/* Holdings & Watchlist */
 .held {
   display: inline-block; margin-left: 0.35em; padding: 0 0.45em; border: 1px solid var(--accent); border-radius: 4px;
   color: var(--accent); font-size: 0.72em; font-weight: 500; line-height: 1.5; vertical-align: 1px;
 }
+.watched {
+  display: inline-block; margin-left: 0.35em; padding: 0 0.45em; border: 1px solid #10b981; border-radius: 4px;
+  color: #10b981; font-size: 0.72em; font-weight: 500; line-height: 1.5; vertical-align: 1px;
+}
 tr[data-held] > td:first-child { box-shadow: inset 2px 0 var(--accent); }
+tr[data-watched] > td:first-child { box-shadow: inset 2px 0 #10b981; }
 .tag {
   padding: 0.25em 0.8em; border: 1px solid var(--accent); border-radius: 999px; color: var(--accent);
   font-size: 0.8em; font-weight: 500; align-self: center;
 }
+.tag.tag-watched { border-color: #10b981; color: #10b981; }
 /* Yardstick and cyclical tags beside a ticker in the index tables */
 .flag-tag {
   display: inline-block; margin-left: 0.35em; padding: 0 0.45em; border: 1px solid var(--border-strong);
@@ -507,7 +513,9 @@ footer p { margin: 0 auto 0.6em; max-width: 60em; line-height: 1.5; }
 body.wht0-mode #highlights tbody tr[data-extra] { display: table-row; }
 body.wht0-mode #highlights tbody tr:not([data-wht0]) { display: none; }
 body.holdings-mode #highlights, body.holdings-mode #industries,
-body.holdings-mode .page-sections a[href="#highlights"], body.holdings-mode .page-sections a[href="#industries"] { display: none; }
+body.holdings-mode .page-sections a[href="#highlights"], body.holdings-mode .page-sections a[href="#industries"],
+body.watchlist-mode #highlights, body.watchlist-mode #industries,
+body.watchlist-mode .page-sections a[href="#highlights"], body.watchlist-mode .page-sections a[href="#industries"] { display: none; }
 
 /* --- Small screens --- */
 @media (max-width: 768px) {

@@ -24,21 +24,26 @@ QUADRANT_JS = """
   const meta = %s;
   const usBox = document.getElementById('us-companies-checkbox');
   const held = new Set(window.FQ_HELD || []);
+  const watched = new Set(window.FQ_WATCHED || []);
   function update() {
     const holdings = document.body.classList.contains('holdings-mode');  // the page's Holdings switch
+    const watchlist = document.body.classList.contains('watchlist-mode');  // the page's Watchlist switch
     const opacities = [];
     meta.forEach(function (m) {
       const custom = plotDiv.data[m.trace].customdata;
       if (!custom) return;
       opacities.push(custom.map(function (c) {
         if (c[1] === 1 && !usBox.checked) return 0;
-        return holdings && !held.has(c[0]) ? 0.12 : (m.opacity || 0.75);
+        if (holdings) return held.has(c[0]) ? (m.opacity || 0.75) : 0.12;
+        if (watchlist) return watched.has(c[0]) ? (m.opacity || 0.75) : 0.12;
+        return m.opacity || 0.75;
       }));
     });
     Plotly.restyle(plotDiv, {'marker.opacity': opacities}, meta.map(function (m) { return m.trace; }));
   }
   usBox.addEventListener('change', update);
   document.addEventListener('fq-holdings', update);
+  document.addEventListener('fq-watchlist', update);
   plotDiv.on('plotly_click', function (ev) {
     if (ev.points.length && ev.points[0].customdata) {
       window.open('companies/' + ev.points[0].customdata[0] + '.html', '_blank');
@@ -249,6 +254,7 @@ HISTOGRAMS = [
     ("heldPercentInsiders", "Insider ownership (%)", (0, 100), 5, 100, (OWNER_LED_MIN, "Owner-led")),
 ]
 HOLDINGS_COLOR = "#f97316"  # vivid orange for holdings overlays
+WATCHLIST_COLOR = "#10b981"  # emerald for watchlist overlays
 
 
 def _counted(title: str, data: pd.Series, ref: pd.Series | None = None, name: str = "", axis=None) -> str:
@@ -264,13 +270,16 @@ def histogram_divs(
     df: pd.DataFrame,
     bench: pd.DataFrame | None = None,
     held: frozenset[str] = frozenset(),
+    watched: frozenset[str] = frozenset(),
 ) -> list[tuple[str, str]]:
     """[(title, html div)] for the distribution cards; the benchmark (grey) is overlaid when given;
-    holdings (orange) can be toggled via the Holdings switch.
+    holdings (orange) and watchlist (emerald) can be toggled via their switches.
     """
     ref = benchmark(df)
     held_df = df[df["Ticker"].isin(held)] if held and "Ticker" in df.columns else pd.DataFrame()
     has_held = not held_df.empty and len(held_df) < len(df)
+    watched_df = df[df["Ticker"].isin(watched)] if watched and "Ticker" in df.columns else pd.DataFrame()
+    has_watched = not watched_df.empty and len(watched_df) < len(df)
     out = []
     for i, (col, title, xrange, size, *extra) in enumerate(HISTOGRAMS):
         if col not in df.columns or df[col].dropna().empty:
@@ -282,7 +291,8 @@ def histogram_divs(
                 return pd.Series(dtype=float)
             return pd.to_numeric(frame[col], errors="coerce").dropna() * scale
 
-        data, ref_data, held_data = values(df), values(bench), values(held_df, has_held)
+        data, ref_data = values(df), values(bench)
+        held_data, watched_data = values(held_df, has_held), values(watched_df, has_watched)
         # Bins only over the axis (Oct 31, 2026: Plotly bins the whole range, and one FCF yield of -262,119% made
         # 131,449 bars, which hung phones and crashed headless Chrome); the title still counts every company and
         # says how many lie beyond the axis.
@@ -302,21 +312,25 @@ def histogram_divs(
         if guide is not None:
             fig.add_vline(x=guide[0], line_width=1.5, line_dash="dot", line_color="#d97706",
                           annotation_text=f"{guide[1]} ≥ {guide[0]:g}", annotation_position="bottom right")  # fmt: skip
-        if not held_data.empty:
-            fig.add_trace(go.Histogram(x=_plain(held_data[held_data.between(lo, hi)]), xbins=bins, name="Holdings",
-                                       marker_color=HOLDINGS_COLOR, histnorm="percent", opacity=0.75,
-                                       visible=False))  # fmt: skip
-            held_med = held_data.median()
-            fig.add_vline(x=held_med, line_width=2, line_dash="dashdot", line_color=HOLDINGS_COLOR,
-                          annotation_text=f"Holdings: {held_med:.2f}", annotation_position="bottom right",
-                          visible=False, annotation=dict(visible=False))  # fmt: skip
+        for overlay_name, overlay_data, color in (
+            ("Holdings", held_data, HOLDINGS_COLOR),
+            ("Watchlist", watched_data, WATCHLIST_COLOR),
+        ):
+            if not overlay_data.empty:
+                fig.add_trace(go.Histogram(x=_plain(overlay_data[overlay_data.between(lo, hi)]), xbins=bins,
+                                           name=overlay_name, marker_color=color, histnorm="percent", opacity=0.75,
+                                           visible=False))  # fmt: skip
+                med = overlay_data.median()
+                fig.add_vline(x=med, line_width=2, line_dash="dashdot", line_color=color,
+                              annotation_text=f"{overlay_name}: {med:.2f}", annotation_position="bottom right",
+                              visible=False, annotation=dict(visible=False))  # fmt: skip
         fig.update_layout(title=_counted(title, data, ref_data, ref[0] if ref else "Benchmark", xrange), xaxis_title=title,
                           yaxis_title="% of companies" if not ref_data.empty else "Count", barmode="overlay",
                           height=350, showlegend=not ref_data.empty, margin=dict(l=20, r=20, t=70, b=20),
                           legend=dict(orientation="h", y=-0.25))  # fmt: skip
         fig.update_xaxes(range=list(xrange))
         out.append((title, _div(fig, f"hist_{i}")))
-    cap = market_cap_figure(df, bench, held=held)
+    cap = market_cap_figure(df, bench, held=held, watched=watched)
     if cap is not None:
         out.append((CAP_TITLE, _div(cap, "hist_cap")))
     return out
@@ -377,11 +391,12 @@ def market_cap_figure(
     df: pd.DataFrame,
     bench: pd.DataFrame | None = None,
     held: frozenset[str] = frozenset(),
+    watched: frozenset[str] = frozenset(),
 ) -> go.Figure | None:
     """How the companies spread on market cap: one bar per size class (`CAP_CLASSES`, nano to trillion+), each
     labelled with its USD range. The run in colour; the benchmark in grey (as % of its companies) when given; the
     medians as lines placed within their class. Hover gives each class's range and count. Portfolio holdings
-    (orange) can be toggled via the Holdings switch."""
+    (orange) and watchlist (emerald) can be toggled via their switches."""
     if "Market Cap" not in df.columns:
         return None
     caps = pd.to_numeric(df["Market Cap"], errors="coerce")
@@ -392,14 +407,18 @@ def market_cap_figure(
     ref = ref[ref > 0] if ref is not None else None
     ref = ref if ref is not None and not ref.empty else None
 
-    held_df = df[df["Ticker"].isin(held)] if held and "Ticker" in df.columns else pd.DataFrame()
-    held_caps = (
-        pd.to_numeric(held_df["Market Cap"], errors="coerce")
-        if not held_df.empty and "Market Cap" in held_df
-        else pd.Series(dtype=float)
-    )
-    held_caps = held_caps[held_caps > 0]
-    has_held = not held_caps.empty and len(held_caps) < len(caps)
+    def _subset_caps(tickers: frozenset[str]) -> tuple[pd.Series, bool]:
+        sub = df[df["Ticker"].isin(tickers)] if tickers and "Ticker" in df.columns else pd.DataFrame()
+        sub_caps = (
+            pd.to_numeric(sub["Market Cap"], errors="coerce")
+            if not sub.empty and "Market Cap" in sub
+            else pd.Series(dtype=float)
+        )
+        sub_caps = sub_caps[sub_caps > 0]
+        return sub_caps, not sub_caps.empty and len(sub_caps) < len(caps)
+
+    held_caps, has_held = _subset_caps(held)
+    watched_caps, has_watched = _subset_caps(watched)
 
     positions = list(range(len(CAP_CLASSES)))
     bands = [_band(lo, hi) for _, lo, hi in CAP_CLASSES]
@@ -409,7 +428,7 @@ def market_cap_figure(
     ) -> go.Bar:
         counts = market_cap_class(values).value_counts().reindex(positions, fill_value=0).to_numpy()
         heights = counts / len(values) * 100 if percent else counts
-        label = "holdings" if name == "Holdings" else "companies"
+        label = "holdings" if name == "Holdings" else "watchlist" if name == "Watchlist" else "companies"
         text = [f"{cls} cap, {band}<br>{n:,} {label} ({n / len(values):.0%})"
                 for (cls, _, _), band, n in zip(CAP_CLASSES, bands, counts, strict=True)]  # fmt: skip
         pct_heights = counts / len(values) * 100
@@ -440,11 +459,15 @@ def market_cap_figure(
     fig.add_trace(bars(caps, "This run", RUN_COLOR, True, 0.75))
     fig.add_vline(x=_class_position(caps.median()), line_width=2, line_dash="dash", line_color="green",
                   annotation_text=f"Median: {_money(caps.median())} B$", annotation_position="top right")  # fmt: skip
-    if has_held:
-        fig.add_trace(bars(held_caps, "Holdings", HOLDINGS_COLOR, True, 0.75, visible=False))
-        fig.add_vline(x=_class_position(held_caps.median()), line_width=2, line_dash="dashdot",
-                      line_color=HOLDINGS_COLOR, annotation_text=f"Holdings: {_money(held_caps.median())} B$",
-                      annotation_position="bottom right", visible=False, annotation=dict(visible=False))  # fmt: skip
+    for show, overlay_name, overlay_caps, color in (
+        (has_held, "Holdings", held_caps, HOLDINGS_COLOR),
+        (has_watched, "Watchlist", watched_caps, WATCHLIST_COLOR),
+    ):
+        if show:
+            fig.add_trace(bars(overlay_caps, overlay_name, color, True, 0.75, visible=False))
+            fig.add_vline(x=_class_position(overlay_caps.median()), line_width=2, line_dash="dashdot",
+                          line_color=color, annotation_text=f"{overlay_name}: {_money(overlay_caps.median())} B$",
+                          annotation_position="bottom right", visible=False, annotation=dict(visible=False))  # fmt: skip
     ticktext = [f"{cls}<br>{band}" for (cls, _, _), band in zip(CAP_CLASSES, bands, strict=True)]
     fig.update_layout(title=_counted(CAP_TITLE, caps, ref, named[0] if named else "Benchmark"),
                       xaxis_title="Size class (market cap in USD)",

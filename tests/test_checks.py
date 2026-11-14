@@ -343,7 +343,7 @@ def test_the_check_card_sits_before_what_a_share_earns(cfg):
     index = build_site(df, cfg)
     page = lambda t: (index.parent / "companies" / f"{slug(t)}.html").read_text(encoding="utf-8")  # noqa: E731
     mine = page(ticker)
-    assert mine.index("The numbers, checked") < mine.index("What a share earns")
+    assert mine.index("What a share earns") < mine.index("The numbers, checked") < mine.index("Moat and management")
     assert "✗ Peak earnings" in mine and "Peak margins carry the record." in mine and "A reason." in mine
     assert "check-low" in mine and 'aria-label="fails"' in mine and "without the price" in mine
     assert "check-card" not in page(other)  # no check made, no card
@@ -502,10 +502,10 @@ def test_the_score_lists_walk_down_until_ten_pass_every_test(monkeypatch):
 
 
 def test_the_list_leaves_out_cash_hoards_under_weak_management(monkeypatch):
-    # User's choice, Nov 9, 2026: net cash of at least 25% of the market cap needs management graded at least 4, in
+    # Net cash of at least 25% of the market cap needs management graded at least `THE_LIST_CASH_MGMT` (3.5), in
     # any country.
-    rows = pd.DataFrame([_row("OK", 9.0), _row("HOARD", 8.0, Net_Cash_to_Cap=40.0),
-                         _row("HOARD4", 7.0, mgmt=4.0, Net_Cash_to_Cap=40.0),
+    rows = pd.DataFrame([_row("OK", 9.0), _row("HOARD", 8.0, mgmt=3.25, Net_Cash_to_Cap=40.0),
+                         _row("HOARD4", 7.0, mgmt=3.5, Net_Cash_to_Cap=40.0),
                          _row("SOME", 6.5, Net_Cash_to_Cap=10.0)])  # fmt: skip
     hl = _sources(monkeypatch, {"Compounders": rows})
     assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "HOARD4", "SOME"]
@@ -551,17 +551,19 @@ def test_the_list_names_each_list_and_the_place_that_earned_the_seat(monkeypatch
 
 def test_the_list_asks_every_member_the_bond_plus_country_risk_grades_above_3_no_ai_risk_nothing_breaking(monkeypatch):
     # User's choices, Nov 10, 2026: the raw-score lists no longer feed it; every member, whatever its source, earns at
-    # least the 10-year Treasury plus its country's sovereign spread on the share price (no 4% seat for Compounders),
-    # has both grades above 3, is past the AI screen, and nothing is breaking now; a fallen share is no reason.
-    cheap = pd.DataFrame([_row("OK", 9.0), _row("THIN", 4.4), _row("BLANK", None), _row("THREE", 8.0, mgmt=3.0),
+    # least the 10-year Treasury plus its country's sovereign spread on the share price (Compounders get up to 1.5 pp
+    # credit for per-share compounding), clears the grade floor (both >= 3.0, sum >= 6.5), is past the AI screen, and
+    # nothing is breaking now; a fallen share is no reason.
+    cheap = pd.DataFrame([_row("OK", 9.0), _row("THIN", 4.4), _row("BLANK", None), _row("THREE", 8.0, moat=3.0, mgmt=3.0),
                           _row("SOFT", 8.5, industry="Software - Application"), _row("FELL", 8.2, Momentum_6M=-25.0),
                           _row("RISKY", 5.0, Sovereign_Spread=1.0), _row("BREAKS", 7.5, EPS_Rev_90d=-20.0),
                           _row("SALES", 7.2, Revenue_Change_Recent=-12.0)]).assign(Treasury_Yield=4.5)  # fmt: skip
-    comp = pd.DataFrame([_row("GROWS", 4.2), _row("BOND", 4.8)]).assign(Treasury_Yield=4.5)
+    comp = pd.DataFrame([_row("GROWS", 4.2), _row("BOND", 4.8),
+                         _row("COMP_GROW", 4.0, Per_Share_Compounding=10.0)]).assign(Treasury_Yield=4.5)  # fmt: skip
     raw = pd.DataFrame([_row("QUALITY", 12.0), _row("VALUE", 11.0)])
     sources = {"Cheap and good": cheap, "Compounders": comp, "Best businesses": raw, "Cheapest": raw}
     hl = _sources(monkeypatch, sources)
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "BOND", "FELL"]
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "BOND", "FELL", "COMP_GROW"]
     hl = _sources(monkeypatch, {"Cheap and good": cheap.assign(Treasury_Yield=7.5)})
     assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "FELL"]  # the bond moves the floor
 
@@ -638,18 +640,23 @@ def test_price_to_nav_is_the_price_to_book_over_the_estimate_to_book_as_on_the_c
 
 
 def test_compounding_below_nav_asks_compounding_net_assets_under_their_going_concern_value():
-    # User's design, Nov 14, 2026: discount to NAV, the smaller the better; no loss-maker; no best-fifth cut.
+    # User's design, Nov 14, 2026: discount to NAV, the smaller the better; no loss-maker; no best-fifth cut;
+    # no utilities, non-positive share yield, or shrinking book per share; walked on moat and management.
+    import fq.report.highlights as hl
     from fq.report import screens as sc
 
-    grow = {"NAV_Compounding": 9.0}
+    grow = {"NAV_Compounding": 9.0, "Grade_Moat": 3.5, "Grade_Mgmt": 3.5}
     df = pd.DataFrame([
         _deep("CHEAP", bv=200.0, base=100.0, **grow),  # 0.50x NAV
         _deep("CHEAPEST", bv=100.0, base=250.0, **grow),  # at book, the estimate 2.5x it: 0.40x NAV
-        _deep("SHORT", bv=250.0, base=80.0, **grow),  # an estimate under the book fails nobody: 0.50x NAV
+        _deep("SHORT", bv=250.0, base=80.0, **{**grow, "Grade_Moat": 2.0}),  # 0.50x NAV, but moat below 3.0
         _deep("DEAR", bv=100.0, base=90.0, **grow),  # 1.11x NAV
         _deep("FLAT", bv=200.0, base=100.0),  # not compounding: the fire-sale list's
         _deep("LOSS", bv=200.0, base=100.0, Rank_Group="unprofitable", **grow),
         _deep("LOSS_NOW", bv=200.0, base=100.0, Net_Income_Clean_TTM=-1.0, **grow),
+        _deep("NO_YIELD", bv=200.0, base=100.0, EPV_Per_Share_Yield=0.0, **grow),
+        _deep("SHRINKS", bv=200.0, base=100.0, Book_Per_Share_Compounding=-1.0, **grow),
+        _deep("UTILITY", bv=200.0, base=100.0, Rank_Group="utility", **grow),
         _deep("LOCKED", bv=200.0, base=100.0, topics=LOCKED, **grow),
         _deep("UNCHECKED", bv=200.0, base=None, **grow),
         _deep("BANK", bv=200.0, base=100.0, model="bank", **grow),
@@ -663,6 +670,7 @@ def test_compounding_below_nav_asks_compounding_net_assets_under_their_going_con
     assert out["Ticker"].tolist() == ["CHEAPEST", "CHEAP", "SHORT", "HOLDING"]
     assert out["Price_to_NAV"].round(2).tolist() == [0.40, 0.50, 0.50, 0.67]
     assert out["Book_Order"].tolist() == [1, 2, 3, 4] and out["NAV_Holds"].all()
+    assert hl.below_book_walk(df, 20)["Ticker"].tolist() == ["CHEAPEST", "CHEAP", "HOLDING"]
     assert sc.not_loss_making(df).sum() == len(df) - 2
 
 
@@ -779,3 +787,19 @@ def test_industry_best_ranked_enters_grade_and_check_pools(cfg, monkeypatch):
     assert ("PASS_BEST", grading.EARNINGS) in checks and ("NAV_BEST", grading.EARNINGS) in checks
     assert ("NAV_BEST", grading.BOOK) in checks
     assert not any(t in {"FAIL_BEST", "UNGRADED_BEST", "SECOND"} for t, _ in checks)
+
+
+def test_watchlist_is_checked_even_when_unlisted(cfg, monkeypatch):
+    from fq import pipeline
+
+    df = _ranked(cfg)
+    watched = "WATCHED"
+    df = pd.concat([df, df.iloc[[0]].assign(Ticker=watched)], ignore_index=True)
+    seen = {}
+    monkeypatch.setattr(pipeline, "portfolio", lambda: frozenset())
+    monkeypatch.setattr(pipeline, "watchlist", lambda: frozenset({watched, "NOT.RANKED"}))
+    monkeypatch.setattr(grading, "checks_due", lambda candidates, *a: seen.setdefault("c", candidates) and [])
+    h = Highlights.compute(df, cfg)
+    pipeline.check_companies(cfg, df, h, dry_run=True)
+    assert (watched, grading.EARNINGS) in seen["c"]
+    assert all(t != "NOT.RANKED" for t, _ in seen["c"])

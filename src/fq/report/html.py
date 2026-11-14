@@ -24,7 +24,9 @@ from fq.report.highlights import (
     SHORTLIST,
     TABS,
     THE_LIST_CASH_MGMT,
+    THE_LIST_COMPOUNDER_GROWTH,
     THE_LIST_MIN_GRADE,
+    THE_LIST_MIN_GRADE_SUM,
     THE_LIST_N,
     Highlights,
     Tab,
@@ -68,11 +70,11 @@ def _write_index(index: str, out_dir: Path) -> None:
 RANKING_EAGER_ROWS = 500
 
 # The one sentence shown under the Highlights heading; `TOP_LIST_NOTE` follows it in a fold.
-TOP_LIST_LEAD = ("Every list leaves out companies whose figures need checking, and companies with fewer than "
-                 f"{sc.RECORD_MIN_YEARS} annual reports or listed under {sc.LISTED_MIN_YEARS} years. Those that fall "
-                 "short on the moat and "
-                 "management grade (see above), or whose numbers an AI check finds flattered, are folded away under "
-                 "each list, not deleted.")  # fmt: skip
+TOP_LIST_LEAD = (
+    f"Every list requires at least {sc.RECORD_MIN_YEARS} annual reports and {sc.LISTED_MIN_YEARS} years listed, "
+    "clean accounting, and an AI check of moat, management and the numbers (written by an AI model (Gemini)); "
+    "companies that fall short on the AI checks are folded below each table."
+)
 # Under the Highlights heading, once for every list (`ranking.trusted`).
 TOP_LIST_NOTE = ("Scores are percentiles (0 to 100). Every list leaves out suspect figures, peak-cycle margins, "
                  "distressed balance sheets, collapsing earnings, declining revenue, earnings far ahead of cash, "
@@ -147,10 +149,23 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
+        "the_list_grade_sum": g(THE_LIST_MIN_GRADE_SUM), "the_list_comp_growth": g(THE_LIST_COMPOUNDER_GROWTH),
         "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
+
+
+# Pills that merely repeat the tab's own identity or its leading columns are omitted on that tab (kept in the full ranking).
+TAB_REDUNDANT_PILLS: dict[str, frozenset[str]] = {
+    "compounders": frozenset({"★ compounder"}),
+    "below_book": frozenset({"below NAV", "below book"}),
+    "deep_discount": frozenset({"below fire-sale value", "below NAV", "below book"}),
+    "banks": frozenset({"bank"}),
+    "insurers": frozenset({"insurer"}),
+    "real_estate": frozenset({"REIT"}),
+    "utilities": frozenset({"utility"}),
+}
 
 
 def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
@@ -162,10 +177,16 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
     both = both.assign(_fails=fails(both)).sort_values(["_fails", tab.sort], kind="stable")
     rows = summary_rows(both, tab.columns)
     extras = set(extra["Ticker"])
+    redundant = TAB_REDUNDANT_PILLS.get(tab.key, frozenset())
+    has_grade_cols = {"Grade_Moat", "Grade_Mgmt"} <= {c[1] for c in tab.columns}
     for r, (_, row) in zip(rows, both.iterrows(), strict=True):
         r["extra"] = r["ticker"] in extras
         r["fails"] = bool(row["_fails"])
-        r["pills"].append(grade_pill(row))
+        if redundant:
+            r["pills"] = [p for p in r["pills"] if p["label"] not in redundant]
+        gp = grade_pill(row)
+        if not (has_grade_cols and gp["cls"] == "pill-grade"):
+            r["pills"].append(gp)
         if (check := check_pill(row)) is not None:
             r["pills"].append(check)
         if isinstance(row.get("The_List_Why"), str):  # The List: each list it came from, and its place there
@@ -253,6 +274,7 @@ def build_site(
     out_dir: Path | None = None,
     bench: pd.DataFrame | None = None,
     held: frozenset[str] = frozenset(),
+    watched: frozenset[str] = frozenset(),
     index_only: bool = False,
     companies_only: bool = False,
     tickers: set[str] | None = None,
@@ -262,7 +284,7 @@ def build_site(
     """Write the full site into `out_dir` (default `cfg.site_dir`); returns the index path.
 
     `bench` (the ranked benchmark) is drawn behind the run in the quadrant and histograms; `held`
-    (the portfolio's tickers) are marked in the tables and on their own pages.
+    (the portfolio's tickers) and `watched` (the watchlist's tickers) are marked in the tables and on their own pages.
     `index_only`: generate only index.html and static assets, skipping all company pages (~1.5s).
     `companies_only`: generate only company pages in companies/.
     `tickers`: generate only company pages for specific tickers.
@@ -288,9 +310,9 @@ def build_site(
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     df = h.frame
     periods = report_periods(df, cfg)
-    # Companies a list shows (extras left out), holdings, and each industry's best ranked carry their cards on their page.
+    # Companies a list shows (extras left out), holdings, watchlist, and each industry's best ranked carry their cards on their page.
     df = df.assign(
-        Grade_Listed=df["Ticker"].isin(h.listed() | set(held or ()) | set(sc.industry_best(df))),
+        Grade_Listed=df["Ticker"].isin(h.listed() | set(held or ()) | set(watched or ()) | set(sc.industry_best(df))),
         Grade_Shortlisted=df["Ticker"].isin(h.shown(SHORTLIST)["Ticker"]),
         On_Lists=df["Ticker"].map(h.places()),  # in the row, so a page follows its lists (fingerprint)
     )
@@ -315,7 +337,7 @@ def build_site(
         bench_note=benchmark_note(df),
         has_bench=has_bench,
         quadrant=index_charts.quadrant_html(df, bench),
-        histograms=index_charts.histogram_divs(df, bench, held=held),
+        histograms=index_charts.histogram_divs(df, bench, held=held, watched=watched),
         tabs=tab_views(h),
         groups=tab_groups(top),
         rule=_rule_values(cfg, h.hurdle, has_bench, h.borrow_rate, h.treasury_yield),
@@ -334,8 +356,10 @@ def build_site(
         rows=summary_rows(df, columns, groups=True),
         eager_rows=RANKING_EAGER_ROWS,
         held=held,
+        watched=watched,
         forward=forward,
         held_slugs=sorted(slug(t) for t in held if t in set(df["Ticker"])),
+        watched_slugs=sorted(slug(t) for t in watched if t in set(df["Ticker"])),
     )
     if not companies_only:
         _write_index(index, out_dir)
@@ -345,5 +369,5 @@ def build_site(
         log.info("Front page written to %s (skipped company pages)", (out_dir / "index.html").resolve())
         return out_dir / "index.html"
 
-    write_company_pages(df, cfg, out_dir, periods, h.treasury_yield, stamp, held=held, tickers=tickers)
+    write_company_pages(df, cfg, out_dir, periods, h.treasury_yield, stamp, held=held, watched=watched, tickers=tickers)
     return out_dir / "index.html"
