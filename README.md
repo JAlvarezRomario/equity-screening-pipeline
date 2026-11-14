@@ -55,7 +55,7 @@ with one page per company.
 | Companies scored | 10k+, from a benchmark of 11k+ tickers drawn from 50+ index and market lists; about 6,400 profitable operating companies ranked |
 | Markets | about 70 countries; statements read in their reporting currency, returns compared in US terms |
 | Data | about 480 raw columns per company and about 870 in the ranked table, in parquet |
-| Code | about 12,000 lines of Python, plus about 490 offline tests |
+| Code | about 12,000+ lines of Python, plus 500+ offline tests |
 | LLM cost | about $0.10 a graded company (two passes, one when the first fails); about 950 graded; checks of the numbers about $0.02 each, about 1,000 made; recorded per company |
 
 ## Architecture at a glance
@@ -114,6 +114,10 @@ The full design is in [ARCHITECTURE.md](ARCHITECTURE.md): the [data flow](ARCHIT
   [Data model →](ARCHITECTURE.md#data-model)
 - **Configuration as data.** Index lists, business-model overrides and exclusions are text files. Criteria and
   weights are named settings.
+- **Index constituent auditing with Scrapy.** An opt-in Scrapy spider (`uv run fq indices`, `src/fq/crawlers.py`)
+  crawls public index constituent tables (S&P 500, DAX 40, EURO STOXX 50, FTSE 100, IBEX 35, OMXS30) with
+  rate-limit throttling and retries, validates HTML table headers and expected constituent row-count bounds,
+  normalises symbols to Yahoo Finance tickers, and reports constituent additions and removals against `src/fq/lists/`.
 - **Built by one person with an AI coding agent,** under written rules, the key ones enforced by tests.
   [How it is developed →](ARCHITECTURE.md#how-the-project-is-developed)
 
@@ -126,6 +130,7 @@ uv sync                                  # install
 uv run fq run -u test --open             # 8 large caps: fetch, rank, build the site, open it
 uv run fq run -u "AAPL,MSFT,SAP.DE"      # any Yahoo tickers
 uv run fq run -u benchmark               # the full benchmark (hours on the first run)
+uv run fq indices                        # crawl public index tables (Scrapy) and diff against lists/
 uv run pytest                            # tests (no network)
 ```
 
