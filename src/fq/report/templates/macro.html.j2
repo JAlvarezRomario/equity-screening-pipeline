@@ -2,35 +2,60 @@
 {% block title %}Market yields &middot; Turning over the Rocks{% endblock %}
 {% block header %}
 <h1>Market yields</h1>
-<p class="subtitle">S&amp;P 500 trailing earnings yield vs. the 10-year US Treasury yield, month by month from {{ start_date }} to {{ latest_date }}.</p>
+<p class="subtitle">Equity index earnings yields vs. 10-year sovereign bond yields, month by month.</p>
 <nav class="page-sections">
-  <a href="index.html">&larr; Back to the lists</a><a href="#chart">Chart</a><a href="#notes">Method &amp; sources</a>
+  <a href="index.html">&larr; Back to the lists</a>{% if us %}<a href="#us">United States</a>{% endif %}{% if jp %}<a href="#japan">Japan</a>{% endif %}<a href="#notes">Method &amp; sources</a>
 </nav>
 {% endblock %}
 {% block content %}
 
-<div class="card intro">
-  <h2>Latest reading ({{ latest_date }})</h2>
+{% if us %}
+<div class="card intro" id="us">
+  <h2>United States: latest reading ({{ us.latest_date }})</h2>
   <ul class="fw-points">
-    <li><strong>S&amp;P 500 Earnings Yield (TTM):</strong> {{ latest_ey }} (the inverse of the trailing 12-month P/E ratio).</li>
-    <li><strong>10-Year US Treasury Yield:</strong> {{ latest_ty }} (month-end close of <code>^TNX</code>).</li>
-    <li><strong>Yield Spread (Earnings Yield &minus; 10Y Treasury):</strong> <span class="{{ 'pos' if latest_spread_pos else 'neg' }}">{{ latest_spread }}</span> &middot; 1970&ndash;present median: {{ median_spread }} (range: {{ min_spread }} to {{ max_spread }} across {{ n_months }} months).</li>
+    <li><strong>S&amp;P 500 Earnings Yield (TTM):</strong> {{ us.latest_ey }} (the inverse of the trailing 12-month P/E ratio).</li>
+    <li><strong>10-Year US Treasury Yield:</strong> {{ us.latest_ty }} (month-end close of <code>^TNX</code>).</li>
+    <li><strong>Yield Spread (Earnings Yield &minus; 10Y Treasury):</strong> <span class="{{ 'pos' if us.latest_spread_pos else 'neg' }}">{{ us.latest_spread }}</span> &middot; {{ us.start_date }}&ndash;present median: {{ us.median_spread }} (range: {{ us.min_spread }} to {{ us.max_spread }} across {{ us.n_months }} months).</li>
   </ul>
 </div>
 
-<section class="card chart-card" id="chart">
-  <h2>S&amp;P 500 Earnings Yield vs. 10-Year Treasury Yield ({{ start_date }} &ndash; {{ latest_date }})</h2>
-  <p class="meta">{{ n_months }} monthly observations &middot; top: yields (%) &middot; bottom: spread (percentage points)</p>
-  <div class="company-chart">{{ chart | safe }}</div>
+<section class="card chart-card">
+  <h2>S&amp;P 500 Earnings Yield vs. 10-Year Treasury Yield ({{ us.start_date }} &ndash; {{ us.latest_date }})</h2>
+  <p class="meta">{{ us.n_months }} monthly observations &middot; top: yields (%) &middot; bottom: spread (percentage points)</p>
+  <div class="company-chart">{{ us.chart | safe }}</div>
   <p class="chart-instruction">Use the range buttons (5Y, 10Y, 20Y, All) or drag to zoom. When the spread in the lower panel is positive, S&amp;P 500 trailing earnings yield exceeds the 10-year Treasury yield; when negative, bonds yield more than trailing index earnings.</p>
 </section>
+{% endif %}
+
+{% if jp %}
+<div class="card intro" id="japan">
+  <h2>Japan: latest reading ({{ jp.latest_date }})</h2>
+  <ul class="fw-points">
+    <li><strong>TSE Prime / 1st Section Earnings Yield:</strong> {{ jp.latest_ey }} (inverse of JPX consolidated market-cap weighted average PER).</li>
+    <li><strong>10-Year JGB Yield:</strong> {{ jp.latest_ty }} (month-end 10Y JGB rate from Japan's Ministry of Finance).</li>
+    <li><strong>Yield Spread (Earnings Yield &minus; 10Y JGB):</strong> <span class="{{ 'pos' if jp.latest_spread_pos else 'neg' }}">{{ jp.latest_spread }}</span> &middot; {{ jp.start_date }}&ndash;present median: {{ jp.median_spread }} (range: {{ jp.min_spread }} to {{ jp.max_spread }} across {{ jp.n_months }} months).</li>
+  </ul>
+</div>
+
+<section class="card chart-card">
+  <h2>Japan TSE Earnings Yield vs. 10-Year JGB Yield ({{ jp.start_date }} &ndash; {{ jp.latest_date }})</h2>
+  <p class="meta">{{ jp.n_months }} monthly observations &middot; top: yields (%) &middot; bottom: spread (percentage points)</p>
+  <div class="company-chart">{{ jp.chart | safe }}</div>
+  <p class="chart-instruction">Use the range buttons (5Y, 10Y, All) or drag to zoom. Reflects TSE 1st Section through March 2022 and TSE Prime Section from April 2022 onward.</p>
+</section>
+{% endif %}
 
 <div class="card" id="notes">
   <h2>Method &amp; sources</h2>
   <ul class="plain-points">
-    <li><strong>10-Year US Treasury Yield:</strong> Monthly month-end close of CBOE 10-Year Treasury Note Yield (<code>^TNX</code>) via Yahoo Finance, clipped at January 1970.</li>
-    <li><strong>S&amp;P 500 Earnings Yield:</strong> Monthly trailing 12-month (TTM) earnings yield from <a href="https://www.multpl.com/s-p-500-earnings-yield/table/by-month" target="_blank" rel="noopener">Multpl</a> (as-reported S&amp;P 500 earnings divided by index price), clipped at January 1970.</li>
-    <li><strong>Why TTM instead of consensus Forward P/E:</strong> Institutional consensus 12-month forward S&amp;P 500 estimates (I/B/E/S, FactSet) are proprietary and do not extend back to 1970; Multpl's TTM earnings yield provides a consistent, auditable series back to 1970.</li>
+    {% if us %}
+    <li><strong>US 10-Year Treasury Yield:</strong> Monthly month-end close of CBOE 10-Year Treasury Note Yield (<code>^TNX</code>) via Yahoo Finance (1962&ndash;present), backfilled for 1960&ndash;1961 from FRED 10-Year Treasury Constant Maturity Rate (<code>GS10</code>).</li>
+    <li><strong>S&amp;P 500 Earnings Yield:</strong> Monthly trailing 12-month (TTM) earnings yield from <a href="https://www.multpl.com/s-p-500-earnings-yield/table/by-month" target="_blank" rel="noopener">Multpl</a> (as-reported S&amp;P 500 earnings divided by index price), clipped at January 1960.</li>
+    {% endif %}
+    {% if jp %}
+    <li><strong>Japan 10-Year JGB Yield:</strong> Official daily 10-year JGB yields from Japan's <a href="https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/index.htm" target="_blank" rel="noopener">Ministry of Finance</a> (<code>jgbcme_all.csv</code>), resampled to month-end.</li>
+    <li><strong>Japan Equity Earnings Yield:</strong> Inverse (<code>100 / PER</code>) of the official <a href="https://www.jpx.co.jp/english/markets/statistics-equities/misc/04.html" target="_blank" rel="noopener">JPX</a> consolidated market-cap weighted average PER (TSE 1st Section for 2013&ndash;Mar 2022; TSE Prime Section from Apr 2022 onward).</li>
+    {% endif %}
   </ul>
 </div>
 

@@ -385,7 +385,16 @@ def write_report(
         if not companies_only and tickers is None
         else pd.DataFrame()
     )
-    macro_link = "Market yields" if not macro_yields.empty else None
+    japan_yields = (
+        macro.load_japan_yields(
+            cfg.data_dir / macro.JPX_CACHE_FILE,
+            max_age_days=cfg.price_refresh_days,
+            offline=offline,
+        )
+        if not companies_only and tickers is None
+        else pd.DataFrame()
+    )
+    macro_link = "Market yields" if (not macro_yields.empty or not japan_yields.empty) else None
     index = build_site(
         ranked,
         cfg,
@@ -416,8 +425,8 @@ def write_report(
         log.info("Forward test written to %s", build_forward(cfg.site_dir, cohort, ledger, live=live))
     elif soon:
         log.info("Forward test not started: placeholder written to %s", build_placeholder(cfg.site_dir))
-    if not macro_yields.empty:
-        log.info("Macro yields written to %s", build_macro(cfg.site_dir, macro_yields))
+    if not macro_yields.empty or not japan_yields.empty:
+        log.info("Macro yields written to %s", build_macro(cfg.site_dir, macro_yields, japan_yields=japan_yields))
     if not companies_only and tickers is None:  # the tabs as shown, for `fq evaluate`
         tabs = evaluate_mod.save_published(h.published(), cfg.snapshot_dir, cfg.label,
                                            pd.Timestamp.now())  # fmt: skip

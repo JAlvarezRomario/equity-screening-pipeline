@@ -532,13 +532,21 @@ def forward_html(values: pd.DataFrame, div_id: str = FORWARD_ID) -> str:
 
 
 MACRO_ID = "macro_yields_chart"
+MACRO_JP_ID = "macro_japan_chart"
 
 
-def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
-    """Two-panel Plotly figure: 10Y Treasury yield vs. S&P 500 TTM earnings yield (top) and spread (bottom)."""
+def _yields_figure(
+    yields: pd.DataFrame,
+    ey_col: str,
+    ey_name: str,
+    bond_col: str,
+    bond_name: str,
+    buttons: list[dict],
+) -> go.Figure:
+    """Shared two-panel Plotly figure: equity earnings yield vs. 10Y sovereign yield (top) and spread (bottom)."""
     x = [d.strftime("%Y-%m-%d") for d in yields.index]
-    ey = np.round(yields["sp500_earnings_yield"].astype(float), 2).tolist()
-    ty = np.round(yields["treasury_10y"].astype(float), 2).tolist()
+    ey = np.round(yields[ey_col].astype(float), 2).tolist()
+    ty = np.round(yields[bond_col].astype(float), 2).tolist()
     spread = np.round(yields["spread_pp"].astype(float), 2).tolist()
 
     fig = make_subplots(
@@ -552,7 +560,7 @@ def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
         go.Scatter(
             x=x,
             y=ey,
-            name="S&P 500 Earnings Yield (TTM)",
+            name=ey_name,
             mode="lines",
             line=dict(color="#2563eb", width=2.2),
             hovertemplate="%{y:.2f}%",
@@ -564,7 +572,7 @@ def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
         go.Scatter(
             x=x,
             y=ty,
-            name="10Y US Treasury Yield (^TNX)",
+            name=bond_name,
             mode="lines",
             line=dict(color="#ea580c", width=2.0),
             hovertemplate="%{y:.2f}%",
@@ -592,17 +600,7 @@ def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
         margin=dict(l=55, r=20, t=36, b=40),
         hovermode="x unified",
         legend=dict(orientation="h", x=0, xanchor="left", y=1.06, yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(
-            rangeselector=dict(
-                buttons=[
-                    dict(count=5, label="5Y", step="year", stepmode="backward"),
-                    dict(count=10, label="10Y", step="year", stepmode="backward"),
-                    dict(count=20, label="20Y", step="year", stepmode="backward"),
-                    dict(step="all", label="All (1970–)"),
-                ]
-            ),
-            showgrid=True,
-        ),
+        xaxis=dict(rangeselector=dict(buttons=buttons), showgrid=True),
         xaxis2=dict(type="date", showgrid=True),
         yaxis=dict(title="Yield (%)", ticksuffix="%", zeroline=False),
         yaxis2=dict(title="Spread (pp)", ticksuffix=" pp", zeroline=False),
@@ -610,6 +608,44 @@ def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
     return fig
 
 
+def macro_yields_figure(yields: pd.DataFrame) -> go.Figure:
+    """Two-panel Plotly figure: US 10Y Treasury yield vs. S&P 500 TTM earnings yield and spread."""
+    return _yields_figure(
+        yields,
+        ey_col="sp500_earnings_yield",
+        ey_name="S&P 500 Earnings Yield (TTM)",
+        bond_col="treasury_10y",
+        bond_name="10Y US Treasury Yield (^TNX)",
+        buttons=[
+            dict(count=5, label="5Y", step="year", stepmode="backward"),
+            dict(count=10, label="10Y", step="year", stepmode="backward"),
+            dict(count=20, label="20Y", step="year", stepmode="backward"),
+            dict(step="all", label="All (1960–)"),
+        ],
+    )
+
+
 def macro_yields_html(yields: pd.DataFrame, div_id: str = MACRO_ID) -> str:
-    """The macro yields comparison chart as an embeddable Plotly div."""
+    """The US macro yields comparison chart as an embeddable Plotly div."""
     return _company_div(macro_yields_figure(yields), div_id)
+
+
+def japan_yields_figure(yields: pd.DataFrame) -> go.Figure:
+    """Two-panel Plotly figure: Japan 10Y JGB yield vs. TSE Prime / 1st Section earnings yield and spread."""
+    return _yields_figure(
+        yields,
+        ey_col="topix_earnings_yield",
+        ey_name="TSE Prime / 1st Sec. Earnings Yield",
+        bond_col="jgb_10y",
+        bond_name="10Y JGB Yield (MOF)",
+        buttons=[
+            dict(count=5, label="5Y", step="year", stepmode="backward"),
+            dict(count=10, label="10Y", step="year", stepmode="backward"),
+            dict(step="all", label="All (2013–)"),
+        ],
+    )
+
+
+def japan_yields_html(yields: pd.DataFrame, div_id: str = MACRO_JP_ID) -> str:
+    """The Japan macro yields comparison chart as an embeddable Plotly div."""
+    return _company_div(japan_yields_figure(yields), div_id)

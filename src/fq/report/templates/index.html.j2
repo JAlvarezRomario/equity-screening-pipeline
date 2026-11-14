@@ -4,13 +4,13 @@
 {% macro ticker_cell(r) %}<td class="ticker"><a href="companies/{{ r.slug }}.html" target="_blank">{{ r.ticker }}</a>{% if r.ticker in held %} <span class="held" title="In the portfolio">held</span>{% endif %}{% if r.ticker in watched %} <span class="watched" title="In the watchlist">watch</span>{% endif %}{% for p in r.pills %} <span class="flag-tag{% if p.cls %} {{ p.cls }}{% endif %}" title="{{ p.why }}">{{ p.label }}</span>{% endfor %}</td>{% endmacro %}
 {% macro th(h) %}<th{% if h.cls %} class="{{ h.cls }}"{% endif %} data-first="{{ h.first }}"{% if h.help %} data-help="{{ h.help }}"{% endif %}>{{ h.label }}</th>{% endmacro %}
 {% macro td(c) %}<td class="{{ c.cls }}"{% if c.s is not none %} style="--s:{{ c.s }}"{% endif %}{% if c.title %} title="{{ c.title }}"{% endif %}>{{ c.text }}</td>{% endmacro %}
-{% macro list_table(items, hdrs) %}
+{% macro list_table(items, hdrs) %}{% set from_col = items and items[0].why is defined %}
   <div class="table-responsive-wrapper list-scroll" tabindex="0">
     <table class="summary-table">
-      <thead><tr><th>Ticker</th><th>Company</th><th>Country</th><th>Industry</th>{% for h in hdrs %}{{ th(h) }}{% endfor %}</tr></thead>
+      <thead><tr><th>Ticker</th><th>Company</th>{% if from_col %}<th data-help="The lists it is on, and its place there among the companies that pass every test of The List.">From</th>{% endif %}<th>Country</th><th>Industry</th>{% for h in hdrs %}{{ th(h) }}{% endfor %}</tr></thead>
       <tbody>
       {% for r in items %}
-        <tr{% if r.fails %} class="grade-fail"{% endif %}{% if r.ticker in held %} data-held="1"{% endif %}{% if r.ticker in watched %} data-watched="1"{% endif %}{% if r.wht0 %} data-wht0="1"{% endif %}{% if r.extra %} data-extra="1"{% endif %}>{{ ticker_cell(r) }}<td>{{ r.name }}</td><td>{{ r.country }}</td><td>{{ r.industry }}</td>{% for c in r.cells %}{{ td(c) }}{% endfor %}</tr>
+        <tr{% if r.fails %} class="grade-fail"{% endif %}{% if r.ticker in held %} data-held="1"{% endif %}{% if r.ticker in watched %} data-watched="1"{% endif %}{% if r.wht0 %} data-wht0="1"{% endif %}{% if r.extra %} data-extra="1"{% endif %}>{{ ticker_cell(r) }}<td>{{ r.name }}</td>{% if from_col %}<td class="from">{% for p in r.why or [] %}<span class="flag-tag {{ p.cls }}" title="{{ p.why }}">{{ p.label }}</span>{% if not loop.last %} {% endif %}{% endfor %}</td>{% endif %}<td>{{ r.country }}</td><td>{{ r.industry }}</td>{% for c in r.cells %}{{ td(c) }}{% endfor %}</tr>
       {% endfor %}
       </tbody>
     </table>
@@ -35,7 +35,7 @@
 <h1>Turning over the Rocks</h1>
 <p class="subtitle">{{ "{:,}".format(n_companies) }} listed companies{% if n_countries %} in {{ n_countries }} countries{% endif %}, measured with one yardstick: what a share earns for its owner against its price, and how good and lasting the business is.</p>
 <nav class="page-sections">
-  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 1 December 2026 (bought at the 30 November close), followed month by month against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}{% if macro %}<a href="macro.html" title="Historical 10-year US Treasury yield vs. S&amp;P 500 earnings yield since 1970">{{ macro }} &rarr;</a>{% endif %}
+  <a href="#highlights">Highlights</a><a href="#map" class="nav-map">Map</a>{% if industries.rows %}<a href="#industries">Industries</a>{% endif %}<a href="#ranking">Full ranking</a>{% if forward %}<a href="forward.html" title="The highlight lists frozen on 1 December 2026 (bought at the 30 November close), followed month by month against the S&amp;P 500 and the world market">{{ forward }} &rarr;</a>{% endif %}{% if macro %}<a href="macro.html" title="Historical 10-year US Treasury yield vs. S&amp;P 500 earnings yield since 1960">{{ macro }} &rarr;</a>{% endif %}
 </nav>
 {% endblock %}
 {% block actions %}
