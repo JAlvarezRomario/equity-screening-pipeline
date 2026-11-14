@@ -25,7 +25,7 @@ TOP_LIST_COLUMNS = [
     ("Market Cap (B$)", "Market Cap", ",.1f", 1, ""),
     ("Above 52w Low", "Above_52W_Low", ".0f", 1, "%"),
     ("Analysts", "numberOfAnalystOpinions", ".0f", 1, ""),
-    ("Dividend WHT", "Dividend_WHT", "g", 1, "%"),
+    ("Dividend WHT", "Dividend_WHT", ".3g", 1, "%"),
     ("Value Score", "Value_Score", ".0f", 1, ""),
     ("Quality Score", "Quality_Score", ".0f", 1, ""),
 ]  # fmt: skip
@@ -36,10 +36,12 @@ TOP_LIST_COLUMNS = [
 # Cheap and good no longer gives seats The List then refuses on country risk); a blank yield fails. The ranking
 # stays on the yield over market cap plus debt, less spare cash.
 CHEAP_MIN_SHARE_YIELD = 6.0
-SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
+SHARE_YIELD_COLUMN = ("Owner Yield on Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
 CHEAP_AND_GOOD_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
-# The List (Nov 9, 2026): its order first, then the business yield and the usual columns.
-THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
+GRADE_COLUMNS = [("Moat", "Grade_Moat", ".2f", 1, ""), ("Management", "Grade_Mgmt", ".2f", 1, "")]
+# The List (Nov 15, 2026): the yield it tests and the two grades in columns of their own (the ticker cell keeps only
+# the pills that say something new), then the usual columns.
+THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, *GRADE_COLUMNS, *TOP_LIST_COLUMNS]
 
 
 def cheap_bar(df: pd.DataFrame) -> pd.Series:
@@ -763,8 +765,9 @@ def compounder_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
 
 
 def ascending_roic_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
-    """Non-cyclical operating companies whose ROIC has risen strictly every annual report (positive normal and latest
-    ROIC), whose operating margin and US-terms revenue held or grew (at most `OPERATING_MAX_DIP` single-year dip,
+    """Non-cyclical operating companies whose ROIC has risen strictly every annual report, with `ROIC_Norm` at least
+    `OPERATING_MIN_ROIC` (user's choice, Nov 15, 2026: without a level floor, recoveries from the 2021-22 trough passed
+    as improvement, and members earned 7-10%) and the latest ROIC positive, whose operating margin and US-terms revenue held or grew (at most `OPERATING_MAX_DIP` single-year dip,
     newest >= oldest), that reinvest capital at >= `LIST_MIN_INCREMENTAL_ROIC` (non-blank), and whose owner yield on
     the share price (`EPV_Per_Share_Yield`) is at least the 10-year Treasury (`Treasury_Yield`, fallback
     `FALLBACK_TREASURY_YIELD`) plus `Sovereign_Spread`; outside `improver_avoid.txt`, sound balance sheet and nothing
@@ -780,7 +783,7 @@ def ascending_roic_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
         & ~industry.map(is_cyclical_industry).astype(bool)
         & ~(_num(df, "Peak_Margin_Ratio") > s.peak_margin_ratio)
         & ~_in_industries(df, IMPROVER_AVOID)
-        & (_num(df, "ROIC_Norm") > 0)
+        & (_num(df, "ROIC_Norm") >= OPERATING_MIN_ROIC)
         & (_num(df, f"ROIC_{s.latest}") > 0)
         & _every_year(df, "ROIC", years, k, rising=True)
         & _never_fell(df, "operatingMargins", years, k, OPERATING_MAX_DIP)

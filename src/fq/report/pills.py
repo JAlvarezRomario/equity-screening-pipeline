@@ -110,7 +110,7 @@ def tags(row: pd.Series) -> list[dict]:
         add("model to confirm", f"{row['Model_Review']}. Scored, but out of the highlight lists until the business "
             "model is confirmed.")  # fmt: skip
     if row.get("Dividend_WHT") == 0:
-        add("0% WHT", WHT0_PILL, "pill-wht0", "◆ ")
+        add(WHT0_WORD, WHT0_PILL, "pill-wht0", WHT0_MARK)
     insiders = pd.to_numeric(row.get("heldPercentInsiders"), errors="coerce") * 100
     if insiders >= OWNER_LED_MIN:
         add("owner-led", f"Insiders hold {insiders:.0f}% of the shares (Yahoo): management's own money is in it. A "
@@ -149,6 +149,8 @@ FIRE_PILL_MAX = 0.66  # as `screens.FIRE_SALE_MAX_PRICE` (screens imports format
 FALLEN_PILL_MIN = -20.0
 BUYBACK_PILL_MIN = 2.0  # %/yr: a compounder that also shrinks its share count (the former Compounder-cannibals tab)
 NET_NET_PILL_MIN = 100.0  # NCAV / price, %: the "net-net" pill (Graham)
+WHT0_WORD, WHT0_MARK = "0% WHT", "◆ "
+WHT0_LABEL = WHT0_MARK + WHT0_WORD  # as `list_pills` shows it
 WHT0_PILL = ("No withholding tax on dividends paid to non-resident individuals in its country (statutory rate, "
              "lists/dividend_wht.txt).")  # fmt: skip
 OWNER_LED_MIN = 20.0  # % of shares held by insiders for the "owner-led" pill (the benchmark's median is about 13%)

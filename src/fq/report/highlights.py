@@ -166,7 +166,9 @@ def _eligible_deep(df: pd.DataFrame) -> pd.DataFrame:
 def below_book_walk(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """Compounding below NAV: down `screens.asset_play_list` (the smallest price / NAV first), moat and management
     both at least `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`), until `n`."""
-    return _graded_walk(sc.asset_play_list(df, len(df)), n, "Book_Order", grading.passes_cheapest, CHEAPEST_BAR, "NAV_Holds")
+    return _graded_walk(
+        sc.asset_play_list(df, len(df)), n, "Book_Order", grading.passes_cheapest, CHEAPEST_BAR, "NAV_Holds"
+    )
 
 
 def _eligible_below_book(df: pd.DataFrame) -> pd.DataFrame:
@@ -193,41 +195,24 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
     return out.assign(Grade_Pass=pd.Series(verdict, index=out.index, dtype=object), Grade_Bar=SHORTLIST_BAR)
 
 
-# The List (user's choice, Nov 9, 2026): the companies that passed every test. Each source list's rows as shown, those
-# past both that list's moat and management bar and its check (both True: a missing grade or check is not a pass),
-# once each, each list's best in turn (round robin; the share-price yield breaking ties).
-# Nov 9, 2026 review (user's choices): Boring businesses joins the sources; one grade floor for every member (both
-# at least `grading.CHEAPEST_MIN_BOTH`: a source's "either at least 4.25" route no longer lets weak management in);
-# a check failed on any source keeps the company out; a member from Balance sheet plays alone (checked on its book)
-# also needs its earnings checked, as The List is ordered by them; holdings left out with banks, insurers and REITs;
-# the best 25 shown (user's choice), the count of all that qualify above them; ordered by each company's best place on its lists,
-# so each idea gets its best few (round robin), the share-price yield breaking ties.
-# Later the same day (user's choices): five sources only (Boring businesses and Income out: 62 -> 53 qualified), and
-# both grades at least `THE_LIST_MIN_GRADE` (3.25: 53 -> 43; a 3.0 on either is "holds up", not more). A rule that
-# any caution of the check fails was rejected: it left 4, none of them cheap.
-# Nov 10, 2026 (user's choices, after a review): the two raw-score lists out (Best businesses brought 9 of 25 at a
-# 2.8-4.5% yield, rank about 2,500; Cheapest a Quality 41), so The List draws only from lists that ask price and
-# quality together; and every member, whatever its source: owner yield on the share price at least
-# the 10-year Treasury yield (`Treasury_Yield`; user's choice, Nov 10, 2026, was 6% the same day: a share must earn
-# more than the risk-free bond), both grades above `THE_LIST_MIN_GRADE`, past the AI screen and the 6-month price floor.
-# Later the same day, after a review "as Graham, Buffett, Munger and Greenblatt" (user's choices): one floor for every
-# seat, the Treasury plus the home country's sovereign spread (`Sovereign_Spread`, as Boring businesses asks; the 4%
-# seat for Compounders is gone: growth is Quality's, counted once), no target count (the page says how many passed),
-# and "nothing breaking now" (`screens.nothing_breaking`) in place of the price floor.
-# Nov 11, 2026 (user's choice, after a review of the lists): The List held 5, 4 of them from Cheap and good, while
-# Boring businesses and Income, which ask price and quality together (the best fifth, a yield bar, a return floor),
-# held 13 companies past their grade and check that it never looked at. They are sources again; every bar above stays.
+# The List (user's choice, Nov 9, 2026): the companies that passed every test, drawn from the lists that ask a fair
+# price and a good business together (`THE_LIST_SOURCES`), then held to one set of bars whatever the source: both
+# grades and the check, one owner-yield floor (the Treasury plus the country's spread, no growth credit: growth is
+# Quality's, counted once), nothing breaking now, operating companies only. Its history is in `docs/method-notes.md`.
+# Nov 15, 2026 (user's choices, after a review of The List as the distillation of the site): one yardstick for the
+# order, the combined rank (the round robin gave a weak source's first a first-turn seat: JSP, Quality 48, sat 4th
+# above JNBY at Value 91 and Quality 86), and both scores at least `THE_LIST_MIN_SCORE`, so "cheap and good" holds
+# whatever the source; the Compounders' yield credit (added Nov 14 without a note) removed.
 THE_LIST = "The List"
 THE_LIST_SOURCES = ("Cheap and good", "Shortlist", "Compounders", "Ascending ROIC", "Income", "Below book")
 THE_LIST_N = 25  # a row cap, not a target (Nov 10, 2026); the page counts every qualifier
 THE_LIST_MIN_GRADE = 3.0  # moat and management both at least this, whatever the source list's own bar
 THE_LIST_MIN_GRADE_SUM = 6.5  # and their sum at least this (so at least one is above 3.0)
+THE_LIST_MIN_SCORE = 50.0  # Value and Quality both at least this: at least the median of the ranked companies
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
 # holders, the cash-rich Japanese trap).
 THE_LIST_CASH_MGMT = 3.5
-# Compounders seat growth credit: 0.1 pp per 1%/yr of Per_Share_Compounding, capped at this (pp).
-THE_LIST_COMPOUNDER_GROWTH = 1.5
 # Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
 THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
@@ -246,7 +231,9 @@ def _graded_floor(rows: pd.DataFrame) -> pd.Series:
     blank = pd.Series(np.nan, index=rows.index)
     moat = pd.to_numeric(rows.get("Grade_Moat", blank), errors="coerce")
     mgmt = pd.to_numeric(rows.get("Grade_Mgmt", blank), errors="coerce")
-    return ((moat >= THE_LIST_MIN_GRADE) & (mgmt >= THE_LIST_MIN_GRADE) & ((moat + mgmt) >= THE_LIST_MIN_GRADE_SUM)).astype(bool)
+    return (
+        (moat >= THE_LIST_MIN_GRADE) & (mgmt >= THE_LIST_MIN_GRADE) & ((moat + mgmt) >= THE_LIST_MIN_GRADE_SUM)
+    ).astype(bool)
 
 
 def the_list_floor(rows: pd.DataFrame) -> pd.Series:
@@ -261,10 +248,10 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     """The List: the members of `THE_LIST_SOURCES` (each tab's rows as shown, `Tab.n`) past both its moat and
     management bar (`Grade_Pass`) and its check (`Check_Pass`), and past the common grade floor (`_graded_floor`),
     once each, with `The_List_From` naming the lists they came from (as readers see them). Order (`The_List_Order`,
-    1 = first; user's choice, Nov 9, 2026: every idea gets its best few, not one yardstick for all): each company's
-    best place among the qualifying members of the lists it is on, in each list's own order, so each list's first
-    comes before any list's second; a tie goes to the higher owner yield on the share price. `The_List_Why` names
-    each list with that place ("Cheapest #2 · Balance sheet plays #1"). Left out: a company whose check failed on any
+    1 = first; user's choice, Nov 15, 2026: one yardstick): the combined rank (`Rank`), a tie or a blank rank going
+    to the higher owner yield on the share price. `The_List_Why` names each list with the company's place among that
+    list's qualifying members ("Cheap and good #2 · Income #1"). Left out: Value or Quality under
+    `THE_LIST_MIN_SCORE` (a frame without the score passes); a company whose check failed on any
     source; one that comes only from Balance sheet plays (checked on its book) without a passing earnings check
     (`Check_Earnings_Pass`); the kinds of `THE_LIST_LEFT_OUT`; net cash at least `Settings.net_cash_min_pct` % of
     market cap with management under `THE_LIST_CASH_MGMT`; an owner yield on the share price under `the_list_floor`
@@ -301,13 +288,12 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
     hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
     both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
-    growth = np.where(
-        both["_From"] == "Compounders",
-        (sc._num(both, "Per_Share_Compounding").fillna(0.0) * 0.1).clip(0.0, THE_LIST_COMPOUNDER_GROWTH),
-        0.0,
+    low_score = (sc._num(both, "Value_Score") < THE_LIST_MIN_SCORE) | (
+        sc._num(both, "Quality_Score") < THE_LIST_MIN_SCORE
     )
     both = both[
-        (sc._num(both, "EPV_Per_Share_Yield") + growth >= the_list_floor(both))
+        ~low_score
+        & (sc._num(both, "EPV_Per_Share_Yield") >= the_list_floor(both))
         & sc.ai_resilient(both)
         & sc.nothing_breaking(both)
     ]
@@ -321,12 +307,11 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
         .groupby("Ticker", sort=False)["_Why"]
         .agg(" · ".join)
     )
-    place = both.groupby("Ticker", sort=False)["_Place"].min()
     out = both.drop_duplicates("Ticker").drop(columns=["_From", "_Book", "_Place"])
     out = out.assign(The_List_From=out["Ticker"].map(sources), The_List_Why=out["Ticker"].map(why),
-                     _Place=out["Ticker"].map(place),
+                     _Rank=sc._num(out, "Rank"),
                      _Yield=-pd.to_numeric(out["EPV_Per_Share_Yield"], errors="coerce"))  # fmt: skip
-    out = out.sort_values(["_Place", "_Yield"], kind="stable", na_position="last").drop(columns=["_Place", "_Yield"])
+    out = out.sort_values(["_Rank", "_Yield"], kind="stable", na_position="last").drop(columns=["_Rank", "_Yield"])
     # Counted over every qualifier before the cut: the "No dividend tax" rows (its members at 0% withholding,
     # `Tab.zero_rerun`) come from the same uncut order, so the two frames interleave right.
     return out.assign(The_List_Order=np.arange(1, len(out) + 1)).head(n)
@@ -340,14 +325,13 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "Operating companies from the five core lists that clear the bond-plus-country-risk hurdle, have nothing "
-        "breaking now, and pass both AI checks: moat and management, and the numbers.",
+        "What passes every test, from the lists below, in combined rank order.",
     ),
     # Nov 12, 2026 (user's choice, after a review of the lists): the rows by one rule, whether a list feeds The List.
+    # Nov 15, 2026: no count in the words, so a source added or removed cannot leave them wrong.
     "sources": (
-        "Its six sources",
-        "Six lists asking for a fair price and a good business together: cheap and good at once, a boring business, "
-        "a per-share compounder, rising returns on capital, a reliable dividend, or net assets compounding below what they are worth.",
+        "Its sources",
+        "Lists that ask a fair price and a good business together, each through one idea.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
@@ -356,8 +340,7 @@ GROUPS = {
     ),
     "outside": (
         "Outside The List",
-        "Lists that ask one thing alone, so they do not feed The List: a deep discount to fire-sale value, the "
-        "cheapest companies whose moat and management hold up, and the highest-quality businesses regardless of price.",
+        "Lists that ask one thing alone, so they do not feed The List.",
     ),
 }
 

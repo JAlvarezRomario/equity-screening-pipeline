@@ -367,7 +367,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     assert all("qualif" in p for p in panels if p not in ranked)
     # The rows by one rule, whether a list feeds The List (Nov 12, 2026); some tabs shown by their plain label,
     # stored under their frozen name.
-    groups = ("The List", "Its six sources", "By kind", "Outside The List")
+    groups = ("The List", "Its sources", "By kind", "Outside The List")  # no count to drift (Nov 15, 2026)
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert html.count('class="tab-group"') == len(groups)  # each row once: its tabs are adjacent in `TABS`
     from fq.report import highlights as hl

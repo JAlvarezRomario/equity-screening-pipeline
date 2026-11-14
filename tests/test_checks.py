@@ -383,7 +383,8 @@ def test_the_list_holds_the_core_lists_members_past_both_bars_by_share_price_yie
     tabs = html.split('role="tablist"')[1].split('<section class="tab-panel"')[0]  # every row of tabs
     assert tabs.index('data-panel="hl-the-list" class="tab-main"') < tabs.index('data-panel="hl-top-1"')
     panel = html.split('id="hl-the-list"')[1].split("</section>")[0]
-    assert "pill-src" in panel and "passed every test" in panel
+    assert "pill-src" in panel and "pass every test" in panel and ">From</th>" in panel
+    assert "Ascending ROIC" in panel  # the sources named from `THE_LIST_SOURCES`, so the rules cannot drift
 
 
 def test_the_list_leaves_out_banks_insurers_and_reits(monkeypatch):
@@ -437,16 +438,21 @@ def test_the_list_asks_a_balance_sheet_play_alone_for_its_earnings_check_and_lea
     assert out.set_index("Ticker").loc["BOTH", "The_List_From"] == "Cheap and good · Compounding below NAV"
 
 
-def test_the_list_takes_each_lists_best_in_turn_the_share_price_yield_breaking_ties(monkeypatch):
-    # User's choice, Nov 9, 2026: each idea gets its best few; one yield for all buried the compounders.
-    cheap = pd.DataFrame([_row("C1", 20.0, Rank=1), _row("C2", 18.0, Rank=2), _row("C3", 16.0, Rank=3)])
-    comp = pd.DataFrame([_row("K2", 7.0, Rank=9), _row("K1", 8.0, Rank=5)])  # out of order: its own order decides
-    book = pd.DataFrame([_row("FAIL", 30.0, check=False), _row("I1", 9.0, Check_Earnings_Pass=True)])
+def test_the_list_is_in_combined_rank_order_with_both_scores_at_least_the_median(monkeypatch):
+    # User's choice, Nov 15, 2026: one yardstick (the round robin seated a weak source's first above stronger
+    # companies), and Value and Quality both at least 50 whatever the source.
+    cheap = pd.DataFrame([_row("C1", 20.0, Rank=1), _row("C2", 18.0, Rank=4), _row("C3", 16.0, Rank=6)])
+    comp = pd.DataFrame([_row("K2", 7.0, Rank=9), _row("K1", 8.0, Rank=5)])
+    book = pd.DataFrame([_row("FAIL", 30.0, check=False), _row("I1", 9.0, Check_Earnings_Pass=True, Rank=3),
+                         _row("WEAK", 12.0, Check_Earnings_Pass=True, Rank=2, Quality_Score=48.0),
+                         _row("NORANK", 10.0, Check_Earnings_Pass=True)])  # fmt: skip
     hl = _sources(monkeypatch, {"Cheap and good": cheap, "Compounders": comp, "Below book": book})
     out = hl.the_list(pd.DataFrame(), 20)
-    # Turn 1: C1, I1 (Balance sheet plays' first that qualifies), K1; turn 2: C2, K2; turn 3: C3.
-    assert out["Ticker"].tolist() == ["C1", "I1", "K1", "C2", "K2", "C3"]
-    assert out["The_List_Order"].tolist() == [1, 2, 3, 4, 5, 6]
+    assert out["Ticker"].tolist() == ["C1", "I1", "C2", "K1", "C3", "K2", "NORANK"]
+    assert out["The_List_Order"].tolist() == list(range(1, 8))
+    # Each pill keeps the place among that list's qualifying members.
+    assert out.set_index("Ticker").loc["K1", "The_List_Why"] == "Compounders #1"
+    assert out.set_index("Ticker").loc["NORANK", "The_List_Why"] == "Compounding below NAV #2"
 
 
 def test_the_list_shows_the_best_twenty_five_from_its_five_sources_with_both_grades_above_3(monkeypatch):
@@ -570,7 +576,7 @@ def test_the_list_asks_every_member_the_bond_plus_country_risk_grades_above_3_no
     raw = pd.DataFrame([_row("QUALITY", 12.0), _row("VALUE", 11.0)])
     sources = {"Cheap and good": cheap, "Compounders": comp, "Best businesses": raw, "Cheapest": raw}
     hl = _sources(monkeypatch, sources)
-    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "BOND", "FELL", "COMP_GROW"]
+    assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "FELL", "BOND"]  # no rank: yield order
     hl = _sources(monkeypatch, {"Cheap and good": cheap.assign(Treasury_Yield=7.5)})
     assert hl.the_list(pd.DataFrame(), 20)["Ticker"].tolist() == ["OK", "FELL"]  # the bond moves the floor
 

@@ -31,7 +31,7 @@ SUMMARY_COLUMNS = [
     ("Market Cap (B$)", "Market Cap", ",.1f", 1, ""),
     ("Analysts", "numberOfAnalystOpinions", ".0f", 1, ""),
     ("Above 52w Low", "Above_52W_Low", ".0f", 1, "%"),
-    ("Dividend WHT", "Dividend_WHT", "g", 1, "%"),
+    ("Dividend WHT", "Dividend_WHT", ".3g", 1, "%"),
 ]  # fmt: skip
 
 # First column of each group in a table: a hairline separates scores, earnings power and context.

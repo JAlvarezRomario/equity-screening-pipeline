@@ -4,19 +4,13 @@
 {% macro rules(summary) %}<p class="list-summary">{{ summary }}</p>
     <details class="explain rules"><summary>Exact rules</summary><div class="chart-instruction">{{ caller() }}</div></details>{% endmacro %}
 
-{% macro the_list(r) %}{% call rules("Operating companies from the five core lists that passed every test: clearing the bond-plus-country-risk hurdle, with nothing breaking now, and passing both AI checks. Each source list's best come first in turn.") %}<ul>
-  <li>Shown on Cheap and good, Boring businesses, Compounders, Income or Compounding below NAV (each list's own figure tests, cuts and order; the pills name which): lists that ask a fair price and a good business together. Cheapest and Best businesses, which look at one alone, do not feed it.</li>
-  <li>An owner yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest, over its price, at zero growth (Compounders seats receive up to {{ r.the_list_comp_growth }} points of credit for verified per-share compounding).</li>
-  <li>Past that list's moat and management bar, graded 1 to 5 by an AI model (Gemini), and in any case both graded at least {{ r.the_list_grade }} with their sum at least {{ r.the_list_grade_sum }}.</li>
-  <li>Not in an industry AI substitutes or disrupts.</li>
-  <li>Nothing breaking now: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months. The business, not the share price, says whether something is breaking; a share that fell carries a pill saying so.</li>
-  <li>Past the AI check of its numbers: no cyclical peak, windfall or one-off carrying the record, no likely disruption by AI or robotics, no catch in idle cash; on Compounding below NAV, net assets that reach a shareholder and are not being eaten, and its earnings checked too. A check failed on any of the lists keeps it out.</li>
-  <li>Operating companies only: banks, insurers, REITs and holdings are evaluated on their own lists (their earnings and books read differently from an operating company's).</li>
-  <li>With net cash of at least {{ r.net_cash_min }}% of the market value, management graded at least {{ r.the_list_cash_mgmt }}: cash a management never returns earns nothing for minority holders.</li>
-  <li>A company not yet graded or checked waits outside until it is.</li>
-  <li>No target size: the page counts every company that passed, and shows at most {{ r.the_list_n }}, in turn: each list's first qualifying company, then each list's second, and so on (a company on several lists counts its best place), so cheap-and-good, boring, compounding, income and balance-sheet ideas all have their best few. Each pill names the list and the place that earned the seat ("Cheap and good #2").</li>
-  <li>Over 5 years the mix of countries, sizes and currencies can move results as much as the picks: the line under the count sets The List's mix against the market's.</li>
-  <li>Within a turn, the higher owner yield on the share price first: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
+{% macro the_list(r) %}{% call rules("The operating companies from its sources that pass every test, best combined rank first.") %}<ul>
+  <li>On {{ r.the_list_sources }} (the pills name which, and the place there).</li>
+  <li>Value and Quality both at least {{ r.the_list_score }}, and an owner yield on the share price at least the 10-year US Treasury (today {{ r.treasury }}%) plus the home country's sovereign spread (in points: {{ r.spreads }}), at zero growth.</li>
+  <li>Moat and management graded by an AI model (Gemini): past the source list's bar, both at least {{ r.the_list_grade }} and together at least {{ r.the_list_grade_sum }}; management at least {{ r.the_list_cash_mgmt }} when net cash is {{ r.net_cash_min }}% of the market value or more. The AI check of its numbers passed on every list it is on.</li>
+  <li>Nothing breaking now: estimates not cut by more than {{ r.estimate_cut }}% in 90 days, recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%, no dividend cut in twelve months.</li>
+  <li>No bank, insurer, REIT or holding, and no industry AI substitutes or disrupts. Not yet graded or checked: outside until it is.</li>
+  <li>No target size: every company that passes is counted, at most {{ r.the_list_n }} shown. The line under the count compares its mix of countries, sizes and currencies with the market's.</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of their Value and Quality positions.") %}<ul>
@@ -58,8 +52,8 @@
 </ul>
 <details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
 
-{% macro ascending_roic(r) %}{% call rules("Non-cyclical operating companies whose return on capital has risen strictly every year, reinvesting new capital at high returns while still paying at least the 10-year Treasury yield plus country risk.") %}<ul>
-  <li>Return on capital (ROIC) strictly higher every year over at least {{ r.min_years }} annual reports, with both normal and latest ROIC positive.</li>
+{% macro ascending_roic(r) %}{% call rules("Good businesses getting better: return on capital already high and higher every year, at a price that pays at least the 10-year Treasury plus country risk.") %}<ul>
+  <li>Return on capital (ROIC) strictly higher every year over at least {{ r.min_years }} annual reports, and its normal level at least {{ r.operating_min_roic }}%: a recovery from a poor year is not an improving business.</li>
   <li>Operating margin and revenue (in US terms: the company's currency at today's rate, net of its inflation beyond the US) never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started.</li>
   <li>Capacity to reinvest: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added since the oldest annual report (a company whose invested capital barely grew is excluded).</li>
   <li>Owner earnings yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}).</li>

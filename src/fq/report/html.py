@@ -24,15 +24,18 @@ from fq.report.highlights import (
     SHORTLIST,
     TABS,
     THE_LIST_CASH_MGMT,
-    THE_LIST_COMPOUNDER_GROWTH,
     THE_LIST_MIN_GRADE,
     THE_LIST_MIN_GRADE_SUM,
+    THE_LIST_MIN_SCORE,
     THE_LIST_N,
+    THE_LIST_SOURCES,
     Highlights,
     Tab,
     fails,
 )
+from fq.report.highlights import label as list_label
 from fq.report.links import slug
+from fq.report.pills import WHT0_LABEL
 from fq.settings import Settings
 from fq.universe import _read_lines, sovereign_spread
 
@@ -149,8 +152,10 @@ def _rule_values(cfg: Settings, hurdle: float, has_bench: bool, borrow_rate: flo
             f"{y} for {', '.join(sorted(only)).lower()}" for y, _, only in dividend_record.recessions() if only
         ),
         "min_pass": MIN_ALL_PASS, "the_list_n": THE_LIST_N, "the_list_grade": g(THE_LIST_MIN_GRADE),
-        "the_list_grade_sum": g(THE_LIST_MIN_GRADE_SUM), "the_list_comp_growth": g(THE_LIST_COMPOUNDER_GROWTH),
-        "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
+        "the_list_grade_sum": g(THE_LIST_MIN_GRADE_SUM), "the_list_cash_mgmt": g(THE_LIST_CASH_MGMT),
+        "the_list_score": g(THE_LIST_MIN_SCORE),
+        "the_list_sources": ", ".join(list_label(n) for n in THE_LIST_SOURCES[:-1])
+        + " or " + list_label(THE_LIST_SOURCES[-1]),
         "reit_cover": g(sc.REIT_MIN_INTEREST_COVER), "reit_net_debt": g(sc.REIT_MAX_NET_DEBT_EBIT),
         "utility_cover": g(sc.UTILITY_MIN_INTEREST_COVER), "utility_net_debt": g(sc.UTILITY_MAX_NET_DEBT_EBIT),
     }  # fmt: skip
@@ -178,7 +183,10 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
     rows = summary_rows(both, tab.columns)
     extras = set(extra["Ticker"])
     redundant = TAB_REDUNDANT_PILLS.get(tab.key, frozenset())
-    has_grade_cols = {"Grade_Moat", "Grade_Mgmt"} <= {c[1] for c in tab.columns}
+    shown_cols = {c[1] for c in tab.columns}
+    has_grade_cols = {"Grade_Moat", "Grade_Mgmt"} <= shown_cols
+    if "Dividend_WHT" in shown_cols:  # the column says it: no pill repeating it (Nov 15, 2026)
+        redundant = redundant | {WHT0_LABEL}
     for r, (_, row) in zip(rows, both.iterrows(), strict=True):
         r["extra"] = r["ticker"] in extras
         r["fails"] = bool(row["_fails"])
@@ -189,12 +197,12 @@ def _list_rows(h: Highlights, tab: Tab) -> list[dict]:
             r["pills"].append(gp)
         if (check := check_pill(row)) is not None:
             r["pills"].append(check)
-        if isinstance(row.get("The_List_Why"), str):  # The List: each list it came from, and its place there
+        if isinstance(row.get("The_List_Why"), str):  # The List: each list it came from and its place, in a column
+            r["why"] = []
             for seat in row["The_List_Why"].split(" · "):
                 src, _, place = seat.rpartition(" #")
-                r["pills"].append({"label": seat, "cls": "pill-src",
-                                   "why": f"Place {place} among {src}'s companies that pass every test; The List takes "
-                                          "each list's best in turn."})  # fmt: skip
+                r["why"].append({"label": seat, "cls": "pill-src",
+                                 "why": f"Place {place} among {src}'s companies that pass every test of The List."})  # fmt: skip
         missing = sc.untested(row) if tab.key in sc.UNTESTED_TABS else []
         if missing:
             r["pills"].append({"label": f"untested: {len(missing)}", "cls": "",
