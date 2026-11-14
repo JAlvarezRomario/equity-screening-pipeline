@@ -166,6 +166,70 @@ def test_industry_averages_over_the_benchmark(cfg):
     assert view["rows"][0]["best"] is None and view["scope"] is not None
 
 
+def test_industry_best_shows_cards_even_when_unlisted(cfg):
+    from fq import grading
+    from fq.report.highlights import published_lists
+    from fq.report.screens import industry_best
+
+    df = _ranked(cfg)
+    df["EPV_Per_Share_Yield"] = 10.0
+    df.loc[df.index[-1], "Traded_Value_USD"] = 1.0  # keep off every highlight list
+    unlisted = df.loc[df.index[-1], "Ticker"]
+    df.loc[df.index[-1], "industry"] = "Niche Industry"
+    assert unlisted in industry_best(df)
+    assert unlisted not in set(published_lists(df, cfg)["Ticker"])
+
+    now = pd.Timestamp.now()
+    y0 = str(df[f"PeriodEnd_{cfg.latest}"].iloc[0])
+    grades = pd.DataFrame(
+        [
+            {
+                "Ticker": unlisted,
+                "Moat": 4.0,
+                "Mgmt": 4.0,
+                "Pass1_Moat": 4.0,
+                "Pass1_Mgmt": 4.0,
+                "Pass2_Moat": 4.0,
+                "Pass2_Mgmt": 4.0,
+                "Report_1": "R1",
+                "Report_2": "R2",
+                "Synthesis": "## Moat\nSolid.\n\n## Management\nGood.",
+                "Graded_At": now,
+                "Y0_End": y0,
+                "Prompt_Hash": "h",
+                "Synthesis_Hash": "s",
+                "Input_Tokens": 1,
+                "Output_Tokens": 1,
+                "Cost_USD": 0.0,
+            }
+        ]
+    )
+    checks = pd.DataFrame(
+        [
+            {
+                "Ticker": unlisted,
+                "Kind": grading.EARNINGS,
+                "Pass": True,
+                "Tag": "fair",
+                "Headline": "Earnings hold up.",
+                "Topics": "[]",
+                "Why": "- Clean.",
+                "Checked_At": now,
+                "Y0_End": y0,
+                "Check_Hash": "c",
+                "Input_Tokens": 1,
+                "Output_Tokens": 1,
+                "Cost_USD": 0.0,
+            }
+        ]
+    )
+    grading.save(grades, cfg.data_dir / "grades.parquet")
+    grading.save_checks(checks, cfg.data_dir / "checks.parquet")
+    index = build_site(df, cfg)
+    page = (index.parent / "companies" / f"{slug(unlisted)}.html").read_text(encoding="utf-8")
+    assert "Moat and management" in page and "The numbers, checked" in page
+
+
 def test_nav_chart_only_for_flagged_companies(cfg):
     raw = make_raw(cfg, n=2)
     for y in cfg.fiscal_years:

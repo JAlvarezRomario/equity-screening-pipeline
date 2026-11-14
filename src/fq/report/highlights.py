@@ -618,13 +618,16 @@ class Highlights:
         return {t: " · ".join(p) for t, p in out.items()}
 
     def grade_pool(self) -> list[str]:
-        """The companies the grading must grade: every one a tab shows."""
-        return list(dict.fromkeys(self.published()["Ticker"]))
+        """The companies the grading must grade: every one a tab shows, plus each industry's best ranked
+        (`screens.industry_best`)."""
+        return list(dict.fromkeys([*self.published()["Ticker"], *sc.industry_best(self.frame)]))
 
     def check_pool(self) -> list[tuple[str, str]]:
         """The (ticker, kind) checks the lists need: every company a tab shows that clears that tab's moat and
         management bar (`Grade_Pass` True), checked on its book on Balance sheet plays, on its earnings elsewhere; a
-        Balance sheet plays member on its earnings too, which The List orders by (`the_list`)."""
+        Balance sheet plays member on its earnings too, which The List orders by (`the_list`); plus every industry's
+        best ranked (`screens.industry_best`) that clears the moat and management bar (`Grade_Pass` True) on its
+        earnings; plus every `screens.nav_candidates` company on its book."""
         pub = self.published()
         passed = pub[pub["Grade_Pass"].map(lambda v: v is True or v == True).astype(bool)]  # noqa: E712
         kept_off = set(self.frame.loc[sc.kind(self.frame).isin(THE_LIST_LEFT_OUT), "Ticker"])  # never on The List
@@ -635,6 +638,13 @@ class Highlights:
                 pairs.append((t, kind))
             if kind == grading.BOOK and name in THE_LIST_SOURCES and t not in kept_off:
                 pairs.append((t, grading.EARNINGS))
+        best = set(sc.industry_best(self.frame))
+        if best and "Grade_Pass" in self.frame.columns:
+            passed_best = self.frame[
+                self.frame["Ticker"].isin(best)
+                & self.frame["Grade_Pass"].map(lambda v: v is True or v == True).astype(bool)  # noqa: E712
+            ]
+            pairs += [(t, grading.EARNINGS) for t in passed_best["Ticker"]]
         # Every company that may sit below its net assets, listed or not (`screens.nav_candidates`; user's rules, Nov
         # 11 and 14, 2026): the book check estimates them, after the lists' needs.
         pairs += [(t, grading.BOOK) for t in self.frame.loc[sc.nav_candidates(self.frame), "Ticker"]]

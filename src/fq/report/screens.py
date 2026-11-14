@@ -119,6 +119,22 @@ INDUSTRY_COLUMNS = [
 ]  # fmt: skip
 
 
+def _best_by_industry(df: pd.DataFrame) -> pd.Series:
+    """Industry -> Ticker of the lowest combined `Rank` in `df`."""
+    if "industry" not in df.columns or "Rank" not in df.columns:
+        return pd.Series(dtype=object)
+    run = df[df["industry"].notna()].dropna(subset=["Rank"])
+    if run.empty:
+        return pd.Series(dtype=object)
+    return run.sort_values("Rank", kind="stable").groupby("industry", sort=False)["Ticker"].first()
+
+
+def industry_best(df: pd.DataFrame) -> list[str]:
+    """The best combined-rank (`Rank`) ticker per Yahoo industry in `df`, in `Rank` order (the "Best ranked" column
+    of `industry_averages`)."""
+    return list(dict.fromkeys(_best_by_industry(df).tolist()))
+
+
 def industry_averages(df: pd.DataFrame, bench: pd.DataFrame | None = None) -> dict:
     """Medians of `INDUSTRY_COLUMNS` (robust: one ROIC at the cap does not lift a small industry) per Yahoo industry over every benchmark company (the run itself when
     it has no benchmark), ranked companies only (`rankable`), highest normalised FCF yield first (index page; user's choice,
@@ -126,9 +142,7 @@ def industry_averages(df: pd.DataFrame, bench: pd.DataFrame | None = None) -> di
     use_bench = bench is not None and not bench.empty and "industry" in bench.columns
     ref = bench if use_bench else df
     ref = ref[rankable(ref) & ref.get("industry", pd.Series(index=ref.index, dtype=object)).notna()]
-    run = df[df.get("industry", pd.Series(index=df.index, dtype=object)).notna()]
-    ranked = run.dropna(subset=["Rank"]) if "Rank" in run else run.iloc[0:0]
-    best_of = ranked.sort_values("Rank").groupby("industry")["Ticker"].first()
+    best_of = _best_by_industry(df)
     rows = []
     for industry, group in ref.groupby("industry"):
         means = [pd.to_numeric(group[col], errors="coerce").median() for _, col, *_ in INDUSTRY_COLUMNS]

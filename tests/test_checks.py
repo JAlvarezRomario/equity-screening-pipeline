@@ -741,3 +741,41 @@ def test_the_forward_gate_freezes_the_nav_verdict_for_the_book_lists(tmp_path):
     # An estimate short of the book passes, locked value fails, a check with no estimate and an earnings check stay.
     assert gate["Pass"].tolist() == [True, False, False, False]
     assert grading.nav_verdict("[]", 0.0) is False and grading.nav_verdict("[]", None) is None
+
+
+def test_industry_best_ranked_enters_grade_and_check_pools(cfg, monkeypatch):
+    import fq.report.highlights as hl
+    from fq.report import screens as sc
+
+    def row(ticker, industry, rank, grade_pass, bv=50.0, nav=50.0):
+        return {
+            "Ticker": ticker,
+            "industry": industry,
+            "Rank": rank,
+            "Grade_Pass": grade_pass,
+            "BV_to_Price": bv,
+            "NAV_to_Price": nav,
+            "Rank_Group": "operating",
+            "Business_Model": "operating",
+            f"Net_Income_Clean_{cfg.latest}": 10.0,
+            "Net_Income_Clean_TTM": 10.0,
+            "Dividend_WHT": 0.0,
+        }
+
+    frame = pd.DataFrame(
+        [
+            row("PASS_BEST", "Specialty Retail", 1.0, True),
+            row("FAIL_BEST", "Auto Parts", 2.0, False),
+            row("UNGRADED_BEST", "Chemicals", 3.0, None),
+            row("NAV_BEST", "Paper", 4.0, True, bv=120.0, nav=110.0),
+            row("SECOND", "Specialty Retail", 5.0, True),
+        ]
+    )
+    frame = frame.assign(NAV_Candidate=sc.nav_candidates(frame), Deep_Discount=sc.deep_discount(frame))
+    h = hl.Highlights(frame, frame.iloc[0:0], None, 6.0, {})
+    monkeypatch.setattr(h, "published", lambda: pd.DataFrame(columns=["Ticker", "List", "Grade_Pass", "Check_Pass"]))
+    assert h.grade_pool() == ["PASS_BEST", "FAIL_BEST", "UNGRADED_BEST", "NAV_BEST"]
+    checks = h.check_pool()
+    assert ("PASS_BEST", grading.EARNINGS) in checks and ("NAV_BEST", grading.EARNINGS) in checks
+    assert ("NAV_BEST", grading.BOOK) in checks
+    assert not any(t in {"FAIL_BEST", "UNGRADED_BEST", "SECOND"} for t, _ in checks)

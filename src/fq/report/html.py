@@ -288,9 +288,9 @@ def build_site(
     stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     df = h.frame
     periods = report_periods(df, cfg)
-    # Companies a list shows (extras left out) and the holdings carry their grade card on their page.
+    # Companies a list shows (extras left out), holdings, and each industry's best ranked carry their cards on their page.
     df = df.assign(
-        Grade_Listed=df["Ticker"].isin(h.listed() | set(held or ())),
+        Grade_Listed=df["Ticker"].isin(h.listed() | set(held or ()) | set(sc.industry_best(df))),
         Grade_Shortlisted=df["Ticker"].isin(h.shown(SHORTLIST)["Ticker"]),
         On_Lists=df["Ticker"].map(h.places()),  # in the row, so a page follows its lists (fingerprint)
     )
