@@ -97,12 +97,14 @@ def _graded_walk(df: pd.DataFrame, n: int, rank_col: str, verdict_of, bar: str,
     moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
     mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else blank
     check = ordered[check_col] if check_col in ordered.columns else blank
+    verdicts_all = [verdict_of(m, g) for m, g in zip(moat, mgmt, strict=True)]
+    avail = sum(v is True for v in verdicts_all)
+    wait_cap = max(WALK_MAX_ROWS - n, n - avail) if n <= WALK_WAITING else WALK_WAITING
     keep, verdicts, passed, sound, waiting = [], [], 0, 0, 0
-    for i, m, g, c in zip(ordered.index, moat, mgmt, check, strict=True):
+    for i, verdict, c in zip(ordered.index, verdicts_all, check, strict=True):
         if (passed >= n and sound >= min(MIN_ALL_PASS, n)) or len(keep) >= WALK_MAX_ROWS:
             break
-        verdict = verdict_of(m, g)
-        if verdict is None and waiting < WALK_WAITING:
+        if verdict is None and waiting < wait_cap:
             waiting += 1
             sound += 1  # it may pass both: counted until it is graded and checked
             keep.append(i)
@@ -124,25 +126,10 @@ def cheapest_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame
 
 
 def cheap_and_good_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
-    """Cheap and good: the top `n` of the combined ranking (`Rank`) whose owner yield on the share price is above
-    `screens.CHEAP_MIN_SHARE_YIELD` (user's choice, Nov 8, 2026), then further down while fewer than `MIN_ALL_PASS`
-    of them pass every test (Nov 9, 2026): the moat and management bar (`grading.passes`) and the earnings check, a
-    company not yet graded or checked counting as a pass until it is; at most `WALK_MAX_ROWS` rows. Those that fail
-    stay on the list, shaded."""
-    ordered = top_n(sc.cheap_enough(df), "Rank", len(df))
-    blank = pd.Series(np.nan, index=ordered.index)
-    moat = ordered["Grade_Moat"] if "Grade_Moat" in ordered.columns else blank
-    mgmt = ordered["Grade_Mgmt"] if "Grade_Mgmt" in ordered.columns else blank
-    check = ordered["Check_Earnings_Pass"] if "Check_Earnings_Pass" in ordered.columns else blank
-    sound = [grading.passes(m, g) is not False and _check_verdict(c) is not False
-             for m, g, c in zip(moat, mgmt, check, strict=True)]  # fmt: skip
-    count, rows = 0, 0
-    for ok in sound:
-        if (rows >= n and count >= min(MIN_ALL_PASS, n)) or rows >= WALK_MAX_ROWS:
-            break
-        rows += 1
-        count += ok
-    return ordered.iloc[:rows]
+    """Cheap and good: down the combined ranking (`Rank`), moat and management both at least
+    `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`), owner yield on the share price above
+    `screens.CHEAP_MIN_SHARE_YIELD` (Nov 8, 2026), until at least `MIN_ALL_PASS` pass the check too (Nov 9, 2026)."""
+    return _graded_walk(sc.cheap_enough(df), n, "Rank", grading.passes_cheapest, CHEAPEST_BAR)
 
 
 def best_business_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
@@ -174,6 +161,17 @@ def deep_discount_walk(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.Data
 def _eligible_deep(df: pd.DataFrame) -> pd.DataFrame:
     """The companies Below fire-sale value may draw from (`screens.deep_discount_list`), trusted."""
     return top_n(sc.deep_discount_list(df), "Discount_Order", len(df))
+
+
+def below_book_walk(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
+    """Compounding below NAV: down `screens.asset_play_list` (the smallest price / NAV first), moat and management
+    both at least `grading.CHEAPEST_MIN_BOTH` (`grading.passes_cheapest`; `_graded_walk`), until `n`."""
+    return _graded_walk(sc.asset_play_list(df, len(df)), n, "Book_Order", grading.passes_cheapest, CHEAPEST_BAR, "NAV_Holds")
+
+
+def _eligible_below_book(df: pd.DataFrame) -> pd.DataFrame:
+    """The companies Compounding below NAV may draw from (`screens.asset_play_list`), trusted."""
+    return sc.asset_play_list(df, len(df))
 
 
 def _eligible_cheap(rank_col: str) -> Callable[[pd.DataFrame], pd.DataFrame]:
@@ -220,13 +218,16 @@ def _shortlist(df: pd.DataFrame, n: int, hurdle: float) -> pd.DataFrame:
 # Boring businesses and Income, which ask price and quality together (the best fifth, a yield bar, a return floor),
 # held 13 companies past their grade and check that it never looked at. They are sources again; every bar above stays.
 THE_LIST = "The List"
-THE_LIST_SOURCES = ("Cheap and good", "Shortlist", "Compounders", "Income", "Below book")
+THE_LIST_SOURCES = ("Cheap and good", "Shortlist", "Compounders", "Ascending ROIC", "Income", "Below book")
 THE_LIST_N = 25  # a row cap, not a target (Nov 10, 2026); the page counts every qualifier
-THE_LIST_MIN_GRADE = 3.0  # moat and management both strictly above this, whatever the source list's own bar
+THE_LIST_MIN_GRADE = 3.0  # moat and management both at least this, whatever the source list's own bar
+THE_LIST_MIN_GRADE_SUM = 6.5  # and their sum at least this (so at least one is above 3.0)
 # Net cash at least `Settings.net_cash_min_pct` of the market cap (the "net cash" pill's bar) needs management graded at
 # least this (user's choice, Nov 9, 2026, any country: cash a management never returns earns nothing for minority
-# holders, the cash-rich Japanese trap). 7 of the 43 left out on Nov 9, 2026.
-THE_LIST_CASH_MGMT = 4.0
+# holders, the cash-rich Japanese trap).
+THE_LIST_CASH_MGMT = 3.5
+# Compounders seat growth credit: 0.1 pp per 1%/yr of Per_Share_Compounding, capped at this (pp).
+THE_LIST_COMPOUNDER_GROWTH = 1.5
 # Kinds (`screens.kind`) kept off The List: their earnings and books read differently from an operating company's.
 THE_LIST_LEFT_OUT = frozenset({"bank", "insurer", "real_estate", "holding"})
 
@@ -240,12 +241,12 @@ def _is_false(values) -> pd.Series:
 
 
 def _graded_floor(rows: pd.DataFrame) -> pd.Series:
-    """Moat and management both strictly above `THE_LIST_MIN_GRADE`, False when ungraded: the floor every member of
-    The List clears, whatever its source's bar."""
+    """Moat and management both at least `THE_LIST_MIN_GRADE` and their sum at least `THE_LIST_MIN_GRADE_SUM`, False
+    when ungraded: the floor every member of The List clears, whatever its source's bar."""
     blank = pd.Series(np.nan, index=rows.index)
     moat = pd.to_numeric(rows.get("Grade_Moat", blank), errors="coerce")
     mgmt = pd.to_numeric(rows.get("Grade_Mgmt", blank), errors="coerce")
-    return ((moat > THE_LIST_MIN_GRADE) & (mgmt > THE_LIST_MIN_GRADE)).astype(bool)
+    return ((moat >= THE_LIST_MIN_GRADE) & (mgmt >= THE_LIST_MIN_GRADE) & ((moat + mgmt) >= THE_LIST_MIN_GRADE_SUM)).astype(bool)
 
 
 def the_list_floor(rows: pd.DataFrame) -> pd.Series:
@@ -300,8 +301,13 @@ def the_list(df: pd.DataFrame, n: int, hurdle: float = 0.0) -> pd.DataFrame:
     both = both[~sc.kind(both).isin(THE_LIST_LEFT_OUT) & ~model.isin(THE_LIST_LEFT_OUT)]
     hoard = sc._num(both, "Net_Cash_to_Cap") >= Settings().net_cash_min_pct
     both = both[~hoard | (sc._num(both, "Grade_Mgmt") >= THE_LIST_CASH_MGMT)]
+    growth = np.where(
+        both["_From"] == "Compounders",
+        (sc._num(both, "Per_Share_Compounding").fillna(0.0) * 0.1).clip(0.0, THE_LIST_COMPOUNDER_GROWTH),
+        0.0,
+    )
     both = both[
-        (sc._num(both, "EPV_Per_Share_Yield") >= the_list_floor(both))
+        (sc._num(both, "EPV_Per_Share_Yield") + growth >= the_list_floor(both))
         & sc.ai_resilient(both)
         & sc.nothing_breaking(both)
     ]
@@ -334,20 +340,14 @@ GROUPS = {
     # Nov 9, 2026 (user's choice): the answer, first and shown by default.
     "list": (
         "The List",
-        "The companies on Cheap and good, Boring businesses, Compounders, Income or Compounding below NAV that earn "
-        "more on the share price than the 10-year Treasury plus their country's risk, with nothing breaking now, "
-        "and that pass both AI checks: moat and management, and the numbers. No target: it shows however many pass.",
+        "Operating companies from the five core lists that clear the bond-plus-country-risk hurdle, have nothing "
+        "breaking now, and pass both AI checks: moat and management, and the numbers.",
     ),
     # Nov 12, 2026 (user's choice, after a review of the lists): the rows by one rule, whether a list feeds The List.
-    # "Start here" (2 tabs) and "By style" (4) split its five sources arbitrarily and held Deep discount, which
-    # does not feed it; "Raw scores" became "Outside The List", with Deep discount.
     "sources": (
-        "Its five sources",
-        "The lists that feed The List. Each asks a fair price and a good business together, from its own angle: "
-        "cheap and good at once, a boring business, a business compounding per share, a dividend a foreign "
-        "investor keeps, or net assets that compound at a price below what they are worth. Boring businesses, "
-        "Compounders and Income draw on the best {top} of the combined ranking. The companies on them that pass "
-        "every test make The List.",
+        "Its six sources",
+        "Six lists asking for a fair price and a good business together: cheap and good at once, a boring business, "
+        "a per-share compounder, rising returns on capital, a reliable dividend, or net assets compounding below what they are worth.",
     ),
     # Nov 5, 2026 (user's choice): the rankings hold profitable operating companies only; the other kinds here.
     "kind": (
@@ -356,9 +356,8 @@ GROUPS = {
     ),
     "outside": (
         "Outside The List",
-        "Lists that ask one thing alone, so they do not feed The List: a price under two thirds of what the "
-        "assets would fetch in a fire sale, the top of Value with a moat and management that hold up, and the top of Quality with the best graded "
-        "moats and managers, whatever its price.",
+        "Lists that ask one thing alone, so they do not feed The List: a deep discount to fire-sale value, the "
+        "cheapest companies whose moat and management hold up, and the highest-quality businesses regardless of price.",
     ),
 }
 
@@ -372,9 +371,11 @@ TABS: tuple[Tab, ...] = (
     Tab(SHORTLIST, "shortlist", "hl-shortlist", sc.SHORTLIST_COLUMNS, _shortlist, n=sc.SHORTLIST_N,
         funnel=sc.shortlist_funnel, label="Boring businesses"),
     Tab("Compounders", "compounders", "hl-compounders", sc.COMPOUNDER_COLUMNS, _plain(sc.compounder_list)),
+    Tab("Ascending ROIC", "ascending_roic", "hl-ascending-roic", sc.ASCENDING_ROIC_COLUMNS,
+        _plain(sc.ascending_roic_list)),
     Tab("Income", "income", "hl-income", sc.INCOME_COLUMNS, _plain(sc.income_list), sort="Income_Order"),
-    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, _plain(sc.asset_play_list),
-        sort="Book_Order", label="Compounding below NAV"),
+    Tab("Below book", "below_book", "hl-asset-plays", sc.ASSET_PLAY_COLUMNS, below_book_walk,
+        sort="Book_Order", eligible=_eligible_below_book, label="Compounding below NAV"),
     Tab("Banks and lenders", "banks", "hl-banks", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.bank_list), group="kind",
         sort="Kind_Rank"),
     Tab("Insurers", "insurers", "hl-insurers", sc.FINANCIAL_KIND_COLUMNS, _plain(sc.insurer_list), group="kind",
@@ -452,7 +453,7 @@ def _screened(tab: Tab) -> Callable[..., pd.DataFrame]:
     def pool(df: pd.DataFrame) -> pd.DataFrame:
         return df[sc.ai_resilient(df)] if tab.ai_screen else df
 
-    if tab.ranked:  # the score lists walk on their own (`_graded_walk`, `cheap_and_good_list`)
+    if tab.ranked or tab.eligible is not None:  # graded walks (`_graded_walk`) walk on their own
         return lambda df, n, hurdle: with_check(tab.screen(pool(df), n, hurdle), tab.name)
     return lambda df, n, hurdle: _fill(with_check(tab.screen(pool(df), len(df), hurdle), tab.name), n)
 

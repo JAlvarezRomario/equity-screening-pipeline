@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from fq import grading
-from fq.fx import FALLBACK_BORROW_RATE
+from fq.fx import FALLBACK_BORROW_RATE, FALLBACK_TREASURY_YIELD
 from fq.metrics.common import us_terms
 from fq.metrics.long_history import parse_history
 from fq.ranking import combined_order, rankable, top_n, trusted
@@ -37,7 +37,7 @@ TOP_LIST_COLUMNS = [
 # stays on the yield over market cap plus debt, less spare cash.
 CHEAP_MIN_SHARE_YIELD = 6.0
 SHARE_YIELD_COLUMN = ("Owner Yield, Share Price", "EPV_Per_Share_Yield", ".1f", 1, "%")
-CHEAP_AND_GOOD_COLUMNS = [*TOP_LIST_COLUMNS, SHARE_YIELD_COLUMN]
+CHEAP_AND_GOOD_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
 # The List (Nov 9, 2026): its order first, then the business yield and the usual columns.
 THE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
 
@@ -102,13 +102,13 @@ def has_record(df: pd.DataFrame) -> pd.Series:
 
 
 # The top Value and Quality lists add the numbers behind the score (a percentile alone says little at the top).
-VALUE_LIST_COLUMNS = [*TOP_LIST_COLUMNS, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), SHARE_YIELD_COLUMN]
+VALUE_LIST_COLUMNS = [SHARE_YIELD_COLUMN, ("Owner Yield", "Owner_Yield", ".1f", 1, "%"), *TOP_LIST_COLUMNS]
 QUALITY_LIST_COLUMNS = [
     ("Moat", "Grade_Moat", ".2f", 1, ""),
     ("Management", "Grade_Mgmt", ".2f", 1, ""),
-    *TOP_LIST_COLUMNS,
     ("Return Quality", "Return_Quality", ".1f", 1, "%"),
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
 ]  # fmt: skip
 
 
@@ -406,26 +406,37 @@ def nav_compounds(df: pd.DataFrame) -> pd.Series:
 
 def _nav_rows(df: pd.DataFrame) -> pd.DataFrame:
     """The rows either NAV list may hold, with `Price_to_NAV`, `Price_to_Fire_NAV`, `Price_to_Book` and `NAV_Holds`
-    (True on every row, the check these lists count): an estimate that holds (`nav_holds`), not loss-making, no bank
-    or insurer, no asset manager unless a holding (`Settings.asset_play_excluded_industries`: its value is fees no
-    book records; a holding of stakes is its book), trusted (`ranking.trusted`)."""
+    (True on every row, the check these lists count): an estimate that holds (`nav_holds`), not loss-making, no bank,
+    insurer or utility (judged on their own lists), no asset manager unless a holding
+    (`Settings.asset_play_excluded_industries`: its value is fees no book records; a holding of stakes is its book),
+    trusted (`ranking.trusted`)."""
     industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
-    manager = industry.isin(Settings().asset_play_excluded_industries) & (kind(df) != "holding")
+    kinds = kind(df)
+    manager = industry.isin(Settings().asset_play_excluded_industries) & (kinds != "holding")
     holds = nav_holds(df).map(lambda v: v is True or v == True).astype(bool)  # noqa: E712 - numpy bool
     base, fire = price_to_nav(df)
     d = df.assign(Price_to_NAV=base, Price_to_Fire_NAV=fire, Price_to_Book=100 / _num(df, "BV_to_Price"))
-    return d[holds & not_loss_making(df) & ~_lender(df) & ~manager & trusted(df)].assign(NAV_Holds=True)
+    return d[holds & not_loss_making(df) & ~_lender(df) & (kinds != "utility") & ~manager & trusted(df)].assign(
+        NAV_Holds=True
+    )
 
 
 def asset_play_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     """The "Compounding below NAV" list (stored as Below book; user's design, Nov 14, 2026): net assets that compound
-    (`nav_compounds`) priced under `NAV_MAX_PRICE` of what they are worth as a going concern (`Price_to_NAV`), among
-    `_nav_rows`, not cyclical (user's choice, Nov 10, 2026: ships, oil fields and car-parts plants are no liquid
-    margin of safety), the smallest price / NAV first (`Book_Order`, 1 = best). Operating companies, holdings and
-    REITs alike; no return floor, no best-fraction cut and no share-price yield bar (as it had on book until Nov 14,
-    2026): The List asks those of its members."""
+    (`nav_compounds`) with book value per share not shrinking (`Book_Per_Share_Compounding` >= 0) and a positive owner
+    yield on the share price (`EPV_Per_Share_Yield` > 0), priced under `NAV_MAX_PRICE` of what they are worth as a
+    going concern (`Price_to_NAV`), among `_nav_rows`, not cyclical (user's choice, Nov 10, 2026: ships, oil fields and
+    car-parts plants are no liquid margin of safety), the smallest price / NAV first (`Book_Order`, 1 = best).
+    Operating companies, holdings and REITs alike; no return floor and no best-fraction cut: The List asks those of its
+    members."""
     d = _nav_rows(df)
-    d = d[nav_compounds(d) & (d["Price_to_NAV"] < NAV_MAX_PRICE) & ~_flag(d, "Cyclical")]
+    d = d[
+        nav_compounds(d)
+        & (d["Price_to_NAV"] < NAV_MAX_PRICE)
+        & ~_flag(d, "Cyclical")
+        & ~(_num(d, "EPV_Per_Share_Yield") <= 0)
+        & ~(_num(d, "Book_Per_Share_Compounding") < 0)
+    ]
     d = d.assign(Book_Order=d["Price_to_NAV"].rank(method="first"))
     return d.sort_values("Book_Order").head(n)
 
@@ -576,6 +587,17 @@ FAST_COLUMNS = [
     ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
     ("Incremental ROIC", "Incremental_ROIC", ".0f", 1, "%"),
     ("Shares Reduced / yr", "Share_Reduction_Rate", "+.1f", 1, "%"),
+    *TOP_LIST_COLUMNS,
+]  # fmt: skip
+IMPROVER_AVOID = "improver_avoid.txt"
+ASCENDING_ROIC_COLUMNS = [
+    ("ROIC Norm", "ROIC_Norm", ".1f", 1, "%"),
+    ("ROIC Trend", "ROIC_Trend", "+.1f", 1, " pp"),
+    ("Operating Margin", "operatingMargins_TTM", ".1f", 1, "%"),
+    ("Incremental ROIC", "Incremental_ROIC", ".0f", 1, "%"),
+    SHARE_YIELD_COLUMN,
+    ("Owner Yield", "Owner_Yield", ".1f", 1, "%"),
+    ("Per-Share Compounding", "Per_Share_Compounding", "+.1f", 1, "%"),
     *TOP_LIST_COLUMNS,
 ]  # fmt: skip
 
@@ -738,6 +760,37 @@ def compounder_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
     both = pd.concat([operating_list(df, len(df)), fast_grower_list(df, len(df))])
     both = both[~both.index.duplicated()]
     return both.sort_values("Rank", kind="stable").head(n)
+
+
+def ascending_roic_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:
+    """Non-cyclical operating companies whose ROIC has risen strictly every annual report (positive normal and latest
+    ROIC), whose operating margin and US-terms revenue held or grew (at most `OPERATING_MAX_DIP` single-year dip,
+    newest >= oldest), that reinvest capital at >= `LIST_MIN_INCREMENTAL_ROIC` (non-blank), and whose owner yield on
+    the share price (`EPV_Per_Share_Yield`) is at least the 10-year Treasury (`Treasury_Yield`, fallback
+    `FALLBACK_TREASURY_YIELD`) plus `Sovereign_Spread`; outside `improver_avoid.txt`, sound balance sheet and nothing
+    breaking now. Combined rank order, trusted as `ranking.top_n`. Display only."""
+    s = Settings()
+    years, k = s.annual_years, s.improver_min_years
+    industry = df["industry"] if "industry" in df.columns else pd.Series(None, index=df.index, dtype=object)
+    bond = _num(df, "Treasury_Yield").fillna(FALLBACK_TREASURY_YIELD) + _num(df, "Sovereign_Spread").fillna(0.0)
+    keep = (
+        ~_flag(df, "Financial_Mode")
+        & ~kind(df).isin(KINDS)
+        & ~_flag(df, "Cyclical")
+        & ~industry.map(is_cyclical_industry).astype(bool)
+        & ~(_num(df, "Peak_Margin_Ratio") > s.peak_margin_ratio)
+        & ~_in_industries(df, IMPROVER_AVOID)
+        & (_num(df, "ROIC_Norm") > 0)
+        & (_num(df, f"ROIC_{s.latest}") > 0)
+        & _every_year(df, "ROIC", years, k, rising=True)
+        & _never_fell(df, "operatingMargins", years, k, OPERATING_MAX_DIP)
+        & _never_fell(df, "Total Revenue", years, k, OPERATING_MAX_DIP)
+        & (_num(df, "Incremental_ROIC") >= LIST_MIN_INCREMENTAL_ROIC)
+        & (_num(df, "EPV_Per_Share_Yield") >= bond)
+        & _debt_bounded(df)
+        & nothing_breaking(df)
+    )
+    return top_n(df[keep], "Rank", n)
 
 
 def fast_grower_list(df: pd.DataFrame, n: int = 20) -> pd.DataFrame:

@@ -457,7 +457,14 @@ def test_the_list_shows_the_best_twenty_five_from_its_five_sources_with_both_gra
     raw = pd.DataFrame([_row("RAW", 97.0)])
     hl = _sources(monkeypatch, {"Compounders": rows, "Shortlist": boring, "Income": boring, "Cheapest": raw})
     assert hl.THE_LIST_N == 25
-    assert hl.THE_LIST_SOURCES == ("Cheap and good", "Shortlist", "Compounders", "Income", "Below book")
+    assert hl.THE_LIST_SOURCES == (
+        "Cheap and good",
+        "Shortlist",
+        "Compounders",
+        "Ascending ROIC",
+        "Income",
+        "Below book",
+    )
     out = hl.the_list(pd.DataFrame(), hl.THE_LIST_N)
     assert len(out) == 25 and out["Ticker"].iloc[0] == "BORING"  # each list's first, the higher yield first
     assert out.set_index("Ticker").loc["BORING", "The_List_From"] == "Boring businesses · Income"
@@ -602,7 +609,7 @@ def test_walks_count_their_eligible_and_the_retired_lists_are_gone():
 
     assert all(t.eligible is not None for t in hl.TABS if t.ranked)
     assert not {"Temporary trouble", "Low beta"} & set(hl.TAB_ORDER)
-    assert len(hl.TABS) == 13
+    assert len(hl.TABS) == 14
 
 
 def _deep(ticker, bv=250.0, nav=225.0, model="operating", mgmt=3.5, base=100.0, low=50.0, topics="[]", **more):

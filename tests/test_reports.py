@@ -359,7 +359,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     # Nov 12, 2026: The List; Its five sources (Cheap and good, Boring businesses, Compounders, Income, Balance
     # sheet plays), By kind (Banks and lenders, Insurers, Real estate, Utilities), Outside The List (Deep discount,
     # Cheapest, Best businesses). Temporary trouble and Low beta retired Nov 11, 2026; Energy Nov 9, 2026.
-    assert len(panels) == 13
+    assert len(panels) == 14
     assert all('class="list-count muted"' in p for p in panels)
     walks = ("hl-top-1", "hl-top-2", "hl-top-3", "hl-deep-discount")
     ranked = [p for p in panels if any(f'id="{i}"' in p for i in walks)]
@@ -367,7 +367,7 @@ def test_every_highlight_list_says_how_many_companies_qualified(cfg):
     assert all("qualif" in p for p in panels if p not in ranked)
     # The rows by one rule, whether a list feeds The List (Nov 12, 2026); some tabs shown by their plain label,
     # stored under their frozen name.
-    groups = ("The List", "Its five sources", "By kind", "Outside The List")
+    groups = ("The List", "Its six sources", "By kind", "Outside The List")
     assert all(f'class="tab-group" aria-hidden="true">{g}<' in html for g in groups)
     assert html.count('class="tab-group"') == len(groups)  # each row once: its tabs are adjacent in `TABS`
     from fq.report import highlights as hl

@@ -1,0 +1,26 @@
+# Yahoo industries left out of the "Ascending ROIC" highlight list
+# (`report.screens.ascending_roic_list`), on top of `ai_fragile.txt` and `cyclical_industries.txt`.
+# Display only: no score or rank reads it, and it is not in `evaluate.METHOD_LISTS`.
+# Editable: one Yahoo industry per line, as Yahoo spells it.
+Biotechnology
+Drug Manufacturers - Specialty & Generic
+Asset Management
+Capital Markets
+Telecom Services
+Utilities - Renewable
+Airlines
+Auto Manufacturers
+Solar
+Oil & Gas E&P
+Agricultural Inputs
+Steel
+Aluminum
+Copper
+Apparel Retail
+Apparel Manufacturing
+Department Stores
+Footwear & Accessories
+Specialty Retail
+Restaurants
+Paper & Paper Products
+Banks - Regional

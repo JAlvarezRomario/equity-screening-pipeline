@@ -4,14 +4,14 @@
 {% macro rules(summary) %}<p class="list-summary">{{ summary }}</p>
     <details class="explain rules"><summary>Exact rules</summary><div class="chart-instruction">{{ caller() }}</div></details>{% endmacro %}
 
-{% macro the_list(r) %}{% call rules("The companies that passed every test: on one of the core lists, with a moat and management that hold up and numbers that are a fair basis for the years ahead. Each list's best come first, so every idea is there.") %}<ul>
+{% macro the_list(r) %}{% call rules("Operating companies from the five core lists that passed every test: clearing the bond-plus-country-risk hurdle, with nothing breaking now, and passing both AI checks. Each source list's best come first in turn.") %}<ul>
   <li>Shown on Cheap and good, Boring businesses, Compounders, Income or Compounding below NAV (each list's own figure tests, cuts and order; the pills name which): lists that ask a fair price and a good business together. Cheapest and Best businesses, which look at one alone, do not feed it.</li>
-  <li>An owner yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest, over its price, at zero growth. One bar for every seat: growth is judged in Quality, and is the margin of safety, not part of the bar.</li>
-  <li>Past that list's moat and management bar, graded 1 to 5 by an AI model (Gemini), and in any case both graded above {{ r.the_list_grade }}.</li>
+  <li>An owner yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest, over its price, at zero growth (Compounders seats receive up to {{ r.the_list_comp_growth }} points of credit for verified per-share compounding).</li>
+  <li>Past that list's moat and management bar, graded 1 to 5 by an AI model (Gemini), and in any case both graded at least {{ r.the_list_grade }} with their sum at least {{ r.the_list_grade_sum }}.</li>
   <li>Not in an industry AI substitutes or disrupts.</li>
   <li>Nothing breaking now: analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months. The business, not the share price, says whether something is breaking; a share that fell carries a pill saying so.</li>
   <li>Past the AI check of its numbers: no cyclical peak, windfall or one-off carrying the record, no likely disruption by AI or robotics, no catch in idle cash; on Compounding below NAV, net assets that reach a shareholder and are not being eaten, and its earnings checked too. A check failed on any of the lists keeps it out.</li>
-  <li>No banks, insurers, REITs or holdings: their earnings and books read differently from an operating company's.</li>
+  <li>Operating companies only: banks, insurers, REITs and holdings are evaluated on their own lists (their earnings and books read differently from an operating company's).</li>
   <li>With net cash of at least {{ r.net_cash_min }}% of the market value, management graded at least {{ r.the_list_cash_mgmt }}: cash a management never returns earns nothing for minority holders.</li>
   <li>A company not yet graded or checked waits outside until it is.</li>
   <li>No target size: the page counts every company that passed, and shows at most {{ r.the_list_n }}, in turn: each list's first qualifying company, then each list's second, and so on (a company on several lists counts its best place), so cheap-and-good, boring, compounding, income and balance-sheet ideas all have their best few. Each pill names the list and the place that earned the seat ("Cheap and good #2").</li>
@@ -19,9 +19,8 @@
   <li>Within a turn, the higher owner yield on the share price first: what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
 </ul>{% endcall %}{% endmacro %}
 
-{% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of the two.") %}<ul>
-  <li>The top 20 by the worse of each company's Value and Quality positions{{ r.among }}: cheap and good at once, not one making up for the other.</li>
-  <li>Ties go to the better sum of the two positions.</li>
+{% macro cheap_and_good(r) %}{% call rules("Companies that are both cheap and good, ranked by the weaker of their Value and Quality positions.") %}<ul>
+  <li>Down the combined ranking (by the worse of each company's Value and Quality positions{{ r.among }}, ties by their sum) until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}: a company graded below is skipped and the next one taken; one not yet graded keeps its place, marked, until it is.</li>
   <li>Only companies whose owner yield on the share price is above {{ r.cheap_yield }}% plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}): what one share earns in a normal year after today's interest on its debt or cash, over the share price.</li>
   <li>No industry AI substitutes or disrupts (software, IT services, consulting, staffing, education, internet content, entertainment...).</li>
   <li>If fewer than {{ r.min_pass }} of the rows shown pass every test (the moat and management bar and the AI check of the numbers), the list walks further down its ranking until {{ r.min_pass }} do; a company not yet graded or checked counts until it is.</li>
@@ -59,16 +58,26 @@
 </ul>
 <details><summary>Industries left out of the steady route</summary><p>Biotech and speciality or generic drugs, airlines, carmakers, telecoms, solar and renewable utilities, oil and gas producers, steel, aluminium, copper, farm inputs, clothing, footwear, department stores, speciality retail, restaurants, paper, regional banks, and the industries most exposed to AI (software, IT services, consulting, staffing, advertising, publishing, education, business services, internet content, gaming, health information, entertainment, broadcasting).</p></details>{% endcall %}{% endmacro %}
 
-{% macro below_book(r) %}{% call rules("Companies whose net assets compound, priced below what those assets are worth: the share price against an estimate of the assets less the liabilities, as a going concern; the smaller the better. Operating companies, holdings and property owners.") %}<ul>
+{% macro ascending_roic(r) %}{% call rules("Non-cyclical operating companies whose return on capital has risen strictly every year, reinvesting new capital at high returns while still paying at least the 10-year Treasury yield plus country risk.") %}<ul>
+  <li>Return on capital (ROIC) strictly higher every year over at least {{ r.min_years }} annual reports, with both normal and latest ROIC positive.</li>
+  <li>Operating margin and revenue (in US terms: the company's currency at today's rate, net of its inflation beyond the US) never down more than {{ r.operating_max_dip }}% in a year and no lower than where they started.</li>
+  <li>Capacity to reinvest: at least {{ r.list_min_incremental }}% earned, in US terms, on the capital added since the oldest annual report (a company whose invested capital barely grew is excluded).</li>
+  <li>Owner earnings yield on the share price at least the 10-year US Treasury yield (today {{ r.treasury }}%) plus how much more than the US the company's home government pays to borrow dollars (in points: {{ r.spreads }}).</li>
+  <li>Sound balance sheet and nothing breaking now: net debt at most {{ r.net_debt }}&times; operating profit (EBIT) or interest covered {{ r.cover }}&times;; analysts' estimates not cut by more than {{ r.estimate_cut }}% in 90 days; recent revenue and operating profit not down more than {{ r.revenue_fall }}% and {{ r.ebit_fall }}%; no dividend cut in the last twelve months.</li>
+  <li>Non-cyclical operating companies only (no banks, insurers, holdings, REITs, utilities, or cyclicals), past the AI screen, and outside industries where rising margins or ROIC are structural or cyclical traps (biotech, speciality/generic drugs, asset management, capital markets, telecoms, renewable utilities, airlines, carmakers, commodities, apparel, speciality retail, restaurants, paper).</li>
+  <li>Ordered by combined Value and Quality rank.</li>
+</ul>{% endcall %}{% endmacro %}
+
+{% macro below_book(r) %}{% call rules("Operating companies, holdings and property owners whose net assets compound, priced below their going-concern net asset value.") %}<ul>
   <li>Net asset value (NAV): what the assets less all the liabilities are worth, asset by asset, with the business carrying on. An AI model (Gemini) estimates it from the balance sheet and what it knows of the company's land, property and stakes, without seeing the share price. The company's page shows the estimate, the steps from the book to it, and how sure the model is. It is an estimate from the model's memory: read it as a lead to check, not a valuation.</li>
-  <li>The net assets compound: book value per share growing, plus the dividends paid on it, by {{ r.nav_compounding }}% a year or more (US dollar trend over the years on file).</li>
+  <li>The net assets compound: book value per share plus dividends growing by {{ r.nav_compounding }}% a year or more (US dollar trend over the years on file), with book value per share not shrinking.</li>
   <li>The share price under {{ r.nav_max }}&times; that estimate.</li>
-  <li>Not loss-making: no loss in a normal year, in the latest annual report or in the last twelve months.</li>
+  <li>Not loss-making: positive owner yield on the share price, and no loss in a normal year, in the latest annual report or in the last twelve months.</li>
   <li>The value can reach a shareholder and is not being eaten: the same check fails a company whose losses or wind-down costs will shrink the net assets, or whose controlling owner keeps the value. An estimate below the book does not fail it: the price against the estimate is the test.</li>
   <li>Not cyclical: ships, oil fields and plants are no liquid margin of safety.</li>
   <li>Who gets an estimate: every company priced under {{ r.nav_check_pb }}&times; both book and tangible book, holdings at any price, and property owners, developers and conglomerates under {{ r.nav_check_asset_pb }}&times; book (their land and stakes often sit at old cost).</li>
-  <li>Ordered by price over NAV, smallest first. No cut to the best of the combined ranking and no return floor: The List asks those of the companies it takes from here.</li>
-  <li>Not here: banks and insurers (their own lists; their book is loans and reserves, which this estimate does not read) and asset managers that are not holdings (their value is the fees they earn, which no book records).</li>
+  <li>Down the price-over-NAV order (smallest first) until 20 companies whose moat and management are both graded at least {{ r.cheapest_both }}. Operating companies clearing the hurdle and earnings check feed The List; holdings and REITs stay on this list for direct review.</li>
+  <li>Not here: banks, insurers and utilities (each judged on its own list) and asset managers that are not holdings (their value is the fees they earn, which no book records).</li>
 </ul>{% endcall %}{% endmacro %}
 
 {% macro deep_discount(r) %}{% call rules("Companies whose net assets do not compound, priced at most " ~ r.fire_max ~ " times what those assets would fetch if the company closed, with a management that may let owners see them; the smaller the better.") %}<ul>
