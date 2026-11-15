@@ -49,7 +49,8 @@ PROTECTED_DATA = (
     "grades*.parquet",
     "grade_gate*.parquet",
     "checks*.parquet",
-)  # the checks cost money too (Nov 8, 2026)
+    "macro*.parquet",
+)  # the checks cost money too (Nov 8, 2026); macro yields store decades of history
 # `fq grade` without a cap: rounds of grading, each on the lists recomputed with the grades before it (Nov 7, 2026:
 # a full re-grade ran 333, then 4, then 0). Later waves are small; the bound keeps a loop that never settles finite.
 GRADE_WAVES = 5
@@ -379,7 +380,7 @@ def write_report(
     macro_yields = (
         macro.load_macro_yields(
             cfg.data_dir / macro.CACHE_FILE,
-            max_age_days=cfg.price_refresh_days,
+            max_age_days=macro.MACRO_MAX_AGE_DAYS,
             offline=offline,
         )
         if not companies_only and tickers is None
@@ -388,7 +389,7 @@ def write_report(
     japan_yields = (
         macro.load_japan_yields(
             cfg.data_dir / macro.JPX_CACHE_FILE,
-            max_age_days=cfg.price_refresh_days,
+            max_age_days=macro.MACRO_MAX_AGE_DAYS,
             offline=offline,
         )
         if not companies_only and tickers is None

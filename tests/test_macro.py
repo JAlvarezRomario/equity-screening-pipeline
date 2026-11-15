@@ -6,6 +6,7 @@ import io
 import zipfile
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from fq import macro
@@ -86,6 +87,7 @@ def _sample_yields() -> pd.DataFrame:
             "treasury_10y": [4.72, 4.49, 4.42],
             "sp500_earnings_yield": [5.90, 6.02, 3.96],
             "spread_pp": [1.18, 1.53, -0.46],
+            "forward_3y_cagr": [10.25, -4.10, np.nan],
         },
         index=pd.DatetimeIndex(dates, name="date"),
     )
@@ -98,6 +100,7 @@ def _sample_japan_yields() -> pd.DataFrame:
             "jgb_10y": [0.76, 2.817],
             "topix_earnings_yield": [4.0, 5.0],
             "spread_pp": [3.24, 2.183],
+            "forward_3y_cagr": [14.50, np.nan],
         },
         index=pd.DatetimeIndex(dates, name="date"),
     )
@@ -107,6 +110,28 @@ def test_parse_multpl_table_clips_before_1960():
     s = macro.parse_multpl_table(SAMPLE_MULTPL_HTML)
     assert list(s.index) == [pd.Timestamp("1960-01-31"), pd.Timestamp("2026-06-30")]
     assert list(s.values) == [5.90, 3.96]
+
+
+def test_compute_forward_3y_cagr_exact_and_trailing_nan():
+    idx = pd.date_range("2020-01-31", periods=48, freq="ME")
+    # 10% annualized growth: after 36 months, value is 1.1^3 = 1.331x
+    tr = pd.Series([100.0 * (1.10 ** (i / 12.0)) for i in range(48)], index=idx)
+    cagr = macro.compute_forward_3y_cagr(tr)
+    assert cagr.iloc[0] == 10.0
+    assert cagr.iloc[11] == 10.0
+    assert cagr.iloc[12:].isna().all()
+
+
+def test_splice_and_synthetic_total_return():
+    idx = pd.date_range("1987-10-31", periods=6, freq="ME")
+    price = pd.Series([100.0, 102.0, 104.0, 106.0, 108.0, 110.0], index=idx)
+    dy = pd.Series([3.6] * 6, index=idx)  # 0.3% per month
+    synth = macro._build_synthetic_tr_index(price, dy)
+    primary = pd.Series([500.0, 515.0, 530.0], index=idx[3:])
+    spliced = macro._splice_total_return(primary, synth)
+    assert len(spliced) == 6
+    assert spliced.loc[idx[3]] == 500.0
+    assert spliced.loc[idx[0]] < 500.0
 
 
 def test_fetch_treasury_history_backfills_from_fred(monkeypatch):
@@ -142,21 +167,27 @@ def test_parse_mof_jgb_and_jpx_xlsx():
 
 def test_load_macro_yields_caches_and_falls_back(tmp_path: Path, monkeypatch):
     cache = tmp_path / "macro_yields.parquet"
-    ty = pd.Series([7.75, 4.42], index=pd.to_datetime(["1960-01-31", "2026-06-30"]), name="treasury_10y")
-    ey = pd.Series([6.34, 3.96], index=pd.to_datetime(["1960-01-31", "2026-06-30"]), name="sp500_earnings_yield")
+    idx = pd.date_range("1960-01-31", periods=37, freq="ME")
+    ty = pd.Series([4.0] * 37, index=idx, name="treasury_10y")
+    ey = pd.Series([5.5] * 37, index=idx, name="sp500_earnings_yield")
+    tr = pd.Series([100.0 * (1.08 ** (i / 12.0)) for i in range(37)], index=idx, name="total_return_index")
 
     monkeypatch.setattr(macro, "fetch_treasury_history", lambda start=macro.START_DATE: ty)
     monkeypatch.setattr(macro, "fetch_sp500_earnings_yield", lambda start=macro.START_DATE: ey)
+    monkeypatch.setattr(macro, "fetch_sp500_total_return", lambda start=macro.START_DATE: tr)
 
-    df = macro.load_macro_yields(cache, max_age_days=7, offline=False)
+    df = macro.load_macro_yields(cache, max_age_days=365, offline=False)
     assert cache.is_file()
-    assert list(df["spread_pp"]) == [-1.41, -0.46]
+    assert df.loc[idx[0], "spread_pp"] == 1.5
+    assert df.loc[idx[0], "forward_3y_cagr"] == 8.0
+    assert pd.isna(df.loc[idx[-1], "forward_3y_cagr"])
 
     def _boom(*_args, **_kwargs):
         raise AssertionError("network should not be called")
 
     monkeypatch.setattr(macro, "fetch_treasury_history", _boom)
     monkeypatch.setattr(macro, "fetch_sp500_earnings_yield", _boom)
+    monkeypatch.setattr(macro, "fetch_sp500_total_return", _boom)
     cached = macro.load_macro_yields(cache, max_age_days=0, offline=True)
     assert cached.equals(df)
 
@@ -166,25 +197,34 @@ def test_load_macro_yields_caches_and_falls_back(tmp_path: Path, monkeypatch):
 
 def test_load_japan_yields_caches(tmp_path: Path, monkeypatch):
     cache = tmp_path / "macro_japan_yields.parquet"
-    jgb = macro.parse_mof_jgb_csv(SAMPLE_MOF_CSV)
-    ey = macro.parse_jpx_perpbr_xlsx(_sample_xlsx_bytes())
+    idx = pd.date_range("1986-07-31", periods=37, freq="ME")
+    jgb = pd.Series([0.76] * 37, index=idx, name="jgb_10y")
+    ey = pd.Series([4.0] * 37, index=idx, name="topix_earnings_yield")
+    tr = pd.Series([100.0 * (1.06 ** (i / 12.0)) for i in range(37)], index=idx, name="total_return_index")
     monkeypatch.setattr(macro, "fetch_japan_jgb_history", lambda: jgb)
     monkeypatch.setattr(macro, "fetch_japan_earnings_yield", lambda: ey)
+    monkeypatch.setattr(macro, "fetch_japan_total_return", lambda ey=None: tr)
 
-    df = macro.load_japan_yields(cache, max_age_days=7, offline=False)
+    df = macro.load_japan_yields(cache, max_age_days=365, offline=False)
     assert cache.is_file()
-    assert round(float(df.loc[pd.Timestamp("2013-01-31"), "spread_pp"]), 2) == 3.24
+    assert round(float(df.iloc[0]["spread_pp"]), 2) == 3.24
+    assert df.iloc[0]["forward_3y_cagr"] == 6.0
 
 
-def test_macro_figures_have_three_traces():
+def test_macro_figures_include_3y_return_bars_on_secondary_axis():
     us_fig = index_charts.macro_yields_figure(_sample_yields())
-    assert len(us_fig.data) == 3
+    assert len(us_fig.data) == 4
     assert us_fig.data[0].name == "S&P 500 Earnings Yield (TTM)"
+    assert us_fig.data[2].name == "Next 3Y Total Return (ann.)"
+    assert us_fig.data[2].type == "bar"
+    assert us_fig.data[2].yaxis == "y3"
+    assert us_fig.data[3].name == "Spread (Earnings Yield − 10Y)"
 
     jp_fig = index_charts.japan_yields_figure(_sample_japan_yields())
-    assert len(jp_fig.data) == 3
+    assert len(jp_fig.data) == 4
     assert jp_fig.data[0].name == "TSE Prime / 1st Sec. Earnings Yield"
     assert jp_fig.data[1].name == "10Y JGB Yield (MOF)"
+    assert jp_fig.data[2].name == "Next 3Y Total Return (ann.)"
 
 
 def test_build_macro_writes_us_and_japan_sections(tmp_path: Path):
@@ -196,5 +236,7 @@ def test_build_macro_writes_us_and_japan_sections(tmp_path: Path):
     assert "3.96%" in html
     assert "5.00%" in html
     assert "2.82%" in html
+    assert "Next 3Y Annualized Total Return" in html
+    assert "+14.50% / yr" in html
     assert "macro_yields_chart" in html
     assert "macro_japan_chart" in html

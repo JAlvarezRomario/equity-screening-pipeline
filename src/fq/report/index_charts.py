@@ -543,7 +543,7 @@ def _yields_figure(
     bond_name: str,
     buttons: list[dict],
 ) -> go.Figure:
-    """Shared two-panel Plotly figure: equity earnings yield vs. 10Y sovereign yield (top) and spread (bottom)."""
+    """Shared two-panel Plotly figure: equity earnings yield vs. 10Y sovereign yield (top) and spread + next 3Y annualized total return bars on a secondary axis (bottom)."""
     x = [d.strftime("%Y-%m-%d") for d in yields.index]
     ey = np.round(yields[ey_col].astype(float), 2).tolist()
     ty = np.round(yields[bond_col].astype(float), 2).tolist()
@@ -553,8 +553,9 @@ def _yields_figure(
         rows=2,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.64, 0.36],
+        row_heights=[0.52, 0.48],
         vertical_spacing=0.06,
+        specs=[[{"secondary_y": False}], [{"secondary_y": True}]],
     )
     fig.add_trace(
         go.Scatter(
@@ -580,30 +581,62 @@ def _yields_figure(
         row=1,
         col=1,
     )
+    has_cagr = (
+        "forward_3y_cagr" in yields.columns and pd.to_numeric(yields["forward_3y_cagr"], errors="coerce").notna().any()
+    )
+    if has_cagr:
+        valid_cagr = pd.to_numeric(yields["forward_3y_cagr"], errors="coerce").dropna()
+        cagr_x = [d.strftime("%Y-%m-%d") for d in valid_cagr.index]
+        cagr_y = np.round(valid_cagr.astype(float), 2).tolist()
+        bar_colors = ["rgba(22, 163, 74, 0.38)" if v >= 0 else "rgba(220, 38, 38, 0.38)" for v in cagr_y]
+        fig.add_trace(
+            go.Bar(
+                x=cagr_x,
+                y=cagr_y,
+                name="Next 3Y Total Return (ann.)",
+                marker_color=bar_colors,
+                marker_line_width=0,
+                hovertemplate="%{y:+.2f}% / yr",
+            ),
+            row=2,
+            col=1,
+            secondary_y=True,
+        )
     fig.add_trace(
         go.Scatter(
             x=x,
             y=spread,
             name="Spread (Earnings Yield − 10Y)",
             mode="lines",
-            line=dict(color="#0f766e", width=1.8),
-            fill="tozeroy",
-            fillcolor="rgba(15, 118, 110, 0.14)",
+            line=dict(color="#0f766e", width=2.0),
+            fill="tozeroy" if not has_cagr else None,
+            fillcolor="rgba(15, 118, 110, 0.14)" if not has_cagr else None,
             hovertemplate="%{y:+.2f} pp",
         ),
         row=2,
         col=1,
+        secondary_y=False,
     )
     fig.add_hline(y=0, line=dict(color="#98a2b3", width=1), row=2, col=1)
     fig.update_layout(
-        height=620,
-        margin=dict(l=55, r=20, t=36, b=40),
+        height=660,
+        margin=dict(l=55, r=60, t=36, b=40),
         hovermode="x unified",
+        bargap=0.0,
         legend=dict(orientation="h", x=0, xanchor="left", y=1.06, yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
         xaxis=dict(rangeselector=dict(buttons=buttons), showgrid=True),
         xaxis2=dict(type="date", showgrid=True),
         yaxis=dict(title="Yield (%)", ticksuffix="%", zeroline=False),
-        yaxis2=dict(title="Spread (pp)", ticksuffix=" pp", zeroline=False),
+    )
+    fig.update_yaxes(title_text="Spread (pp)", ticksuffix=" pp", zeroline=False, row=2, col=1, secondary_y=False)
+    fig.update_yaxes(
+        title_text="Next 3Y Return (%/yr)",
+        ticksuffix="%",
+        showgrid=False,
+        zeroline=False,
+        row=2,
+        col=1,
+        secondary_y=True,
     )
     return fig
 

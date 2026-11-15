@@ -20,6 +20,12 @@ def _section_context(
     clean = df.sort_index()
     latest = clean.iloc[-1]
     spread = clean["spread_pp"].astype(float)
+    cagr = (
+        pd.to_numeric(clean["forward_3y_cagr"], errors="coerce").dropna()
+        if "forward_3y_cagr" in clean.columns
+        else pd.Series(dtype=float)
+    )
+    has_cagr = not cagr.empty
     return {
         "start_date": f"{clean.index[0]:%B %Y}",
         "latest_date": f"{clean.index[-1]:%B %Y}",
@@ -31,6 +37,13 @@ def _section_context(
         "median_spread": f"{float(spread.median()):+.2f} pp",
         "min_spread": f"{float(spread.min()):+.2f} pp",
         "max_spread": f"{float(spread.max()):+.2f} pp",
+        "has_cagr": has_cagr,
+        "cagr_end_date": f"{cagr.index[-1]:%B %Y}" if has_cagr else "",
+        "latest_cagr": f"{float(cagr.iloc[-1]):+.2f}% / yr" if has_cagr else "",
+        "latest_cagr_pos": float(cagr.iloc[-1]) >= 0 if has_cagr else True,
+        "median_cagr": f"{float(cagr.median()):+.2f}% / yr" if has_cagr else "",
+        "min_cagr": f"{float(cagr.min()):+.2f}% / yr" if has_cagr else "",
+        "max_cagr": f"{float(cagr.max()):+.2f}% / yr" if has_cagr else "",
         "chart": chart_html,
     }
 
@@ -56,9 +69,7 @@ def build_macro(
         else None
     )
     jp = (
-        _section_context(
-            japan_yields, "topix_earnings_yield", "jgb_10y", index_charts.japan_yields_html(japan_yields)
-        )
+        _section_context(japan_yields, "topix_earnings_yield", "jgb_10y", index_charts.japan_yields_html(japan_yields))
         if japan_yields is not None and not japan_yields.empty
         else None
     )
