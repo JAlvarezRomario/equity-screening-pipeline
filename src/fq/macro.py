@@ -215,8 +215,33 @@ def _read_xlsx_sheet_rows(z: zipfile.ZipFile, sheet_path: str, shared: list[str]
     return rows
 
 
+def _extract_jpx_per_rows(
+    z: zipfile.ZipFile, sheet_path: str, shared: list[str], per_col: int
+) -> dict[pd.Timestamp, float]:
+    records: dict[pd.Timestamp, float] = {}
+    for cells in _read_xlsx_sheet_rows(z, sheet_path, shared):
+        raw_y = cells.get(0, "").strip()
+        raw_m = cells.get(1, "").strip()
+        raw_per = cells.get(per_col, "").strip()
+        if not (re.fullmatch(r"\d{4}", raw_y) and re.fullmatch(r"\d{1,2}", raw_m)):
+            continue
+        try:
+            per = float(raw_per)
+            if per <= 0:
+                continue
+            dt = pd.Timestamp(year=int(raw_y), month=int(raw_m), day=1) + pd.offsets.MonthEnd(0)
+        except (ValueError, TypeError):
+            continue
+        records[dt] = 100.0 / per
+    return records
+
+
 def parse_jpx_perpbr_xlsx(raw_bytes: bytes) -> pd.Series:
-    """Parse JPX `longrange-perpbr.xlsx` into a month-end earnings yield (%) Series (100 / Consolidated Weighted PER)."""
+    """Parse JPX `longrange-perpbr.xlsx` into a month-end earnings yield (%) Series (1971–present).
+
+    Priority per month: Consolidated Weighted avg (2013+) > Consolidated AVG (1999–2012) >
+    Non-Consolidated AVG (1971–1998), using TSE 1st Section / Prime Section PER.
+    """
     with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
         shared: list[str] = []
         if "xl/sharedStrings.xml" in z.namelist():
@@ -241,33 +266,28 @@ def parse_jpx_perpbr_xlsx(raw_bytes: bytes) -> pd.Series:
                 if name and target:
                     sheets[name] = target
 
-        target_sheets = [
-            name for name in sheets if "Consolidated" in name and ("Weighted avg" in name or "WT AVG" in name)
-        ]
-        if not target_sheets:
-            raise ValueError("No Consolidated Weighted avg sheet found in JPX workbook")
+        # Ordered from lowest to highest priority so newer/better bases overwrite older ones on overlap.
+        tiers: list[tuple[str, int]] = []
+        for name in sheets:
+            if name.startswith("Non-Consolidated(AVG)"):
+                tiers.append((name, 8))  # col I: TSE 1st Section PER (1971-12+)
+        for name in sheets:
+            if name.startswith("Consolidated(AVG)"):
+                tiers.append((name, 3))  # col D: TSE 1st Section PER (1999-01+)
+        for name in sheets:
+            if "Consolidated" in name and ("Weighted avg" in name or "WT AVG" in name):
+                tiers.append((name, 3))  # col D: TSE 1st Section / Prime PER (2013-01+)
+
+        if not tiers:
+            raise ValueError("No recognised PER sheets found in JPX workbook")
 
         records: dict[pd.Timestamp, float] = {}
-        for sheet_name in target_sheets:
-            for cells in _read_xlsx_sheet_rows(z, sheets[sheet_name], shared):
-                raw_y = cells.get(0, "").strip()
-                raw_m = cells.get(1, "").strip()
-                raw_per = cells.get(3, "").strip()
-                if not (re.fullmatch(r"\d{4}", raw_y) and re.fullmatch(r"\d{1,2}", raw_m)):
-                    continue
-                try:
-                    per = float(raw_per)
-                    if per <= 0:
-                        continue
-                    dt = pd.Timestamp(year=int(raw_y), month=int(raw_m), day=1) + pd.offsets.MonthEnd(0)
-                except (ValueError, TypeError):
-                    continue
-                records[dt] = 100.0 / per
+        for sheet_name, per_col in tiers:
+            records.update(_extract_jpx_per_rows(z, sheets[sheet_name], shared, per_col))
 
     if not records:
         raise ValueError("No PER rows parsed from JPX workbook")
-    series = pd.Series(records, name="topix_earnings_yield", dtype=float).sort_index()
-    return series
+    return pd.Series(records, name="topix_earnings_yield", dtype=float).sort_index()
 
 
 def _discover_jpx_longrange_url() -> str:
@@ -301,7 +321,9 @@ def load_japan_yields(
 ) -> pd.DataFrame:
     """Load monthly Japan 10Y JGB yield, TSE Prime/1st-Sec earnings yield, and spread (pp)."""
     if cache_path.is_file() and (offline or _cache_is_fresh(cache_path, max_age_days)):
-        return pd.read_parquet(cache_path).sort_index()
+        df = pd.read_parquet(cache_path).sort_index()
+        if offline or df.empty or df.index.min() <= pd.Timestamp("1975-01-31"):
+            return df
 
     if offline:
         return pd.DataFrame(columns=["jgb_10y", "topix_earnings_yield", "spread_pp"])

@@ -41,7 +41,7 @@
   <h2>Japan TSE Earnings Yield vs. 10-Year JGB Yield ({{ jp.start_date }} &ndash; {{ jp.latest_date }})</h2>
   <p class="meta">{{ jp.n_months }} monthly observations &middot; top: yields (%) &middot; bottom: spread (percentage points)</p>
   <div class="company-chart">{{ jp.chart | safe }}</div>
-  <p class="chart-instruction">Use the range buttons (5Y, 10Y, All) or drag to zoom. Reflects TSE 1st Section through March 2022 and TSE Prime Section from April 2022 onward.</p>
+  <p class="chart-instruction">Use the range buttons (5Y, 10Y, 20Y, All) or drag to zoom. Reflects TSE 1st Section non-consolidated average (1974&ndash;1998), consolidated average (1999&ndash;2012), consolidated weighted average (2013&ndash;Mar 2022), and TSE Prime consolidated weighted average (Apr 2022 onward).</p>
 </section>
 {% endif %}
 
@@ -54,7 +54,7 @@
     {% endif %}
     {% if jp %}
     <li><strong>Japan 10-Year JGB Yield:</strong> Official daily 10-year JGB yields from Japan's <a href="https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/index.htm" target="_blank" rel="noopener">Ministry of Finance</a> (<code>jgbcme_all.csv</code>), resampled to month-end.</li>
-    <li><strong>Japan Equity Earnings Yield:</strong> Inverse (<code>100 / PER</code>) of the official <a href="https://www.jpx.co.jp/english/markets/statistics-equities/misc/04.html" target="_blank" rel="noopener">JPX</a> consolidated market-cap weighted average PER (TSE 1st Section for 2013&ndash;Mar 2022; TSE Prime Section from Apr 2022 onward).</li>
+    <li><strong>Japan Equity Earnings Yield:</strong> Inverse (<code>100 / PER</code>) of official <a href="https://www.jpx.co.jp/english/markets/statistics-equities/misc/04.html" target="_blank" rel="noopener">JPX</a> TSE 1st Section / Prime PER series: non-consolidated simple average (1974&ndash;1998), consolidated simple average (1999&ndash;2012), and consolidated market-cap weighted average (2013 onward).</li>
     {% endif %}
   </ul>
 </div>

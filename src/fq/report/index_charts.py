@@ -641,7 +641,8 @@ def japan_yields_figure(yields: pd.DataFrame) -> go.Figure:
         buttons=[
             dict(count=5, label="5Y", step="year", stepmode="backward"),
             dict(count=10, label="10Y", step="year", stepmode="backward"),
-            dict(step="all", label="All (2013–)"),
+            dict(count=20, label="20Y", step="year", stepmode="backward"),
+            dict(step="all", label="All (1974–)"),
         ],
     )
 

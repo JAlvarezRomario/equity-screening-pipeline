@@ -38,17 +38,39 @@ def _sample_xlsx_bytes() -> bytes:
             "xl/workbook.xml",
             '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            '<sheets><sheet name="Consolidated(Weighted avg.)" sheetId="1" r:id="rId1"/></sheets>'
-            "</workbook>",
+            "<sheets>"
+            '<sheet name="Non-Consolidated(AVG)~202203" sheetId="1" r:id="rId1"/>'
+            '<sheet name="Consolidated(AVG)~202203" sheetId="2" r:id="rId2"/>'
+            '<sheet name="Consolidated(Weighted avg.)" sheetId="3" r:id="rId3"/>'
+            "</sheets></workbook>",
         )
         z.writestr(
             "xl/_rels/workbook.xml.rels",
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
-            'Target="worksheets/sheet1.xml"/></Relationships>',
+            'Target="worksheets/sheet1.xml"/>'
+            '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+            'Target="worksheets/sheet2.xml"/>'
+            '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+            'Target="worksheets/sheet3.xml"/>'
+            "</Relationships>",
         )
         z.writestr(
             "xl/worksheets/sheet1.xml",
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+            '<row r="1"><c r="A1"><v>1989</v></c><c r="B1"><v>1</v></c><c r="I1"><v>50.0</v></c></row>'
+            '<row r="2"><c r="A2"><v>2013</v></c><c r="B2"><v>1</v></c><c r="I2"><v>99.0</v></c></row>'
+            "</sheetData></worksheet>",
+        )
+        z.writestr(
+            "xl/worksheets/sheet2.xml",
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+            '<row r="1"><c r="A1"><v>2005</v></c><c r="B1"><v>1</v></c><c r="D1"><v>40.0</v></c></row>'
+            '<row r="2"><c r="A2"><v>2013</v></c><c r="B2"><v>1</v></c><c r="D2"><v>80.0</v></c></row>'
+            "</sheetData></worksheet>",
+        )
+        z.writestr(
+            "xl/worksheets/sheet3.xml",
             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
             '<row r="1"><c r="A1"><v>2013</v></c><c r="B1"><v>1</v></c><c r="D1"><v>25.0</v></c></row>'
             '<row r="2"><c r="A2"><v>2026</v></c><c r="B2"><v>10</v></c><c r="D2"><v>20.0</v></c></row>'
@@ -112,7 +134,9 @@ def test_parse_mof_jgb_and_jpx_xlsx():
     assert jgb.loc[pd.Timestamp("2026-10-31")] == 2.817
 
     ey = macro.parse_jpx_perpbr_xlsx(_sample_xlsx_bytes())
-    assert ey.loc[pd.Timestamp("2013-01-31")] == 4.0
+    assert ey.loc[pd.Timestamp("1989-01-31")] == 2.0  # 100 / 50.0 (Non-Consolidated AVG)
+    assert ey.loc[pd.Timestamp("2005-01-31")] == 2.5  # 100 / 40.0 (Consolidated AVG)
+    assert ey.loc[pd.Timestamp("2013-01-31")] == 4.0  # 100 / 25.0 (Consolidated Weighted overrides)
     assert ey.loc[pd.Timestamp("2026-10-31")] == 5.0
 
 
