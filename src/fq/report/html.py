@@ -219,12 +219,16 @@ def _shares(values: pd.Series, weights: pd.Series | None = None) -> pd.Series:
     return (totals / totals.sum() * 100).sort_values(ascending=False) if totals.sum() > 0 else totals
 
 
+MIX_MAX_CAP_B = 20000.0  # B$: a "market" company above this is a bad quote (7523.T showed 59,000), not a weight
+
+
 def list_mix(rows: pd.DataFrame, market: pd.DataFrame, top: int = 3) -> list[dict]:
     """The List's mix against the market (user's choice, Nov 9, 2026: over 5 years the countries, sizes and currencies
     can move results as much as the picks): for country, size class (`index_charts.CAP_CLASSES`) and currency, The
     List's largest shares (each row counts once: equal weights, as a reader would buy them) beside the same share of
     `market` weighted by market cap (the benchmark's companies, close to a global index), then "other"."""
     names = [c for c, _, _ in index_charts.CAP_CLASSES]
+    market = market[~(pd.to_numeric(market["Market Cap"], errors="coerce") > MIX_MAX_CAP_B)]
 
     def size(df: pd.DataFrame) -> pd.Series:
         caps = pd.to_numeric(df["Market Cap"], errors="coerce")

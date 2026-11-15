@@ -988,3 +988,13 @@ def test_the_lists_named_cheap_add_the_home_countrys_sovereign_spread():
                        "Sovereign_Spread": [0.0, 2.0, np.nan, 0.0]})  # fmt: skip
     assert cheap_enough(df)["Ticker"].tolist() == ["US", "BLANK"]
     assert cheap_enough(df.drop(columns="Sovereign_Spread"))["Ticker"].tolist() == ["US", "BR", "BLANK"]
+
+
+def test_the_list_mix_ignores_an_absurd_market_cap_in_the_market_weights():
+    # Nov 15, 2026: one bad Yahoo quote (7523.T, 59,000 B$) made Japan a third of "the market".
+    from fq.report.html import list_mix
+
+    mine = pd.DataFrame({"country": ["Japan"], "currency": ["JPY"], "Market Cap": [1.0]})
+    market = pd.DataFrame({"country": ["Japan", "Japan", "United States"], "currency": ["JPY", "JPY", "USD"],
+                           "Market Cap": [59000.0 * 1000, 10.0, 90.0]})  # fmt: skip
+    assert "Japan 100% (market 10%)" in list_mix(mine, market)[0]["text"]
