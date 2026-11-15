@@ -1,0 +1,65 @@
+# French companies on Euronext Paris (Yahoo Finance tickers: .PA) of 100 M USD and more beyond every other benchmark list, primary listings only.
+# Built Nov 15, 2026 from Yahoo's screener (exchange PAR, market cap >= 100 M USD at cached EUR rate), net of every other benchmark list and of excluded_tickers.txt.
+# Kept when Yahoo has at least 3 years of annual statements (CBSM.PA kept as French SIIC).
+# Left out: foreign-headquartered lines (STLAP.PA/STLAM.MI, IAM.PA, COTY.PA/COTY, EC.PA, MLCFM.PA, MLZAM.PA, ALUAV.PA, ALRFG.PA, TVRB.PA), Credit Agricole regional bank certificates (CCI), and nominative-share vehicles (CBDG.PA, ARTO.PA, FMONC.PA), matching fr_midsmall.txt.
+# Refresh by hand quarterly.
+ADOC.PA
+AKW.PA
+ALBON.PA
+ALCAF.PA
+ALCGM.PA
+ALCIS.PA
+ALCLS.PA
+ALCPB.PA
+ALDEL.PA
+ALDLT.PA
+ALESE.PA
+ALEXA.PA
+ALFLE.PA
+ALFPC.PA
+ALFRE.PA
+ALGEV.PA
+ALHAF.PA
+ALHEX.PA
+ALKEY.PA
+ALLAN.PA
+ALLHB.PA
+ALLIX.PA
+ALMDT.PA
+ALNSE.PA
+ALPM.PA
+ALRIB.PA
+ALRIS.PA
+ALSEN.PA
+ALSTI.PA
+ALTPC.PA
+ALUNI.PA
+ALVU.PA
+ATEME.PA
+ATLD.PA
+ATO.PA
+BGO.PA
+BLC.PA
+BUR.PA
+CBOT.PA
+CBSM.PA
+CROS.PA
+CVX.PA
+DEEZR.PA
+DKUPL.PA
+EXE.PA
+FCMC.PA
+FDE.PA
+IPH.PA
+LAT.PA
+LIN.PA
+LOCAL.PA
+MDM.PA
+MLCHE.PA
+NRG.PA
+OLG.PA
+PARP.PA
+RBO.PA
+SFPI.PA
+SRP.PA
+TNG.PA

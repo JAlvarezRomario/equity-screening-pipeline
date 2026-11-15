@@ -1,0 +1,38 @@
+# German companies of 50 M USD to 100 M USD beyond every other benchmark list (Yahoo Finance tickers: .DE), primary listings only.
+# Built Nov 15, 2026 from Yahoo's screener (exchange GER, market cap 50-100 M USD at cached EUR rate), net of every other benchmark list and of excluded_tickers.txt.
+# Kept when Yahoo's headquarters country is Germany and Yahoo has at least 3 years of annual statements.
+# Left out: foreign-headquartered lines traded on Xetra (27W.DE, RET.DE, 27V0.DE, APM.DE, RJIB.DE), VIH1.DE (already held via VIB3.DE in germany_100m.txt), and FXT.DE (< 3 years of annual statements).
+# Refresh by hand quarterly.
+3ITN.DE
+7V0.DE
+ABO.DE
+AJ91.DE
+B7E.DE
+CDZ0.DE
+CEK.DE
+CGX.DE
+CYR.DE
+DAR.DE
+DEF.DE
+EXJ0.DE
+GTY.DE
+H2A.DE
+HIGH.DE
+IBU.DE
+KTA.DE
+LEI.DE
+MBK.DE
+MWB0.DE
+N4G0.DE
+NFN.DE
+OBS.DE
+PTP.DE
+PWO.DE
+PZS.DE
+QBY0.DE
+RSL2.DE
+SVE.DE
+V3V.DE
+V6C.DE
+VOTR.DE
+VRL.DE

@@ -1,0 +1,16 @@
+# Greek companies on Euronext Athens (Yahoo Finance tickers: .AT) of 50 M USD and more beyond every other benchmark list, primary listings only.
+# Built Nov 15, 2026 from Yahoo's screener (exchange ATH, market cap >= 50 M USD at cached EUR rate), net of every other benchmark list and of excluded_tickers.txt.
+# Kept when Yahoo has at least 3 years of annual statements; statutory dividend withholding 5% (Cyprus-incorporated mezz vehicles CAIROMEZ.AT and PVMEZZ.AT: 0%).
+# Left out: EEE.AT (CCH.L), MTLN.AT (MTLN.L), SBLK.AT (SBLK), SB.AT (SB), TELL.AT (central bank), the 8 REICs (same rule as greece_100m.txt), and thin-history lines < 3 years (ASCO.AT, ILYDA.AT, EVROF.AT, KYLO.AT, GEBKA.AT).
+# Refresh by hand quarterly.
+AVE.AT
+CAIROMEZ.AT
+ELSTR.AT
+ELTON.AT
+FRIGO.AT
+MEVA.AT
+MOTO.AT
+PVMEZZ.AT
+QUAL.AT
+SPACE.AT
+YKNOT.AT
